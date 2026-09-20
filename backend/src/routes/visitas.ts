@@ -123,6 +123,7 @@ visitasRouter.post("/:id/finalizar", async (req, res) => {
     visita.servicio.organizacionId,
     "visita_para_revisar",
     `La visita ${visita.codigo} ha finalizado. Verifícala con la persona o su familia antes de archivarla.`,
+    visita.servicio.solicitudId,
   );
 
   res.json(actualizada);

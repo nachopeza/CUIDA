@@ -146,9 +146,17 @@ serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", 
     throw err;
   }
 
+  // Autorrelleno: si la profesional trabaja para una empresa colaboradora
+  // (no es independiente) y el servicio no tenía ya una empresa asignada,
+  // se copia — la coordinadora puede cambiarla luego a mano si hace falta.
   const actualizado = await prisma.servicio.update({
     where: { id: servicio.id },
-    data: { estado: "ASIGNADO", profesionalId: profesional.id },
+    data: {
+      estado: "ASIGNADO",
+      profesionalId: profesional.id,
+      empresaColaboradoraId: servicio.empresaColaboradoraId ?? profesional.empresaColaboradoraId ?? undefined,
+    },
+    include: INCLUDE_SERVICIO,
   });
 
   await registrarHistorial({
@@ -173,6 +181,7 @@ serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", 
       profesional.usuario.id,
       "propuesta_servicio",
       `Te han propuesto el servicio ${servicio.codigo}. Revísalo y acéptalo si puedes cubrirlo.`,
+      servicio.solicitudId,
     );
   }
 
@@ -214,7 +223,12 @@ serviciosRouter.post("/:id/aceptar", requiereRol("PROFESIONAL"), async (req, res
     entidadId: servicio.id,
   });
 
-  await notificarGestores(servicio.organizacionId, "servicio_aceptado", `El profesional ha aceptado el servicio ${servicio.codigo}.`).catch(
+  await notificarGestores(
+    servicio.organizacionId,
+    "servicio_aceptado",
+    `El profesional ha aceptado el servicio ${servicio.codigo}.`,
+    servicio.solicitudId,
+  ).catch(
     () => undefined,
   );
 
@@ -361,6 +375,7 @@ serviciosRouter.post("/:id/solicitar-cancelacion", async (req, res) => {
     servicio.organizacionId,
     "solicitud_cancelacion",
     `Piden cancelar el servicio ${servicio.codigo}. Confírmalo con la persona o su familia antes de cancelar.`,
+    servicio.solicitudId,
   );
 
   res.status(201).json(incidencia);
@@ -424,14 +439,14 @@ serviciosRouter.post("/:id/confirmar-cancelacion", requiereRol("COORDINADOR", "O
 
   const personaConUsuario = await prisma.persona.findUnique({ where: { id: servicio.solicitud.personaId }, include: { usuario: true } });
   if (personaConUsuario?.usuario) {
-    await notificarUsuario(personaConUsuario.usuario.id, "cancelacion_confirmada", `Tu servicio ${servicio.codigo} ha sido cancelado.`);
+    await notificarUsuario(personaConUsuario.usuario.id, "cancelacion_confirmada", `Tu servicio ${servicio.codigo} ha sido cancelado.`, servicio.solicitudId);
   }
   const familiares = await prisma.familiarRelacion.findMany({
     where: { personaId: servicio.solicitud.personaId, revocadoAt: null },
     select: { usuarioId: true },
   });
   for (const f of familiares) {
-    await notificarUsuario(f.usuarioId, "cancelacion_confirmada", `El servicio ${servicio.codigo} ha sido cancelado.`);
+    await notificarUsuario(f.usuarioId, "cancelacion_confirmada", `El servicio ${servicio.codigo} ha sido cancelado.`, servicio.solicitudId);
   }
 
   res.json({ ok: true });
@@ -464,4 +479,38 @@ serviciosRouter.post("/:id/rechazar-cancelacion", requiereRol("COORDINADOR", "OR
   });
 
   res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// Pago al profesional/empresa: "pasados los días la profesional recibe su
+// salario si es que recibía una compensación por ello" — distinto de la
+// tarifa cobrada a la familia, solo tiene sentido si tarifaTipo = PAGADO.
+// ---------------------------------------------------------------------------
+
+serviciosRouter.post("/:id/pago", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id } });
+  if (!servicio) return res.status(404).json({ error: "No encontrado" });
+  if (servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+  if (servicio.tarifaTipo !== "PAGADO") {
+    return res.status(409).json({ error: "Este servicio no tiene una compensación pagada asociada" });
+  }
+  if (servicio.pagoProfesionalEstado === "PAGADO") {
+    return res.status(409).json({ error: "Ya está marcado como pagado" });
+  }
+
+  const actualizado = await prisma.servicio.update({
+    where: { id: servicio.id },
+    data: { pagoProfesionalEstado: "PAGADO" },
+    include: INCLUDE_SERVICIO,
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: servicio.organizacionId,
+    accion: "marcar_pago_profesional",
+    entidadTipo: "Servicio",
+    entidadId: servicio.id,
+  });
+
+  res.json(actualizado);
 });

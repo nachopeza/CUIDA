@@ -180,6 +180,11 @@ model Profesional {
   organizacionId String
   organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
 
+  // Si trabaja para una empresa colaboradora (no independiente), se
+  // autorrellena al asignarla a un servicio (sección coordinación).
+  empresaColaboradoraId String?
+  empresaColaboradora   EmpresaColaboradora? @relation(fields: [empresaColaboradoraId], references: [id])
+
   usuario   Usuario?
   servicios Servicio[]
 
@@ -204,7 +209,8 @@ model EmpresaColaboradora {
   organizacionId String
   organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
 
-  servicios Servicio[]
+  servicios     Servicio[]
+  profesionales Profesional[]
 
   @@map("empresas_colaboradoras")
 }
@@ -276,7 +282,9 @@ model Plan {
   fechaInicio    DateTime
   fechaFin       DateTime
   recurrencia    String? // "diaria", "L-V", "puntual"...
-  franjaHoraria  String? // "mañanas", "09:00-13:00"...
+  franjaHoraria  String? // "Mañana", "Tarde", "Todo el día"...
+  horaInicio     String? // "09:00"
+  horaFin        String? // "12:00"
   tareasPrevistas String? // lista libre inicial de tareas esperadas
   notas          String?
   createdAt      DateTime  @default(now())
@@ -298,6 +306,11 @@ enum EstadoServicio {
 enum TipoTarifa {
   PAGADO
   VOLUNTARIO
+}
+
+enum EstadoPagoProfesional {
+  PENDIENTE
+  PAGADO
 }
 
 model Servicio {
@@ -327,6 +340,10 @@ model Servicio {
   tarifaImporte Decimal?    @db.Decimal(10, 2)
   tarifaTipo    TipoTarifa?
   tarifaNotas   String?
+
+  // Compensación al profesional/empresa que presta el servicio — distinta
+  // de la tarifa cobrada a la familia. Solo aplica si tarifaTipo = PAGADO.
+  pagoProfesionalEstado EstadoPagoProfesional @default(PENDIENTE)
 
   visitas         Visita[]
   incidencias     Incidencia[]
@@ -466,6 +483,11 @@ model Notificacion {
   mensaje   String
   leida     Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  // Referencia a la ficha que debe abrir el frontend al pinchar la
+  // notificación (normalmente una Solicitud — la vista unificada).
+  entidadTipo String?
+  entidadId   String?
 
   @@map("notificaciones")
 }

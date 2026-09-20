@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import type { Notificacion } from "../lib/types.js";
 
 export function NotificationBell() {
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [abierto, setAbierto] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -34,6 +36,14 @@ export function NotificationBell() {
     setNotificaciones((prev) => prev.map((n) => (n.id === id ? { ...n, leida: true } : n)));
   }
 
+  function abrir(n: Notificacion) {
+    marcarLeida(n.id);
+    setAbierto(false);
+    if (n.entidadTipo === "Solicitud" && n.entidadId) {
+      navigate(`/?solicitud=${n.entidadId}`);
+    }
+  }
+
   const noLeidas = notificaciones.filter((n) => !n.leida).length;
 
   return (
@@ -58,7 +68,7 @@ export function NotificationBell() {
             {notificaciones.map((n) => (
               <button
                 key={n.id}
-                onClick={() => marcarLeida(n.id)}
+                onClick={() => abrir(n)}
                 className={`block w-full border-b border-slate-100 px-4 py-2.5 text-left text-sm last:border-0 hover:bg-slate-50 ${n.leida ? "text-slate-400" : "text-slate-800"}`}
               >
                 <p>{n.mensaje}</p>

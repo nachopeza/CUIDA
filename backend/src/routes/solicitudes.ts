@@ -88,6 +88,7 @@ solicitudesRouter.post("/", async (req, res) => {
       persona.organizacionId,
       "nueva_solicitud",
       `Nueva solicitud de ${persona.nombre} ${persona.apellidos}: ${descripcionLibre}`,
+      solicitud.id,
     );
   }
 
@@ -143,6 +144,44 @@ solicitudesRouter.get("/", async (req, res) => {
   res.json(resultado);
 });
 
+const clasificarSchema = z.object({
+  necesidadId: z.string().min(1).optional(),
+  descripcionLibre: z.string().min(1).optional(),
+});
+
+// Clasificar el tipo de servicio desde la ficha (coordinación): reasignar
+// a qué necesidad del catálogo corresponde la petición, o afinar el texto.
+solicitudesRouter.patch("/:id", async (req, res) => {
+  if (!esGestorOrganizacion(req.usuario!)) return res.status(403).json({ error: "Sin permiso" });
+  const parsed = clasificarSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const solicitud = await prisma.solicitud.findUnique({ where: { id: req.params.id } });
+  if (!solicitud) return res.status(404).json({ error: "No encontrada" });
+  if (solicitud.organizacionId !== req.usuario!.organizacionId && req.usuario!.rol !== "SUPERADMIN") {
+    return res.status(403).json({ error: "Sin permiso" });
+  }
+  if (["CERRADA", "CANCELADA"].includes(solicitud.estado)) {
+    return res.status(409).json({ error: "No se puede reclasificar una solicitud cerrada o cancelada" });
+  }
+
+  const actualizada = await prisma.solicitud.update({
+    where: { id: solicitud.id },
+    data: parsed.data,
+    include: { persona: true, necesidad: true, plan: true },
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: solicitud.organizacionId,
+    accion: "clasificar_solicitud",
+    entidadTipo: "Solicitud",
+    entidadId: solicitud.id,
+  });
+
+  res.json(actualizada);
+});
+
 solicitudesRouter.get("/:id", async (req, res) => {
   const solicitud = await prisma.solicitud.findUnique({
     where: { id: req.params.id },
@@ -150,7 +189,14 @@ solicitudesRouter.get("/:id", async (req, res) => {
       persona: true,
       necesidad: true,
       plan: true,
-      servicio: { include: { empresaColaboradora: true, profesional: true } },
+      servicio: {
+        include: {
+          empresaColaboradora: true,
+          profesional: true,
+          visitas: { orderBy: { fecha: "asc" } },
+          incidencias: { orderBy: { createdAt: "desc" } },
+        },
+      },
       estadoHistorial: { orderBy: { createdAt: "asc" } },
     },
   });
@@ -168,6 +214,8 @@ const planSchema = z.object({
   fechaFin: z.string().datetime(),
   recurrencia: z.string().optional(),
   franjaHoraria: z.string().optional(),
+  horaInicio: z.string().optional(),
+  horaFin: z.string().optional(),
   tareasPrevistas: z.string().optional(),
   notas: z.string().optional(),
 });

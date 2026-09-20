@@ -53,7 +53,14 @@ export async function puedeVerImportes(usuario: TokenPayload, personaId: string)
   return false;
 }
 
-const CAMPOS_TARIFA = ["tarifaImporte", "tarifaTipo", "tarifaNotas", "empresaColaboradora", "empresaColaboradoraId"] as const;
+const CAMPOS_TARIFA = [
+  "tarifaImporte",
+  "tarifaTipo",
+  "tarifaNotas",
+  "empresaColaboradora",
+  "empresaColaboradoraId",
+  "pagoProfesionalEstado",
+] as const;
 
 // Elimina del objeto Servicio (o de una Solicitud con .servicio anidado) los
 // campos económicos cuando el solicitante no tiene permiso para verlos.

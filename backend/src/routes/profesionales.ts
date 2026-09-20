@@ -15,6 +15,7 @@ const crearProfesionalSchema = z.object({
   apellidos: z.string().min(1),
   telefono: z.string().optional(),
   zona: z.string().optional(),
+  empresaColaboradoraId: z.string().optional(),
   email: z.string().email().optional(),
   password: z.string().min(6).optional(),
 });
@@ -37,6 +38,7 @@ profesionalesRouter.post("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"
       apellidos: parsed.data.apellidos,
       telefono: parsed.data.telefono,
       zona: parsed.data.zona,
+      empresaColaboradoraId: parsed.data.empresaColaboradoraId,
       estado: "ACTIVO",
       organizacionId: req.usuario!.organizacionId,
     },
@@ -71,6 +73,7 @@ profesionalesRouter.post("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"
 profesionalesRouter.get("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
   const profesionales = await prisma.profesional.findMany({
     where: { organizacionId: req.usuario!.organizacionId ?? undefined, estado: "ACTIVO" },
+    include: { empresaColaboradora: true },
     orderBy: { nombre: "asc" },
   });
   res.json(profesionales);

@@ -1,10 +1,22 @@
 import type { ReactNode } from "react";
 
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+const ANCHOS = { sm: "max-w-sm", lg: "max-w-2xl" };
+
+export function Modal({
+  title,
+  onClose,
+  children,
+  size = "sm",
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  size?: "sm" | "lg";
+}) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6" onClick={onClose}>
       <div
-        className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
+        className={`max-h-[90vh] w-full ${ANCHOS[size]} overflow-y-auto rounded-2xl bg-white p-5 shadow-xl`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">

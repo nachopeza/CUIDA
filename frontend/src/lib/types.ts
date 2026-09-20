@@ -26,6 +26,8 @@ export interface Plan {
   fechaFin: string;
   recurrencia: string | null;
   franjaHoraria: string | null;
+  horaInicio: string | null;
+  horaFin: string | null;
 }
 
 export interface EmpresaColaboradora {
@@ -47,8 +49,18 @@ export interface Servicio {
   tarifaImporte?: string | number | null;
   tarifaTipo?: "PAGADO" | "VOLUNTARIO" | null;
   tarifaNotas?: string | null;
+  pagoProfesionalEstado?: "PENDIENTE" | "PAGADO";
   solicitud?: Solicitud;
   visitas?: Visita[];
+  incidencias?: Incidencia[];
+}
+
+export interface EstadoHistorialEntry {
+  id: string;
+  estadoAnterior: string | null;
+  estadoNuevo: string;
+  motivo: string | null;
+  createdAt: string;
 }
 
 export interface Solicitud {
@@ -60,6 +72,7 @@ export interface Solicitud {
   necesidad: Necesidad;
   plan: Plan | null;
   servicio: Servicio | null;
+  estadoHistorial?: EstadoHistorialEntry[];
 }
 
 export interface Tarea {
@@ -106,6 +119,8 @@ export interface Profesional {
   telefono: string | null;
   zona: string | null;
   estado: string;
+  empresaColaboradoraId?: string | null;
+  empresaColaboradora?: EmpresaColaboradora | null;
 }
 
 export interface Notificacion {
@@ -114,6 +129,8 @@ export interface Notificacion {
   mensaje: string;
   leida: boolean;
   createdAt: string;
+  entidadTipo?: string | null;
+  entidadId?: string | null;
 }
 
 export interface FamiliarRelacion {
