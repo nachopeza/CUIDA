@@ -113,9 +113,19 @@ export function FamiliaPage() {
                 <EstadoBadge estado={s.estado} />
               </div>
               {s.servicio && (
-                <div className="mt-1 flex items-center gap-2 pl-2 text-xs text-slate-500">
+                <div className="mt-1 flex flex-wrap items-center gap-2 pl-2 text-xs text-slate-500">
                   <span>Servicio {s.servicio.codigo}</span>
                   <EstadoBadge estado={s.servicio.estado} />
+                  {/* El backend solo envía estos campos si el familiar tiene
+                      puedeVerImportes; la persona atendida nunca los recibe. */}
+                  {(s.servicio.tarifaImporte != null || s.servicio.tarifaTipo) && (
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">
+                      {s.servicio.tarifaTipo === "VOLUNTARIO" ? "Voluntario (sin coste)" : `${s.servicio.tarifaImporte} €`}
+                    </span>
+                  )}
+                  {s.servicio.empresaColaboradora && (
+                    <span className="text-slate-400">vía {s.servicio.empresaColaboradora.nombre}</span>
+                  )}
                 </div>
               )}
             </li>

@@ -27,6 +27,33 @@ export function esGestorOrganizacion(usuario: TokenPayload): boolean {
   return ["COORDINADOR", "ORGANIZACION", "ADMIN", "SUPERADMIN"].includes(usuario.rol);
 }
 
+// La tarifa/importe de un servicio es información económica: la persona
+// atendida nunca la ve (sección "que Herminia no debe ver"); un familiar la
+// ve solo si su relación se lo autoriza explícitamente (puedeVerImportes).
+// Los gestores de la organización siempre la ven; el profesional asignado no
+// necesita verla para hacer su trabajo, así que tampoco se le muestra.
+export async function puedeVerImportes(usuario: TokenPayload, personaId: string): Promise<boolean> {
+  if (esGestorOrganizacion(usuario)) return true;
+  if (usuario.rol === "FAMILIAR") {
+    const relacion = await prisma.familiarRelacion.findFirst({
+      where: { personaId, usuarioId: usuario.sub, revocadoAt: null },
+    });
+    return relacion?.puedeVerImportes ?? false;
+  }
+  return false;
+}
+
+const CAMPOS_TARIFA = ["tarifaImporte", "tarifaTipo", "tarifaNotas", "empresaColaboradora", "empresaColaboradoraId"] as const;
+
+// Elimina del objeto Servicio (o de una Solicitud con .servicio anidado) los
+// campos económicos cuando el solicitante no tiene permiso para verlos.
+export function ocultarTarifaSiProcede<T extends Record<string, unknown>>(servicio: T | null | undefined, visible: boolean): T | null | undefined {
+  if (!servicio || visible) return servicio;
+  const copia = { ...servicio };
+  for (const campo of CAMPOS_TARIFA) delete (copia as Record<string, unknown>)[campo];
+  return copia;
+}
+
 export function scopeOrganizacion(usuario: TokenPayload): { organizacionId: string } | {} {
   if (usuario.rol === "SUPERADMIN") return {};
   return { organizacionId: usuario.organizacionId ?? "__none__" };

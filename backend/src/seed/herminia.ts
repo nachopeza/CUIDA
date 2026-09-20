@@ -21,15 +21,65 @@ async function crearUsuario(email: string, rol: "PERSONA" | "FAMILIAR" | "PROFES
   });
 }
 
+const NOMBRE_ORG_DEMO = "Ayuda a Domicilio Piloto";
+
+// El seed debe poder relanzarse sin ir acumulando organizaciones duplicadas
+// (los códigos CUI-/ORG-/... se generan por conteo, así que un upsert por
+// código nunca encontraría el registro anterior). En vez de eso, limpiamos
+// primero cualquier resto del mismo caso de demostración.
+async function limpiarDemoAnterior() {
+  const orgsExistentes = await prisma.organizacion.findMany({ where: { nombre: NOMBRE_ORG_DEMO } });
+  for (const org of orgsExistentes) {
+    await limpiarOrganizacion(org.id);
+  }
+}
+
+async function limpiarOrganizacion(organizacionId: string) {
+
+  const visitaIds = (await prisma.visita.findMany({ where: { servicio: { organizacionId } }, select: { id: true } })).map((v) => v.id);
+  const servicioIds = (await prisma.servicio.findMany({ where: { organizacionId }, select: { id: true } })).map((s) => s.id);
+  const solicitudIds = (await prisma.solicitud.findMany({ where: { organizacionId }, select: { id: true } })).map((s) => s.id);
+  const personaIds = (await prisma.persona.findMany({ where: { organizacionId }, select: { id: true } })).map((p) => p.id);
+  const usuarioIds = (await prisma.usuario.findMany({ where: { organizacionId }, select: { id: true } })).map((u) => u.id);
+
+  await prisma.auditLog.deleteMany({ where: { organizacionId } });
+  await prisma.notificacion.deleteMany({ where: { usuarioId: { in: usuarioIds } } });
+  await prisma.estadoHistorial.deleteMany({
+    where: { OR: [{ solicitudId: { in: solicitudIds } }, { servicioId: { in: servicioIds } }, { visitaId: { in: visitaIds } }] },
+  });
+  await prisma.actuacion.deleteMany({ where: { visitaId: { in: visitaIds } } });
+  await prisma.tarea.deleteMany({ where: { visitaId: { in: visitaIds } } });
+  await prisma.incidencia.deleteMany({ where: { OR: [{ visitaId: { in: visitaIds } }, { servicioId: { in: servicioIds } }] } });
+  await prisma.documento.deleteMany({
+    where: { OR: [{ personaId: { in: personaIds } }, { servicioId: { in: servicioIds } }, { visitaId: { in: visitaIds } }] },
+  });
+  await prisma.visita.deleteMany({ where: { id: { in: visitaIds } } });
+  await prisma.plan.deleteMany({ where: { solicitudId: { in: solicitudIds } } });
+  await prisma.servicio.deleteMany({ where: { id: { in: servicioIds } } });
+  await prisma.solicitud.deleteMany({ where: { id: { in: solicitudIds } } });
+  // Por personaId y también por usuarioId: si una ejecución anterior (antes
+  // de esta limpieza existir) dejó relaciones cruzadas con otra organización
+  // duplicada, igual bloquearían el borrado del usuario más abajo.
+  await prisma.familiarRelacion.deleteMany({ where: { OR: [{ personaId: { in: personaIds } }, { usuarioId: { in: usuarioIds } }] } });
+  // Los usuarios PERSONA/PROFESIONAL enlazan 1:1 con Persona/Profesional;
+  // hay que desenlazarlos antes de poder borrar esas fichas.
+  await prisma.usuario.updateMany({ where: { id: { in: usuarioIds } }, data: { personaId: null, profesionalId: null } });
+  await prisma.persona.deleteMany({ where: { id: { in: personaIds } } });
+  await prisma.profesional.deleteMany({ where: { organizacionId } });
+  await prisma.empresaColaboradora.deleteMany({ where: { organizacionId } });
+  await prisma.usuario.deleteMany({ where: { id: { in: usuarioIds } } });
+  await prisma.organizacion.delete({ where: { id: organizacionId } });
+}
+
 async function main() {
   console.log("Sembrando caso fundador Herminia...");
 
+  await limpiarDemoAnterior();
+
   // 1. Organización piloto
   const orgCodigo = await generarCodigo("organizacion");
-  const organizacion = await prisma.organizacion.upsert({
-    where: { codigo: orgCodigo },
-    update: {},
-    create: { codigo: orgCodigo, nombre: "Ayuda a Domicilio Piloto", estado: "ACTIVA" },
+  const organizacion = await prisma.organizacion.create({
+    data: { codigo: orgCodigo, nombre: NOMBRE_ORG_DEMO, estado: "ACTIVA" },
   });
 
   // 2. Catálogo de necesidades (sección 6)
@@ -85,6 +135,22 @@ async function main() {
       esRepresentante: true,
       puedeSolicitar: true,
       puedeVerHistorial: true,
+    },
+  });
+
+  // 5b. Empresa colaboradora de ejemplo (sección 11: modelo híbrido).
+  // No se subcontrata el caso de Herminia (se resuelve con Carmen, plantilla
+  // interna); esta empresa solo sirve para poblar el catálogo del coordinador.
+  const codigoEmpresa = await generarCodigo("empresaColaboradora");
+  await prisma.empresaColaboradora.upsert({
+    where: { codigo: codigoEmpresa },
+    update: {},
+    create: {
+      codigo: codigoEmpresa,
+      nombre: "Cuidados del Bages S.L.",
+      contacto: "coordinacion@cuidadosdelbages.demo",
+      estado: "ACTIVA",
+      organizacionId: organizacion.id,
     },
   });
 
@@ -197,6 +263,13 @@ async function main() {
     estadoNuevo: "CONFIRMADO",
     motivo: "Persona/familia/proveedor confirman el servicio",
     servicioId: servicio.id,
+  });
+
+  // 11b. Tarifa estimada por la coordinadora: visible para la coordinadora y
+  // para la hija (puedeVerImportes=true por defecto), nunca para Herminia.
+  servicio = await prisma.servicio.update({
+    where: { id: servicio.id },
+    data: { tarifaImporte: 12.5, tarifaTipo: "PAGADO", tarifaNotas: "Tarifa estándar de servicio doméstico por hora" },
   });
 
   // 12. Primera visita (etapa 6: Ejecución)

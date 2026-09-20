@@ -4,11 +4,17 @@ import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
 import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
-import { esGestorOrganizacion } from "../services/permisos.js";
+import { esGestorOrganizacion, puedeVerImportes, ocultarTarifaSiProcede } from "../services/permisos.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 
 export const serviciosRouter = Router();
 serviciosRouter.use(autenticar);
+
+const INCLUDE_SERVICIO = {
+  solicitud: { include: { persona: true, necesidad: true, plan: true } },
+  profesional: true,
+  empresaColaboradora: true,
+} as const;
 
 serviciosRouter.get("/", async (req, res) => {
   const usuario = req.usuario!;
@@ -24,24 +30,95 @@ serviciosRouter.get("/", async (req, res) => {
 
   const servicios = await prisma.servicio.findMany({
     where,
-    include: { solicitud: { include: { persona: true, necesidad: true, plan: true } }, profesional: true, visitas: true },
+    include: { ...INCLUDE_SERVICIO, visitas: true },
     orderBy: { createdAt: "desc" },
   });
-  res.json(servicios);
+
+  // Los importes se ocultan por fila según a quién pertenezca cada servicio
+  // (un familiar puede tener el permiso concedido para una persona y no
+  // para otra).
+  let relacionesVisibles: Set<string> | null = null;
+  if (usuario.rol === "FAMILIAR") {
+    const relaciones = await prisma.familiarRelacion.findMany({
+      where: { usuarioId: usuario.sub, revocadoAt: null, puedeVerImportes: true },
+      select: { personaId: true },
+    });
+    relacionesVisibles = new Set(relaciones.map((r) => r.personaId));
+  }
+
+  const resultado = servicios.map((s) => {
+    const visible = esGestorOrganizacion(usuario)
+      ? true
+      : usuario.rol === "FAMILIAR"
+        ? (relacionesVisibles?.has(s.solicitud.personaId) ?? false)
+        : false;
+    return ocultarTarifaSiProcede(s, visible);
+  });
+
+  res.json(resultado);
 });
 
 serviciosRouter.get("/:id", async (req, res) => {
   const servicio = await prisma.servicio.findUnique({
     where: { id: req.params.id },
     include: {
-      solicitud: { include: { persona: true, necesidad: true, plan: true } },
-      profesional: true,
+      ...INCLUDE_SERVICIO,
       visitas: { include: { tareas: true, actuaciones: true, incidencias: true } },
       incidencias: true,
+      estadoHistorial: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!servicio) return res.status(404).json({ error: "No encontrado" });
-  res.json(servicio);
+
+  const usuario = req.usuario!;
+  const visible = usuario.rol === "PROFESIONAL" ? false : await puedeVerImportes(usuario, servicio.solicitud.personaId);
+  res.json(ocultarTarifaSiProcede(servicio, visible));
+});
+
+const tarifaSchema = z.object({
+  empresaColaboradoraId: z.string().nullable().optional(),
+  tarifaImporte: z.number().nonnegative().nullable().optional(),
+  tarifaTipo: z.enum(["PAGADO", "VOLUNTARIO"]).nullable().optional(),
+  tarifaNotas: z.string().optional(),
+});
+
+// Asignar empresa colaboradora y/o estimar tarifa. Solo gestores; nunca
+// visible para la persona atendida (sección 4/14).
+serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const parsed = tarifaSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id } });
+  if (!servicio) return res.status(404).json({ error: "No encontrado" });
+  if (servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+
+  if (parsed.data.empresaColaboradoraId) {
+    const empresa = await prisma.empresaColaboradora.findUnique({ where: { id: parsed.data.empresaColaboradoraId } });
+    if (!empresa || empresa.organizacionId !== servicio.organizacionId) {
+      return res.status(400).json({ error: "Empresa colaboradora no válida para esta organización" });
+    }
+  }
+
+  const actualizado = await prisma.servicio.update({
+    where: { id: servicio.id },
+    data: {
+      empresaColaboradoraId: parsed.data.empresaColaboradoraId,
+      tarifaImporte: parsed.data.tarifaImporte,
+      tarifaTipo: parsed.data.tarifaTipo,
+      tarifaNotas: parsed.data.tarifaNotas,
+    },
+    include: INCLUDE_SERVICIO,
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: servicio.organizacionId,
+    accion: "actualizar_tarifa_servicio",
+    entidadTipo: "Servicio",
+    entidadId: servicio.id,
+  });
+
+  res.json(actualizado);
 });
 
 const asignarSchema = z.object({ profesionalId: z.string().min(1) });

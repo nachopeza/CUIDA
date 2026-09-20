@@ -1,9 +1,67 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
+import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { generarCodigo } from "../lib/codes.js";
 import { autenticar, requiereRol } from "../middleware/auth.js";
+import { registrarAuditoria } from "../services/audit.js";
 
 export const profesionalesRouter = Router();
 profesionalesRouter.use(autenticar);
+
+const crearProfesionalSchema = z.object({
+  nombre: z.string().min(1),
+  apellidos: z.string().min(1),
+  zona: z.string().optional(),
+  email: z.string().email().optional(),
+  password: z.string().min(6).optional(),
+});
+
+// Alta de profesional (sección 6). Email+password son opcionales: si se dan,
+// se crea también su acceso (rol PROFESIONAL) en el mismo paso.
+profesionalesRouter.post("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const parsed = crearProfesionalSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  if (!req.usuario!.organizacionId) return res.status(400).json({ error: "Usuario sin organización" });
+  if ((parsed.data.email && !parsed.data.password) || (!parsed.data.email && parsed.data.password)) {
+    return res.status(400).json({ error: "Email y contraseña deben indicarse juntos" });
+  }
+
+  const codigo = await generarCodigo("profesional");
+  const profesional = await prisma.profesional.create({
+    data: {
+      codigo,
+      nombre: parsed.data.nombre,
+      apellidos: parsed.data.apellidos,
+      zona: parsed.data.zona,
+      estado: "ACTIVO",
+      organizacionId: req.usuario!.organizacionId,
+    },
+  });
+
+  if (parsed.data.email && parsed.data.password) {
+    const passwordHash = await bcrypt.hash(parsed.data.password, 10);
+    await prisma.usuario.create({
+      data: {
+        email: parsed.data.email,
+        passwordHash,
+        rol: "PROFESIONAL",
+        organizacionId: req.usuario!.organizacionId,
+        profesionalId: profesional.id,
+      },
+    });
+  }
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: req.usuario!.organizacionId,
+    accion: "crear_profesional",
+    entidadTipo: "Profesional",
+    entidadId: profesional.id,
+  });
+
+  res.status(201).json(profesional);
+});
 
 // Lista de candidatos para el coordinador (sección 10: "lista de candidatos
 // explicable → coordinador selecciona").

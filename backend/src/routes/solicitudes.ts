@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
 import { autenticar } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
-import { puedeAccederPersona, esGestorOrganizacion } from "../services/permisos.js";
+import { puedeAccederPersona, esGestorOrganizacion, ocultarTarifaSiProcede, puedeVerImportes } from "../services/permisos.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 
 export const solicitudesRouter = Router();
@@ -89,23 +89,45 @@ solicitudesRouter.get("/", async (req, res) => {
 
   const solicitudes = await prisma.solicitud.findMany({
     where,
-    include: { persona: true, necesidad: true, plan: true, servicio: true },
+    include: { persona: true, necesidad: true, plan: true, servicio: { include: { empresaColaboradora: true } } },
     orderBy: { createdAt: "desc" },
   });
-  res.json(solicitudes);
+
+  let relacionesVisibles: Set<string> | null = null;
+  if (usuario.rol === "FAMILIAR") {
+    const relaciones = await prisma.familiarRelacion.findMany({
+      where: { usuarioId: usuario.sub, revocadoAt: null, puedeVerImportes: true },
+      select: { personaId: true },
+    });
+    relacionesVisibles = new Set(relaciones.map((r) => r.personaId));
+  }
+
+  const resultado = solicitudes.map((s) => {
+    const visible = esGestorOrganizacion(usuario) ? true : usuario.rol === "FAMILIAR" ? (relacionesVisibles?.has(s.personaId) ?? false) : false;
+    return { ...s, servicio: ocultarTarifaSiProcede(s.servicio, visible) };
+  });
+
+  res.json(resultado);
 });
 
 solicitudesRouter.get("/:id", async (req, res) => {
   const solicitud = await prisma.solicitud.findUnique({
     where: { id: req.params.id },
-    include: { persona: true, necesidad: true, plan: true, servicio: true, estadoHistorial: { orderBy: { createdAt: "asc" } } },
+    include: {
+      persona: true,
+      necesidad: true,
+      plan: true,
+      servicio: { include: { empresaColaboradora: true } },
+      estadoHistorial: { orderBy: { createdAt: "asc" } },
+    },
   });
   if (!solicitud) return res.status(404).json({ error: "No encontrada" });
 
   const permitido = await puedeAccederPersona(req.usuario!, solicitud.personaId);
   if (!permitido) return res.status(403).json({ error: "Sin permiso" });
 
-  res.json(solicitud);
+  const visible = req.usuario!.rol === "PROFESIONAL" ? false : await puedeVerImportes(req.usuario!, solicitud.personaId);
+  res.json({ ...solicitud, servicio: ocultarTarifaSiProcede(solicitud.servicio, visible) });
 });
 
 const planSchema = z.object({

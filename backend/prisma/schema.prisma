@@ -38,12 +38,13 @@ model Organizacion {
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
-  usuarios      Usuario[]
-  personas      Persona[]
-  profesionales Profesional[]
-  solicitudes   Solicitud[]
-  servicios     Servicio[]
-  auditLogs     AuditLog[]
+  usuarios              Usuario[]
+  personas              Persona[]
+  profesionales         Profesional[]
+  empresasColaboradoras EmpresaColaboradora[]
+  solicitudes           Solicitud[]
+  servicios             Servicio[]
+  auditLogs             AuditLog[]
 
   @@map("organizaciones")
 }
@@ -139,6 +140,10 @@ model FamiliarRelacion {
   esRepresentante   Boolean  @default(false)
   puedeSolicitar    Boolean  @default(true)
   puedeVerHistorial Boolean  @default(true)
+  // Ver importes/tarifas es un permiso propio, distinto de ver el historial:
+  // una persona atendida (rol PERSONA) nunca ve tarifas; un familiar
+  // autorizado las ve solo si se le concede explícitamente este permiso.
+  puedeVerImportes  Boolean  @default(true)
   createdAt         DateTime @default(now())
   revocadoAt        DateTime?
 
@@ -171,6 +176,29 @@ model Profesional {
   servicios Servicio[]
 
   @@map("profesionales")
+}
+
+enum EstadoEmpresaColaboradora {
+  ACTIVA
+  INACTIVA
+}
+
+// Empresa externa a la que la organización puede subcontratar un servicio,
+// en vez de (o además de) asignarlo a un profesional interno.
+model EmpresaColaboradora {
+  id        String                    @id @default(cuid())
+  codigo    String                    @unique // EXT-00001
+  nombre    String
+  contacto  String?
+  estado    EstadoEmpresaColaboradora @default(ACTIVA)
+  createdAt DateTime                  @default(now())
+
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
+
+  servicios Servicio[]
+
+  @@map("empresas_colaboradoras")
 }
 
 // ---------------------------------------------------------------------------
@@ -258,6 +286,11 @@ enum EstadoServicio {
   CERRADO
 }
 
+enum TipoTarifa {
+  PAGADO
+  VOLUNTARIO
+}
+
 model Servicio {
   id        String         @id @default(cuid())
   codigo    String         @unique // SRV-000721
@@ -273,6 +306,18 @@ model Servicio {
 
   profesionalId String?
   profesional   Profesional? @relation(fields: [profesionalId], references: [id])
+
+  // Subcontratación opcional a una empresa colaboradora, alternativa o
+  // adicional a la asignación de un profesional interno.
+  empresaColaboradoraId String?
+  empresaColaboradora   EmpresaColaboradora? @relation(fields: [empresaColaboradoraId], references: [id])
+
+  // Información económica: solo visible para gestores de la organización y
+  // para el familiar autorizado con permiso explícito (sección 4/14 —
+  // minimización). La persona atendida nunca la recibe.
+  tarifaImporte Decimal?    @db.Decimal(10, 2)
+  tarifaTipo    TipoTarifa?
+  tarifaNotas   String?
 
   visitas         Visita[]
   incidencias     Incidencia[]

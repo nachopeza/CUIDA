@@ -23,11 +23,25 @@ export interface Plan {
   franjaHoraria: string | null;
 }
 
+export interface EmpresaColaboradora {
+  id: string;
+  codigo: string;
+  nombre: string;
+  contacto: string | null;
+  estado: string;
+}
+
 export interface Servicio {
   id: string;
   codigo: string;
   estado: string;
   profesionalId: string | null;
+  profesional?: Profesional | null;
+  empresaColaboradoraId?: string | null;
+  empresaColaboradora?: EmpresaColaboradora | null;
+  tarifaImporte?: string | number | null;
+  tarifaTipo?: "PAGADO" | "VOLUNTARIO" | null;
+  tarifaNotas?: string | null;
   solicitud?: Solicitud;
   visitas?: Visita[];
 }
@@ -83,4 +97,34 @@ export interface Profesional {
   apellidos: string;
   zona: string | null;
   estado: string;
+}
+
+export interface FamiliarRelacion {
+  id: string;
+  parentesco: string;
+  esRepresentante: boolean;
+  puedeSolicitar: boolean;
+  puedeVerHistorial: boolean;
+  puedeVerImportes: boolean;
+}
+
+export interface PersonaConFamiliares extends Persona {
+  familiares: FamiliarRelacion[];
+}
+
+export interface AuditLogEntry {
+  id: string;
+  accion: string;
+  entidadTipo: string | null;
+  entidadId: string | null;
+  detalle: string | null;
+  createdAt: string;
+  usuario: { email: string; rol: string } | null;
+}
+
+export interface VisitaAgenda extends Visita {
+  servicio: {
+    profesional: Profesional | null;
+    solicitud: { persona: Persona; necesidad: Necesidad };
+  };
 }
