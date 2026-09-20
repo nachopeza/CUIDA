@@ -10,14 +10,21 @@ import { puedeAccederPersona } from "../services/permisos.js";
 export const personasRouter = Router();
 personasRouter.use(autenticar);
 
-const crearPersonaSchema = z.object({
+const perfilPersonaSchema = {
   nombre: z.string().min(1),
   apellidos: z.string().min(1),
   fechaNacimiento: z.string().datetime().optional(),
   telefono: z.string().optional(),
   direccion: z.string().optional(),
   preferencias: z.string().optional(),
-});
+  contactos: z.string().optional(),
+  medicacion: z.string().optional(),
+  medico: z.string().optional(),
+  recomendaciones: z.string().optional(),
+};
+
+const crearPersonaSchema = z.object(perfilPersonaSchema);
+const editarPersonaSchema = z.object(perfilPersonaSchema).partial();
 
 // Alta de persona (sección 6: alta, identificación permanente...)
 personasRouter.post("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
@@ -69,6 +76,35 @@ personasRouter.get("/:id", async (req, res) => {
     usuarioId: req.usuario!.sub,
     organizacionId: req.usuario!.organizacionId,
     accion: "ver_persona",
+    entidadTipo: "Persona",
+    entidadId: persona.id,
+  });
+
+  res.json(persona);
+});
+
+// Editar el perfil completo (sección 6: ubicación, contactos, medicación,
+// médico, recomendaciones). Solo gestores: es información que registra la
+// organización, no la persona atendida directamente.
+personasRouter.patch("/:id", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const parsed = editarPersonaSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const permitido = await puedeAccederPersona(req.usuario!, req.params.id);
+  if (!permitido) return res.status(403).json({ error: "Sin permiso sobre esta persona" });
+
+  const persona = await prisma.persona.update({
+    where: { id: req.params.id },
+    data: {
+      ...parsed.data,
+      fechaNacimiento: parsed.data.fechaNacimiento ? new Date(parsed.data.fechaNacimiento) : undefined,
+    },
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: req.usuario!.organizacionId,
+    accion: "editar_persona",
     entidadTipo: "Persona",
     entidadId: persona.id,
   });

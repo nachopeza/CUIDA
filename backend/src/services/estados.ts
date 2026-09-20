@@ -16,13 +16,14 @@ export const TRANSICIONES_SOLICITUD: Record<string, string[]> = {
 };
 
 export const TRANSICIONES_SERVICIO: Record<string, string[]> = {
-  PENDIENTE: ["ASIGNADO"],
-  ASIGNADO: ["CONFIRMADO", "PENDIENTE"],
-  CONFIRMADO: ["EN_CURSO"],
-  EN_CURSO: ["FINALIZADO"],
+  PENDIENTE: ["ASIGNADO", "CANCELADO"],
+  ASIGNADO: ["CONFIRMADO", "PENDIENTE", "CANCELADO"],
+  CONFIRMADO: ["EN_CURSO", "CANCELADO"],
+  EN_CURSO: ["FINALIZADO", "CANCELADO"],
   FINALIZADO: ["VALIDADO"],
   VALIDADO: ["CERRADO"],
   CERRADO: [],
+  CANCELADO: [],
 };
 
 export const TRANSICIONES_VISITA: Record<string, string[]> = {

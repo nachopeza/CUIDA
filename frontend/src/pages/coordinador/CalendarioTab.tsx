@@ -15,9 +15,19 @@ export function CalendarioTab() {
   const { token } = useAuth();
   const [visitas, setVisitas] = useState<VisitaAgenda[]>([]);
 
+  async function cargar() {
+    setVisitas(await api.get<VisitaAgenda[]>("/agenda", token));
+  }
+
   useEffect(() => {
-    api.get<VisitaAgenda[]>("/agenda", token).then(setVisitas);
+    cargar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  async function revisar(visitaId: string) {
+    await api.post(`/visitas/${visitaId}/revisar`, {}, token);
+    await cargar();
+  }
 
   const porDia = new Map<string, VisitaAgenda[]>();
   for (const v of visitas) {
@@ -46,7 +56,14 @@ export function CalendarioTab() {
                     </p>
                   </div>
                 </div>
-                <EstadoBadge estado={v.estado} />
+                <div className="flex items-center gap-2">
+                  <EstadoBadge estado={v.estado} />
+                  {v.estado === "FINALIZADA" && (
+                    <button onClick={() => revisar(v.id)} className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100">
+                      Verificar y archivar
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

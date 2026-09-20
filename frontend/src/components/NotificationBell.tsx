@@ -1,0 +1,73 @@
+import { useEffect, useRef, useState } from "react";
+import { useAuth } from "../lib/auth.js";
+import { api } from "../lib/api.js";
+import type { Notificacion } from "../lib/types.js";
+
+export function NotificationBell() {
+  const { token } = useAuth();
+  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
+  const [abierto, setAbierto] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  async function cargar() {
+    const data = await api.get<Notificacion[]>("/notificaciones", token);
+    setNotificaciones(data);
+  }
+
+  useEffect(() => {
+    cargar();
+    const intervalo = setInterval(cargar, 20000);
+    return () => clearInterval(intervalo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    function fuera(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setAbierto(false);
+    }
+    document.addEventListener("mousedown", fuera);
+    return () => document.removeEventListener("mousedown", fuera);
+  }, []);
+
+  async function marcarLeida(id: string) {
+    await api.post(`/notificaciones/${id}/leida`, {}, token);
+    setNotificaciones((prev) => prev.map((n) => (n.id === id ? { ...n, leida: true } : n)));
+  }
+
+  const noLeidas = notificaciones.filter((n) => !n.leida).length;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setAbierto((v) => !v)}
+        className="relative rounded-md border border-slate-300 px-2.5 py-1.5 text-slate-600 hover:bg-slate-100"
+        aria-label="Notificaciones"
+      >
+        🔔
+        {noLeidas > 0 && (
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold text-white">
+            {noLeidas}
+          </span>
+        )}
+      </button>
+
+      {abierto && (
+        <div className="absolute right-0 z-20 mt-2 w-80 rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="max-h-96 overflow-y-auto">
+            {notificaciones.length === 0 && <p className="p-4 text-sm text-slate-500">Sin notificaciones.</p>}
+            {notificaciones.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => marcarLeida(n.id)}
+                className={`block w-full border-b border-slate-100 px-4 py-2.5 text-left text-sm last:border-0 hover:bg-slate-50 ${n.leida ? "text-slate-400" : "text-slate-800"}`}
+              >
+                <p>{n.mensaje}</p>
+                <p className="mt-0.5 text-xs text-slate-400">{new Date(n.createdAt).toLocaleString("es-ES")}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

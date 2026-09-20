@@ -112,6 +112,13 @@ model Persona {
   telefono         String?
   direccion        String?
   preferencias     String?
+  // Perfil completo (sección "Usuarios" del coordinador): información
+  // operativa que necesita quien presta el servicio, nunca una historia
+  // clínica (sección 14 — ayuda cotidiana ≠ diagnóstico sanitario).
+  contactos        String? // contactos de emergencia, en texto libre
+  medicacion       String?
+  medico           String? // médico/centro de referencia
+  recomendaciones  String?
   estado           EstadoPersona @default(PENDIENTE)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
@@ -164,6 +171,7 @@ model Profesional {
   codigo    String            @unique // PRO-00031
   nombre    String
   apellidos String
+  telefono  String?
   zona      String?
   estado    EstadoProfesional @default(PENDIENTE)
   createdAt DateTime          @default(now())
@@ -284,6 +292,7 @@ enum EstadoServicio {
   FINALIZADO
   VALIDADO
   CERRADO
+  CANCELADO
 }
 
 enum TipoTarifa {
@@ -398,9 +407,15 @@ enum PrioridadIncidencia {
   ALTA
 }
 
+enum TipoIncidencia {
+  GENERAL
+  SOLICITUD_CANCELACION
+}
+
 model Incidencia {
   id          String              @id @default(cuid())
   codigo      String              @unique // INC-000045
+  tipo        TipoIncidencia      @default(GENERAL)
   descripcion String
   prioridad   PrioridadIncidencia @default(MEDIA)
   estado      EstadoIncidencia    @default(NUEVA)

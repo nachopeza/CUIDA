@@ -6,6 +6,7 @@ import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
 import { esGestorOrganizacion, puedeVerImportes, ocultarTarifaSiProcede } from "../services/permisos.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
+import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
 
 export const serviciosRouter = Router();
 serviciosRouter.use(autenticar);
@@ -133,7 +134,7 @@ serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", 
   if (!servicio) return res.status(404).json({ error: "No encontrado" });
   if (servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
 
-  const profesional = await prisma.profesional.findUnique({ where: { id: parsed.data.profesionalId } });
+  const profesional = await prisma.profesional.findUnique({ where: { id: parsed.data.profesionalId }, include: { usuario: true } });
   if (!profesional || profesional.organizacionId !== servicio.organizacionId) {
     return res.status(400).json({ error: "Profesional no válido para esta organización" });
   }
@@ -167,11 +168,61 @@ serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", 
     detalle: profesional.codigo,
   });
 
+  if (profesional.usuario) {
+    await notificarUsuario(
+      profesional.usuario.id,
+      "propuesta_servicio",
+      `Te han propuesto el servicio ${servicio.codigo}. Revísalo y acéptalo si puedes cubrirlo.`,
+    );
+  }
+
+  res.json(actualizado);
+});
+
+// Aceptación explícita (sección: "espera que la cuidadora o empresa la
+// acepte"). Solo el propio profesional asignado puede confirmar — la
+// coordinación propone, pero no puede aceptar en su nombre.
+serviciosRouter.post("/:id/aceptar", requiereRol("PROFESIONAL"), async (req, res) => {
+  const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id } });
+  if (!servicio) return res.status(404).json({ error: "No encontrado" });
+  if (servicio.profesionalId !== req.usuario!.profesionalId) {
+    return res.status(403).json({ error: "Este servicio no te ha sido propuesto a ti" });
+  }
+
+  try {
+    validaciones.servicio(servicio.estado, "CONFIRMADO");
+  } catch (err) {
+    if (err instanceof TransicionInvalidaError) return res.status(409).json({ error: err.message });
+    throw err;
+  }
+
+  const actualizado = await prisma.servicio.update({ where: { id: servicio.id }, data: { estado: "CONFIRMADO" } });
+
+  await registrarHistorial({
+    entidadTipo: "Servicio",
+    estadoAnterior: servicio.estado,
+    estadoNuevo: "CONFIRMADO",
+    motivo: "Aceptado por el profesional",
+    servicioId: servicio.id,
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: servicio.organizacionId,
+    accion: "aceptar_servicio",
+    entidadTipo: "Servicio",
+    entidadId: servicio.id,
+  });
+
+  await notificarGestores(servicio.organizacionId, "servicio_aceptado", `El profesional ha aceptado el servicio ${servicio.codigo}.`).catch(
+    () => undefined,
+  );
+
   res.json(actualizado);
 });
 
 const estadoSchema = z.object({
-  estado: z.enum(["CONFIRMADO", "EN_CURSO", "FINALIZADO", "VALIDADO", "CERRADO"]),
+  estado: z.enum(["EN_CURSO", "FINALIZADO", "VALIDADO", "CERRADO", "CANCELADO"]),
   motivo: z.string().optional(),
 });
 
@@ -251,4 +302,166 @@ serviciosRouter.post("/:id/visitas", requiereRol("COORDINADOR", "ORGANIZACION", 
   });
 
   res.status(201).json(visita);
+});
+
+// ---------------------------------------------------------------------------
+// Cancelación: la persona/familiar pide cancelar, coordinación corrobora y
+// decide (no es un botón directo — "manda una alerta a coordinación y lo
+// corrobora con Herminia o con familiar").
+// ---------------------------------------------------------------------------
+
+const solicitarCancelacionSchema = z.object({ motivo: z.string().optional() });
+
+serviciosRouter.post("/:id/solicitar-cancelacion", async (req, res) => {
+  const parsed = solicitarCancelacionSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id }, include: { solicitud: true } });
+  if (!servicio) return res.status(404).json({ error: "No encontrado" });
+
+  const usuario = req.usuario!;
+  const esPersonaPropia = usuario.rol === "PERSONA" && usuario.personaId === servicio.solicitud.personaId;
+  let esFamiliarAutorizado = false;
+  if (usuario.rol === "FAMILIAR") {
+    const relacion = await prisma.familiarRelacion.findFirst({
+      where: { personaId: servicio.solicitud.personaId, usuarioId: usuario.sub, revocadoAt: null, puedeSolicitar: true },
+    });
+    esFamiliarAutorizado = relacion !== null;
+  }
+  if (!esPersonaPropia && !esFamiliarAutorizado && !esGestorOrganizacion(usuario)) {
+    return res.status(403).json({ error: "Sin permiso" });
+  }
+
+  const yaPendiente = await prisma.incidencia.findFirst({
+    where: { servicioId: servicio.id, tipo: "SOLICITUD_CANCELACION", estado: { notIn: ["RESUELTA", "CERRADA"] } },
+  });
+  if (yaPendiente) return res.status(409).json({ error: "Ya hay una solicitud de cancelación pendiente para este servicio" });
+
+  const codigo = await generarCodigo("incidencia");
+  const incidencia = await prisma.incidencia.create({
+    data: {
+      codigo,
+      tipo: "SOLICITUD_CANCELACION",
+      servicioId: servicio.id,
+      descripcion: parsed.data.motivo ? `Solicitud de cancelación: ${parsed.data.motivo}` : "Solicitud de cancelación del servicio",
+      prioridad: "ALTA",
+      estado: "NUEVA",
+    },
+  });
+
+  await registrarAuditoria({
+    usuarioId: usuario.sub,
+    organizacionId: servicio.organizacionId,
+    accion: "solicitar_cancelacion_servicio",
+    entidadTipo: "Servicio",
+    entidadId: servicio.id,
+  });
+
+  await notificarGestores(
+    servicio.organizacionId,
+    "solicitud_cancelacion",
+    `Piden cancelar el servicio ${servicio.codigo}. Confírmalo con la persona o su familia antes de cancelar.`,
+  );
+
+  res.status(201).json(incidencia);
+});
+
+const resolverCancelacionSchema = z.object({ motivo: z.string().optional() });
+
+async function encontrarCancelacionPendiente(servicioId: string) {
+  return prisma.incidencia.findFirst({
+    where: { servicioId, tipo: "SOLICITUD_CANCELACION", estado: { notIn: ["RESUELTA", "CERRADA"] } },
+  });
+}
+
+// Coordinación corrobora con la persona/familia y confirma: el servicio (y
+// su solicitud) pasan a CANCELADO/CANCELADA.
+serviciosRouter.post("/:id/confirmar-cancelacion", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const parsed = resolverCancelacionSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id }, include: { solicitud: true } });
+  if (!servicio) return res.status(404).json({ error: "No encontrado" });
+  if (servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+
+  const incidencia = await encontrarCancelacionPendiente(servicio.id);
+  if (!incidencia) return res.status(409).json({ error: "No hay ninguna solicitud de cancelación pendiente" });
+
+  try {
+    validaciones.servicio(servicio.estado, "CANCELADO");
+  } catch (err) {
+    if (err instanceof TransicionInvalidaError) return res.status(409).json({ error: err.message });
+    throw err;
+  }
+
+  await prisma.servicio.update({ where: { id: servicio.id }, data: { estado: "CANCELADO" } });
+  await registrarHistorial({
+    entidadTipo: "Servicio",
+    estadoAnterior: servicio.estado,
+    estadoNuevo: "CANCELADO",
+    motivo: parsed.data.motivo ?? "Cancelación confirmada por coordinación",
+    servicioId: servicio.id,
+  });
+
+  await prisma.solicitud.update({ where: { id: servicio.solicitudId }, data: { estado: "CANCELADA" } }).catch(() => undefined);
+
+  await prisma.incidencia.update({ where: { id: incidencia.id }, data: { estado: "RESUELTA" } });
+  await registrarHistorial({
+    entidadTipo: "Incidencia",
+    estadoAnterior: incidencia.estado,
+    estadoNuevo: "RESUELTA",
+    motivo: "Cancelación confirmada",
+    incidenciaId: incidencia.id,
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: servicio.organizacionId,
+    accion: "confirmar_cancelacion_servicio",
+    entidadTipo: "Servicio",
+    entidadId: servicio.id,
+  });
+
+  const personaConUsuario = await prisma.persona.findUnique({ where: { id: servicio.solicitud.personaId }, include: { usuario: true } });
+  if (personaConUsuario?.usuario) {
+    await notificarUsuario(personaConUsuario.usuario.id, "cancelacion_confirmada", `Tu servicio ${servicio.codigo} ha sido cancelado.`);
+  }
+  const familiares = await prisma.familiarRelacion.findMany({
+    where: { personaId: servicio.solicitud.personaId, revocadoAt: null },
+    select: { usuarioId: true },
+  });
+  for (const f of familiares) {
+    await notificarUsuario(f.usuarioId, "cancelacion_confirmada", `El servicio ${servicio.codigo} ha sido cancelado.`);
+  }
+
+  res.json({ ok: true });
+});
+
+// Coordinación habla con la persona/familia y decide NO cancelar.
+serviciosRouter.post("/:id/rechazar-cancelacion", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id } });
+  if (!servicio) return res.status(404).json({ error: "No encontrado" });
+  if (servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+
+  const incidencia = await encontrarCancelacionPendiente(servicio.id);
+  if (!incidencia) return res.status(409).json({ error: "No hay ninguna solicitud de cancelación pendiente" });
+
+  await prisma.incidencia.update({ where: { id: incidencia.id }, data: { estado: "RESUELTA" } });
+  await registrarHistorial({
+    entidadTipo: "Incidencia",
+    estadoAnterior: incidencia.estado,
+    estadoNuevo: "RESUELTA",
+    motivo: "Cancelación rechazada: el servicio continúa",
+    incidenciaId: incidencia.id,
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: servicio.organizacionId,
+    accion: "rechazar_cancelacion_servicio",
+    entidadTipo: "Servicio",
+    entidadId: servicio.id,
+  });
+
+  res.json({ ok: true });
 });

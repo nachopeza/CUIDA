@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useAuth } from "../lib/auth.js";
+import { NotificationBell } from "./NotificationBell.js";
 
 const ROL_LABEL: Record<string, string> = {
   PERSONA: "Persona atendida",
@@ -24,9 +25,10 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
           {usuario && (
             <div className="flex items-center gap-3 text-sm">
-              <span className="text-slate-600">
+              <span className="hidden text-slate-600 sm:inline">
                 {usuario.email} <span className="text-slate-400">· {ROL_LABEL[usuario.rol] ?? usuario.rol}</span>
               </span>
+              <NotificationBell />
               <button onClick={logout} className="rounded-md border border-slate-300 px-3 py-1 text-slate-600 hover:bg-slate-100">
                 Salir
               </button>

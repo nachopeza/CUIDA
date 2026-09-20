@@ -3,8 +3,13 @@ export interface Persona {
   codigo: string;
   nombre: string;
   apellidos: string;
+  telefono: string | null;
   direccion: string | null;
   preferencias: string | null;
+  contactos: string | null;
+  medicacion: string | null;
+  medico: string | null;
+  recomendaciones: string | null;
   estado: string;
 }
 
@@ -72,9 +77,12 @@ export interface Actuacion {
 export interface Incidencia {
   id: string;
   codigo: string;
+  tipo?: "GENERAL" | "SOLICITUD_CANCELACION";
   descripcion: string;
   prioridad: string;
   estado: string;
+  servicioId?: string | null;
+  servicio?: { codigo: string; solicitud?: { persona: Persona; necesidad: Necesidad } } | null;
 }
 
 export interface Visita {
@@ -95,8 +103,17 @@ export interface Profesional {
   codigo: string;
   nombre: string;
   apellidos: string;
+  telefono: string | null;
   zona: string | null;
   estado: string;
+}
+
+export interface Notificacion {
+  id: string;
+  tipo: string;
+  mensaje: string;
+  leida: boolean;
+  createdAt: string;
 }
 
 export interface FamiliarRelacion {

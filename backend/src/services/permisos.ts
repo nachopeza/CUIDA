@@ -20,6 +20,16 @@ export async function puedeAccederPersona(usuario: TokenPayload, personaId: stri
     return persona?.organizacionId === usuario.organizacionId;
   }
 
+  // Profesional: solo cuando tiene un servicio asignado para esa persona
+  // (necesita el perfil — dirección, medicación, médico — para hacer la
+  // visita; nunca la tarifa, que se filtra aparte).
+  if (usuario.rol === "PROFESIONAL") {
+    const servicio = await prisma.servicio.findFirst({
+      where: { profesionalId: usuario.profesionalId ?? "__none__", solicitud: { personaId } },
+    });
+    return servicio !== null;
+  }
+
   return false;
 }
 

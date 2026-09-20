@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
 import { autenticar } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
-import { esGestorOrganizacion } from "../services/permisos.js";
+import { esGestorOrganizacion, ocultarTarifaSiProcede } from "../services/permisos.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 
 export const incidenciasRouter = Router();
@@ -76,7 +76,11 @@ incidenciasRouter.get("/", async (req, res) => {
         usuario.rol === "SUPERADMIN"
           ? {}
           : { OR: [{ servicio: { organizacionId: usuario.organizacionId ?? "__none__" } }, { visita: { servicio: { organizacionId: usuario.organizacionId ?? "__none__" } } }] },
-      include: { visita: true, servicio: true, responsable: true },
+      include: {
+        visita: true,
+        servicio: { include: { solicitud: { include: { persona: true, necesidad: true } } } },
+        responsable: true,
+      },
       orderBy: { createdAt: "desc" },
     });
     return res.json(incidencias);
@@ -84,10 +88,11 @@ incidenciasRouter.get("/", async (req, res) => {
   if (usuario.rol === "PROFESIONAL") {
     const incidencias = await prisma.incidencia.findMany({
       where: { visita: { servicio: { profesionalId: usuario.profesionalId ?? "__none__" } } },
-      include: { visita: true, servicio: true },
+      include: { visita: true, servicio: { include: { solicitud: { include: { persona: true, necesidad: true } } } } },
       orderBy: { createdAt: "desc" },
     });
-    return res.json(incidencias);
+    const sinTarifa = incidencias.map((i) => ({ ...i, servicio: ocultarTarifaSiProcede(i.servicio, false) }));
+    return res.json(sinTarifa);
   }
   res.json([]);
 });

@@ -7,8 +7,9 @@ import { PersonasTab } from "./coordinador/PersonasTab.js";
 import { ProfesionalesTab } from "./coordinador/ProfesionalesTab.js";
 import { EmpresasTab } from "./coordinador/EmpresasTab.js";
 import { CalendarioTab } from "./coordinador/CalendarioTab.js";
-import { AuditoriaTab } from "./coordinador/AuditoriaTab.js";
-import type { EmpresaColaboradora, Incidencia, Profesional, Servicio, Solicitud } from "../lib/types.js";
+import { ActividadTab } from "./coordinador/ActividadTab.js";
+import { SolicitudModal } from "../components/SolicitudModal.js";
+import type { EmpresaColaboradora, Incidencia, Necesidad, Persona, Profesional, Servicio, Solicitud } from "../lib/types.js";
 
 const SIGUIENTE_SOLICITUD: Record<string, string> = {
   BORRADOR: "ENVIADA",
@@ -18,13 +19,16 @@ const SIGUIENTE_SOLICITUD: Record<string, string> = {
   PROPUESTA: "ACEPTADA",
 };
 
+// ASIGNADO → CONFIRMADO ya no está aquí: solo el propio profesional puede
+// aceptar (POST /servicios/:id/aceptar). Coordinación propone, no acepta.
 const SIGUIENTE_SERVICIO: Record<string, string> = {
-  ASIGNADO: "CONFIRMADO",
   CONFIRMADO: "EN_CURSO",
   EN_CURSO: "FINALIZADO",
   FINALIZADO: "VALIDADO",
   VALIDADO: "CERRADO",
 };
+
+const SERVICIO_CANCELABLE = ["PENDIENTE", "ASIGNADO", "CONFIRMADO", "EN_CURSO"];
 
 const SIGUIENTE_INCIDENCIA: Record<string, string> = {
   NUEVA: "EN_REVISION",
@@ -34,17 +38,17 @@ const SIGUIENTE_INCIDENCIA: Record<string, string> = {
   RESUELTA: "CERRADA",
 };
 
-type Tab = "solicitudes" | "servicios" | "incidencias" | "personas" | "profesionales" | "empresas" | "calendario" | "auditoria";
+type Tab = "solicitudes" | "servicios" | "incidencias" | "personas" | "profesionales" | "empresas" | "calendario" | "actividad";
 
 const TAB_LABEL: Record<Tab, string> = {
   solicitudes: "Solicitudes",
   servicios: "Servicios",
   incidencias: "Incidencias",
-  personas: "Personas",
+  personas: "Usuarios",
   profesionales: "Profesionales",
   empresas: "Empresas colaboradoras",
   calendario: "Calendario",
-  auditoria: "Auditoría",
+  actividad: "Actividad",
 };
 
 interface TarifaForm {
@@ -64,22 +68,29 @@ export function CoordinadorPage() {
   const [profesionales, setProfesionales] = useState<Profesional[]>([]);
   const [empresas, setEmpresas] = useState<EmpresaColaboradora[]>([]);
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [necesidades, setNecesidades] = useState<Necesidad[]>([]);
   const [planForm, setPlanForm] = useState<Record<string, { fechaInicio: string; fechaFin: string; recurrencia: string; franjaHoraria: string }>>({});
   const [tarifaForm, setTarifaForm] = useState<Record<string, TarifaForm>>({});
+  const [nuevaSolicitud, setNuevaSolicitud] = useState(false);
 
   async function cargar() {
-    const [sols, servs, pros, incs, emps] = await Promise.all([
+    const [sols, servs, pros, incs, emps, pers, necs] = await Promise.all([
       api.get<Solicitud[]>("/solicitudes", token),
       api.get<Servicio[]>("/servicios", token),
       api.get<Profesional[]>("/profesionales", token),
       api.get<Incidencia[]>("/incidencias", token),
       api.get<EmpresaColaboradora[]>("/empresas-colaboradoras", token),
+      api.get<Persona[]>("/personas", token),
+      api.get<Necesidad[]>("/necesidades", token),
     ]);
     setSolicitudes(sols);
     setServicios(servs);
     setProfesionales(pros);
     setIncidencias(incs);
     setEmpresas(emps);
+    setPersonas(pers);
+    setNecesidades(necs);
   }
 
   useEffect(() => {
@@ -150,9 +161,47 @@ export function CoordinadorPage() {
     await cargar();
   }
 
+  async function cancelarServicioDirecto(servicioId: string) {
+    await api.post(`/servicios/${servicioId}/estado`, { estado: "CANCELADO" }, token);
+    await cargar();
+  }
+
+  async function confirmarCancelacion(servicioId: string) {
+    await api.post(`/servicios/${servicioId}/confirmar-cancelacion`, {}, token);
+    await cargar();
+  }
+
+  async function rechazarCancelacion(servicioId: string) {
+    await api.post(`/servicios/${servicioId}/rechazar-cancelacion`, {}, token);
+    await cargar();
+  }
+
+  const kpis = [
+    { label: "Solicitudes", valor: solicitudes.length },
+    { label: "Gestionadas", valor: solicitudes.filter((s) => s.estado === "ACEPTADA" || s.servicio).length },
+    { label: "En proceso", valor: servicios.filter((s) => s.estado === "EN_CURSO").length },
+    { label: "Incidencias abiertas", valor: incidencias.filter((i) => !["RESUELTA", "CERRADA"].includes(i.estado)).length },
+    { label: "Canceladas", valor: servicios.filter((s) => s.estado === "CANCELADO").length },
+    { label: "Finalizadas", valor: servicios.filter((s) => ["VALIDADO", "CERRADO"].includes(s.estado)).length },
+  ];
+
   return (
     <div>
-      <h2 className="mb-4 text-lg font-semibold">Panel de coordinación</h2>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Panel de coordinación</h2>
+        <button onClick={() => setNuevaSolicitud(true)} className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800">
+          + Nueva solicitud
+        </button>
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {kpis.map((k) => (
+          <div key={k.label} className="rounded-lg border border-slate-200 bg-white p-3 text-center">
+            <p className="text-2xl font-semibold text-slate-800">{k.valor}</p>
+            <p className="text-xs text-slate-500">{k.label}</p>
+          </div>
+        ))}
+      </div>
 
       <div className="mb-4 flex flex-wrap gap-2 text-sm">
         {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
@@ -257,9 +306,17 @@ export function CoordinadorPage() {
                       ))}
                     </select>
                   )}
+                  {s.estado === "ASIGNADO" && (
+                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs text-amber-700">Esperando que el profesional acepte…</span>
+                  )}
                   {SIGUIENTE_SERVICIO[s.estado] && (
                     <button onClick={() => avanzarServicio(s)} className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800">
                       Avanzar a {SIGUIENTE_SERVICIO[s.estado].replace(/_/g, " ")}
+                    </button>
+                  )}
+                  {SERVICIO_CANCELABLE.includes(s.estado) && (
+                    <button onClick={() => cancelarServicioDirecto(s.id)} className="rounded-md border border-rose-200 px-3 py-1 text-xs text-rose-600 hover:bg-rose-50">
+                      Cancelar
                     </button>
                   )}
                 </div>
@@ -326,24 +383,50 @@ export function CoordinadorPage() {
       {tab === "incidencias" && (
         <div>
           {incidencias.length === 0 && <p className="text-sm text-slate-500">Sin incidencias abiertas.</p>}
-          {incidencias.map((i) => (
-            <Card key={i.id}>
-              <div className="mb-2 flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{i.descripcion}</p>
-                  <p className="text-xs text-slate-400">
-                    {i.codigo} · prioridad {i.prioridad}
-                  </p>
+          {incidencias.map((i) => {
+            const esCancelacion = i.tipo === "SOLICITUD_CANCELACION";
+            const pendiente = !["RESUELTA", "CERRADA"].includes(i.estado);
+            return (
+              <Card key={i.id}>
+                <div className="mb-2 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">
+                      {esCancelacion && "🚫 "}
+                      {i.descripcion}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {i.codigo} · prioridad {i.prioridad}
+                      {i.servicio?.solicitud && ` · ${i.servicio.solicitud.persona.nombre} · ${i.servicio.solicitud.necesidad.nombre}`}
+                    </p>
+                  </div>
+                  <EstadoBadge estado={i.estado} />
                 </div>
-                <EstadoBadge estado={i.estado} />
-              </div>
-              {SIGUIENTE_INCIDENCIA[i.estado] && (
-                <button onClick={() => avanzarIncidencia(i)} className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100">
-                  Avanzar a {SIGUIENTE_INCIDENCIA[i.estado].replace(/_/g, " ")}
-                </button>
-              )}
-            </Card>
-          ))}
+
+                {esCancelacion && pendiente ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => i.servicioId && confirmarCancelacion(i.servicioId)}
+                      className="rounded-md bg-rose-600 px-3 py-1 text-xs font-medium text-white hover:bg-rose-700"
+                    >
+                      Confirmar cancelación
+                    </button>
+                    <button
+                      onClick={() => i.servicioId && rechazarCancelacion(i.servicioId)}
+                      className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100"
+                    >
+                      Seguir con el servicio
+                    </button>
+                  </div>
+                ) : (
+                  SIGUIENTE_INCIDENCIA[i.estado] && (
+                    <button onClick={() => avanzarIncidencia(i)} className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100">
+                      Avanzar a {SIGUIENTE_INCIDENCIA[i.estado].replace(/_/g, " ")}
+                    </button>
+                  )
+                )}
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -351,7 +434,16 @@ export function CoordinadorPage() {
       {tab === "profesionales" && <ProfesionalesTab />}
       {tab === "empresas" && <EmpresasTab />}
       {tab === "calendario" && <CalendarioTab />}
-      {tab === "auditoria" && <AuditoriaTab />}
+      {tab === "actividad" && <ActividadTab />}
+
+      {nuevaSolicitud && (
+        <SolicitudModal
+          personas={personas}
+          necesidades={necesidades}
+          onClose={() => setNuevaSolicitud(false)}
+          onCreated={cargar}
+        />
+      )}
     </div>
   );
 }

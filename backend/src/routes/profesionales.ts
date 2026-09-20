@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
 import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
+import { ocultarTarifaSiProcede } from "../services/permisos.js";
 
 export const profesionalesRouter = Router();
 profesionalesRouter.use(autenticar);
@@ -12,6 +13,7 @@ profesionalesRouter.use(autenticar);
 const crearProfesionalSchema = z.object({
   nombre: z.string().min(1),
   apellidos: z.string().min(1),
+  telefono: z.string().optional(),
   zona: z.string().optional(),
   email: z.string().email().optional(),
   password: z.string().min(6).optional(),
@@ -33,6 +35,7 @@ profesionalesRouter.post("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"
       codigo,
       nombre: parsed.data.nombre,
       apellidos: parsed.data.apellidos,
+      telefono: parsed.data.telefono,
       zona: parsed.data.zona,
       estado: "ACTIVO",
       organizacionId: req.usuario!.organizacionId,
@@ -88,5 +91,9 @@ profesionalesRouter.get("/:id/agenda", async (req, res) => {
     },
     orderBy: { fecha: "asc" },
   });
-  res.json(visitas);
+
+  // El profesional nunca ve la tarifa del servicio (sección 4/14), aunque
+  // Prisma la incluya por defecto al traer la relación; un gestor sí la ve.
+  const resultado = visitas.map((v) => ({ ...v, servicio: ocultarTarifaSiProcede(v.servicio, esGestor) }));
+  res.json(resultado);
 });

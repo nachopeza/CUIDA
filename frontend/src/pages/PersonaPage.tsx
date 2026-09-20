@@ -3,6 +3,8 @@ import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
+import { SolicitudModal } from "../components/SolicitudModal.js";
+import { ConfirmModal } from "../components/ConfirmModal.js";
 import type { Necesidad, Solicitud } from "../lib/types.js";
 
 const ICONOS: Record<string, string> = {
@@ -17,16 +19,19 @@ const ICONOS: Record<string, string> = {
   apoyo_puntual: "🤝",
 };
 
+const SERVICIO_CANCELABLE = ["PENDIENTE", "ASIGNADO", "CONFIRMADO", "EN_CURSO"];
+
 // Interfaz CUIDA PERSONAS (sección 9): "la persona no debería tener que
 // conocer el nombre técnico del servicio que necesita" (sección 2). Un
-// solo toque sobre un botón grande crea la solicitud; sin formularios,
-// sin selects, sin texto obligatorio.
+// toque sobre un botón grande abre una ventana sencilla de cuándo/cuántos
+// días; sin formularios largos.
 export function PersonaPage() {
   const { token, usuario } = useAuth();
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [necesidades, setNecesidades] = useState<Necesidad[]>([]);
+  const [necesidadModal, setNecesidadModal] = useState<Necesidad | null>(null);
+  const [cancelando, setCancelando] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState<string | null>(null);
 
   async function cargar() {
     const [sols, necs] = await Promise.all([
@@ -42,24 +47,13 @@ export function PersonaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function pedirAyuda(necesidad: Necesidad) {
-    if (!usuario?.personaId) return;
-    setEnviando(necesidad.id);
-    setMensaje(null);
-    try {
-      await api.post(
-        "/solicitudes",
-        { personaId: usuario.personaId, necesidadId: necesidad.id, descripcionLibre: `Necesito ayuda: ${necesidad.nombre}` },
-        token,
-      );
-      setMensaje(`Hecho. Hemos avisado de que necesitas: ${necesidad.nombre.toLowerCase()}.`);
-      await cargar();
-    } finally {
-      setEnviando(null);
-    }
+  async function cancelarServicio(servicioId: string) {
+    await api.post(`/servicios/${servicioId}/solicitar-cancelacion`, {}, token);
+    setMensaje("Hemos avisado a coordinación. Te confirmarán la cancelación.");
+    await cargar();
   }
 
-  const enCurso = solicitudes.find((s) => s.servicio && s.servicio.estado !== "CERRADO");
+  const enCurso = solicitudes.find((s) => s.servicio && !["CERRADO", "CANCELADO"].includes(s.servicio.estado));
 
   return (
     <div>
@@ -70,6 +64,20 @@ export function PersonaPage() {
           <p className="text-base text-slate-700">
             {enCurso.necesidad.nombre} — <EstadoBadge estado={enCurso.servicio.estado} />
           </p>
+          {enCurso.servicio.profesional && enCurso.servicio.estado !== "PENDIENTE" && enCurso.servicio.estado !== "ASIGNADO" && (
+            <p className="mt-1 text-sm text-slate-500">
+              {enCurso.servicio.profesional.nombre} {enCurso.servicio.profesional.apellidos}
+              {enCurso.servicio.profesional.telefono && ` · ${enCurso.servicio.profesional.telefono}`}
+            </p>
+          )}
+          {SERVICIO_CANCELABLE.includes(enCurso.servicio.estado) && (
+            <button
+              onClick={() => setCancelando(enCurso.servicio!.id)}
+              className="mt-3 rounded-lg border-2 border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50"
+            >
+              Ya no lo necesito, cancelar
+            </button>
+          )}
         </Card>
       )}
 
@@ -81,14 +89,11 @@ export function PersonaPage() {
         {necesidades.map((n) => (
           <button
             key={n.id}
-            onClick={() => pedirAyuda(n)}
-            disabled={enviando !== null}
-            className="flex min-h-[110px] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-slate-200 bg-white px-3 py-4 text-center shadow-sm transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
+            onClick={() => setNecesidadModal(n)}
+            className="flex min-h-[110px] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-slate-200 bg-white px-3 py-4 text-center shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
           >
             <span className="text-3xl">{ICONOS[n.codigo] ?? "❓"}</span>
-            <span className="text-base font-medium leading-tight text-slate-800">
-              {enviando === n.id ? "Enviando…" : n.nombre}
-            </span>
+            <span className="text-base font-medium leading-tight text-slate-800">{n.nombre}</span>
           </button>
         ))}
       </div>
@@ -107,6 +112,26 @@ export function PersonaPage() {
           ))}
         </ul>
       </Card>
+
+      {necesidadModal && (
+        <SolicitudModal
+          necesidad={necesidadModal}
+          personaId={usuario!.personaId!}
+          onClose={() => setNecesidadModal(null)}
+          onCreated={() => setMensaje(`Hecho. Hemos avisado de que necesitas: ${necesidadModal.nombre.toLowerCase()}.`)}
+        />
+      )}
+
+      {cancelando && (
+        <ConfirmModal
+          title="Cancelar servicio"
+          description="Avisaremos a coordinación de que ya no necesitas este servicio. Te lo confirmarán antes de cancelarlo del todo."
+          confirmLabel="Sí, avisar"
+          danger
+          onConfirm={() => cancelarServicio(cancelando)}
+          onClose={() => setCancelando(null)}
+        />
+      )}
     </div>
   );
 }

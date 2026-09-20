@@ -1,9 +1,11 @@
 import { Router, type Request } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
-import { autenticar } from "../middleware/auth.js";
+import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
+import { notificarGestores } from "../services/notificaciones.js";
+import { esGestorOrganizacion, ocultarTarifaSiProcede } from "../services/permisos.js";
 
 export const visitasRouter = Router();
 visitasRouter.use(autenticar);
@@ -30,7 +32,9 @@ visitasRouter.get("/:id", async (req, res) => {
     where: { id: visita.id },
     include: { tareas: true, actuaciones: true, incidencias: true, servicio: { include: { solicitud: { include: { persona: true } } } } },
   });
-  res.json(completa);
+  if (!completa) return res.status(404).json({ error: "No encontrada" });
+
+  res.json({ ...completa, servicio: ocultarTarifaSiProcede(completa.servicio, esGestorOrganizacion(req.usuario!)) });
 });
 
 // "6. Ejecución": inicio + tareas + observaciones → Visita registrada
@@ -113,6 +117,14 @@ visitasRouter.post("/:id/finalizar", async (req, res) => {
     entidadId: visita.id,
   });
 
+  // "Esa tarea llega a coordinación": la coordinadora debe verificarla con
+  // la familia antes de archivarla (sección Profesional).
+  await notificarGestores(
+    visita.servicio.organizacionId,
+    "visita_para_revisar",
+    `La visita ${visita.codigo} ha finalizado. Verifícala con la persona o su familia antes de archivarla.`,
+  );
+
   res.json(actualizada);
 });
 
@@ -148,4 +160,40 @@ visitasRouter.post("/:id/actuaciones", async (req, res) => {
     data: { visitaId: visita.id, descripcion: parsed.data.descripcion },
   });
   res.status(201).json(actuacion);
+});
+
+// Coordinación verifica con la familia que todo fue bien y archiva la
+// visita (sección Profesional: "lo verifican... y ya se verifica y
+// archiva"). Solo gestores; el profesional no se autoverifica.
+visitasRouter.post("/:id/revisar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const visita = await prisma.visita.findUnique({ where: { id: req.params.id }, include: { servicio: true } });
+  if (!visita) return res.status(404).json({ error: "No encontrada" });
+  if (visita.servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+
+  try {
+    validaciones.visita(visita.estado, "REVISADA");
+  } catch (err) {
+    if (err instanceof TransicionInvalidaError) return res.status(409).json({ error: err.message });
+    throw err;
+  }
+
+  const actualizada = await prisma.visita.update({ where: { id: visita.id }, data: { estado: "REVISADA" } });
+
+  await registrarHistorial({
+    entidadTipo: "Visita",
+    estadoAnterior: visita.estado,
+    estadoNuevo: "REVISADA",
+    motivo: "Verificada con la persona/familia",
+    visitaId: visita.id,
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: visita.servicio.organizacionId,
+    accion: "revisar_visita",
+    entidadTipo: "Visita",
+    entidadId: visita.id,
+  });
+
+  res.json(actualizada);
 });

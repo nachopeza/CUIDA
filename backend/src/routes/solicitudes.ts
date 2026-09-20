@@ -6,6 +6,7 @@ import { autenticar } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
 import { puedeAccederPersona, esGestorOrganizacion, ocultarTarifaSiProcede, puedeVerImportes } from "../services/permisos.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
+import { notificarGestores } from "../services/notificaciones.js";
 
 export const solicitudesRouter = Router();
 solicitudesRouter.use(autenticar);
@@ -14,6 +15,11 @@ const crearSolicitudSchema = z.object({
   personaId: z.string().min(1),
   necesidadId: z.string().min(1),
   descripcionLibre: z.string().min(1),
+  // Ventana "¿cuándo? ¿cuántos días?": si se indican, el plan se crea en el
+  // mismo paso, sin que la persona tenga que pasar por una pantalla aparte.
+  fechaInicio: z.string().datetime().optional(),
+  dias: z.number().int().min(1).max(90).optional(),
+  franjaHoraria: z.string().optional(),
 });
 
 // "1. Necesidad" + "2. Solicitud" del caso Herminia: lenguaje humano → dato
@@ -22,7 +28,7 @@ solicitudesRouter.post("/", async (req, res) => {
   const parsed = crearSolicitudSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { personaId, necesidadId, descripcionLibre } = parsed.data;
+  const { personaId, necesidadId, descripcionLibre, fechaInicio, dias, franjaHoraria } = parsed.data;
 
   const permitido = await puedeAccederPersona(req.usuario!, personaId);
   if (!permitido) return res.status(403).json({ error: "Sin permiso para solicitar por esta persona" });
@@ -60,6 +66,15 @@ solicitudesRouter.post("/", async (req, res) => {
     solicitudId: solicitud.id,
   });
 
+  if (fechaInicio && dias) {
+    const inicio = new Date(fechaInicio);
+    const fin = new Date(inicio);
+    fin.setDate(fin.getDate() + dias);
+    await prisma.plan.create({
+      data: { solicitudId: solicitud.id, fechaInicio: inicio, fechaFin: fin, franjaHoraria },
+    });
+  }
+
   await registrarAuditoria({
     usuarioId: req.usuario!.sub,
     organizacionId: persona.organizacionId,
@@ -68,7 +83,20 @@ solicitudesRouter.post("/", async (req, res) => {
     entidadId: solicitud.id,
   });
 
-  res.status(201).json(solicitud);
+  if (req.usuario!.rol === "PERSONA" || req.usuario!.rol === "FAMILIAR") {
+    await notificarGestores(
+      persona.organizacionId,
+      "nueva_solicitud",
+      `Nueva solicitud de ${persona.nombre} ${persona.apellidos}: ${descripcionLibre}`,
+    );
+  }
+
+  const solicitudCompleta = await prisma.solicitud.findUnique({
+    where: { id: solicitud.id },
+    include: { persona: true, necesidad: true, plan: true },
+  });
+
+  res.status(201).json(solicitudCompleta);
 });
 
 solicitudesRouter.get("/", async (req, res) => {
@@ -83,13 +111,18 @@ solicitudesRouter.get("/", async (req, res) => {
       select: { personaId: true },
     });
     where = { personaId: { in: relaciones.map((r) => r.personaId) } };
+  } else if (usuario.rol === "PROFESIONAL") {
+    where = { servicio: { profesionalId: usuario.profesionalId ?? "__none__" } };
   } else if (esGestorOrganizacion(usuario) && usuario.rol !== "SUPERADMIN") {
     where = { organizacionId: usuario.organizacionId ?? "__none__" };
+  } else if (usuario.rol !== "SUPERADMIN") {
+    // Rol sin ramas anteriores (no debería ocurrir, pero por defecto no ve nada).
+    where = { id: "__none__" };
   }
 
   const solicitudes = await prisma.solicitud.findMany({
     where,
-    include: { persona: true, necesidad: true, plan: true, servicio: { include: { empresaColaboradora: true } } },
+    include: { persona: true, necesidad: true, plan: true, servicio: { include: { empresaColaboradora: true, profesional: true } } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -117,7 +150,7 @@ solicitudesRouter.get("/:id", async (req, res) => {
       persona: true,
       necesidad: true,
       plan: true,
-      servicio: { include: { empresaColaboradora: true } },
+      servicio: { include: { empresaColaboradora: true, profesional: true } },
       estadoHistorial: { orderBy: { createdAt: "asc" } },
     },
   });
