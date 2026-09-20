@@ -35,6 +35,10 @@ model Organizacion {
   codigo    String             @unique // ORG-00017
   nombre    String
   estado    EstadoOrganizacion @default(PRUEBA)
+  // Modelo de negocio (sección "función es cobrar por gestión un pequeño
+  // porcentaje"): comisión que se retiene de la tarifa cobrada a la familia
+  // antes de liquidar al profesional/empresa colaboradora.
+  comisionPorcentaje Decimal  @default(15) @db.Decimal(5, 2)
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
@@ -44,6 +48,7 @@ model Organizacion {
   empresasColaboradoras EmpresaColaboradora[]
   solicitudes           Solicitud[]
   servicios             Servicio[]
+  facturas              Factura[]
   auditLogs             AuditLog[]
 
   @@map("organizaciones")
@@ -87,6 +92,7 @@ model Usuario {
   solicitudesCreadas Solicitud[]       @relation("SolicitudCreadaPor")
   incidenciasAsignadas Incidencia[]    @relation("IncidenciaResponsable")
   notificaciones    Notificacion[]
+  mensajes          Mensaje[]
   auditLogs         AuditLog[]
 
   @@map("usuarios")
@@ -130,6 +136,7 @@ model Persona {
   familiares  FamiliarRelacion[]
   solicitudes Solicitud[]
   documentos  Documento[]
+  facturas    Factura[]
 
   @@map("personas")
 }
@@ -173,6 +180,13 @@ model Profesional {
   apellidos String
   telefono  String?
   zona      String?
+  // Datos personales y de cobro (sección "los perfiles de profesionales se
+  // deben poder editar e incluir información número de cuenta, Bizum, carné,
+  // datos personales..."). Información sensible: solo la ve el propio
+  // profesional y los gestores de la organización, nunca la persona atendida.
+  dni          String?
+  numeroCuenta String?
+  bizum        String?
   estado    EstadoProfesional @default(PENDIENTE)
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
@@ -187,6 +201,7 @@ model Profesional {
 
   usuario   Usuario?
   servicios Servicio[]
+  mensajes  Mensaje[]
 
   @@map("profesionales")
 }
@@ -203,6 +218,11 @@ model EmpresaColaboradora {
   codigo    String                    @unique // EXT-00001
   nombre    String
   contacto  String?
+  // Datos administrativos/de cobro, editables desde coordinación (igual que
+  // en el perfil de profesional independiente).
+  cif          String?
+  direccion    String?
+  numeroCuenta String?
   estado    EstadoEmpresaColaboradora @default(ACTIVA)
   createdAt DateTime                  @default(now())
 
@@ -345,12 +365,83 @@ model Servicio {
   // de la tarifa cobrada a la familia. Solo aplica si tarifaTipo = PAGADO.
   pagoProfesionalEstado EstadoPagoProfesional @default(PENDIENTE)
 
+  // Comisión de gestión de CUIDA (sección "cobrar por gestión un pequeño
+  // porcentaje"): se calcula al fijar la tarifa, a partir del % de la
+  // organización. importeProfesional = tarifaImporte - comisionImporte es lo
+  // que se liquida al profesional/empresa; comisionImporte es el margen de
+  // CUIDA. Ambos quedan congelados en el servicio aunque cambie luego el %
+  // de la organización, para no alterar liquidaciones ya calculadas.
+  comisionImporte     Decimal? @db.Decimal(10, 2)
+  importeProfesional  Decimal? @db.Decimal(10, 2)
+
+  // Servicio facturado: se enlaza a la factura mensual de la persona cuando
+  // se genera (sección "cuenta mensual... al final de mes se le cobrará").
+  facturaId String?
+  factura   Factura? @relation(fields: [facturaId], references: [id])
+
   visitas         Visita[]
   incidencias     Incidencia[]
   estadoHistorial EstadoHistorial[]
   documentos      Documento[]
+  mensajes        Mensaje[]
 
   @@map("servicios")
+}
+
+enum EstadoFactura {
+  BORRADOR
+  EMITIDA
+  PAGADA
+}
+
+// Facturación mensual a la familia (sección "función es cobrar por gestión
+// un pequeño porcentaje... al final de mes se le cobrará el importe"):
+// agrupa los servicios PAGADO de una persona en un mes natural, calcula el
+// total cobrado, la comisión retenida y el neto a liquidar a profesionales.
+model Factura {
+  id        String        @id @default(cuid())
+  codigo    String        @unique // FAC-000012
+  mes       String // "2026-09"
+  importeTotal        Decimal @db.Decimal(10, 2)
+  comisionTotal       Decimal @db.Decimal(10, 2)
+  importeProfesionales Decimal @db.Decimal(10, 2)
+  estado    EstadoFactura @default(BORRADOR)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
+
+  personaId String
+  persona   Persona @relation(fields: [personaId], references: [id])
+
+  servicios Servicio[]
+
+  @@unique([personaId, mes])
+  @@map("facturas")
+}
+
+// Chat entre la persona/familia y el profesional asignado a un servicio
+// (sección "la usuaria debe tener un chat con la profesional"). Se ancla al
+// Servicio: solo pueden participar la persona, su familiar autorizado, el
+// profesional asignado y los gestores de la organización.
+model Mensaje {
+  id        String   @id @default(cuid())
+  texto     String
+  createdAt DateTime @default(now())
+
+  servicioId String
+  servicio   Servicio @relation(fields: [servicioId], references: [id])
+
+  autorUsuarioId String
+  autor          Usuario @relation(fields: [autorUsuarioId], references: [id])
+
+  // Denormalizado para no tener que unir con Profesional en cada lectura del
+  // chat (quién lo escribió, desde qué "lado").
+  profesionalId String?
+  profesional   Profesional? @relation(fields: [profesionalId], references: [id])
+
+  @@map("mensajes")
 }
 
 enum EstadoVisita {

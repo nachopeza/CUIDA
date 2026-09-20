@@ -60,6 +60,9 @@ const CAMPOS_TARIFA = [
   "empresaColaboradora",
   "empresaColaboradoraId",
   "pagoProfesionalEstado",
+  "comisionImporte",
+  "importeProfesional",
+  "facturaId",
 ] as const;
 
 // Elimina del objeto Servicio (o de una Solicitud con .servicio anidado) los

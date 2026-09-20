@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { Modal } from "./Modal.js";
+import { aISO, etiquetaDia, proximosDias } from "../lib/fechas.js";
 import type { Necesidad, Persona } from "../lib/types.js";
 
 const FRANJAS = ["Mañana", "Tarde", "Todo el día"];
@@ -22,11 +23,14 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
   const { token } = useAuth();
   const [personaSel, setPersonaSel] = useState(personaId ?? personas?.[0]?.id ?? "");
   const [necesidadSel, setNecesidadSel] = useState(necesidad?.id ?? necesidades?.[0]?.id ?? "");
-  const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
+  const [fecha, setFecha] = useState(() => aISO(new Date()));
   const [dias, setDias] = useState(1);
   const [franja, setFranja] = useState("Mañana");
   const [nota, setNota] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [masOpciones, setMasOpciones] = useState(false);
+
+  const diasVisibles = proximosDias(masOpciones ? 14 : 3);
 
   const necesidadNombre = necesidad?.nombre ?? necesidades?.find((n) => n.id === necesidadSel)?.nombre ?? "";
 
@@ -83,13 +87,31 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
 
         <div>
           <label className="mb-1 block text-base text-slate-700">¿Cuándo empieza?</label>
-          <input
-            type="date"
-            value={fecha}
-            min={new Date().toISOString().slice(0, 10)}
-            onChange={(e) => setFecha(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-base"
-          />
+          {/* Botones grandes en vez del calendario nativo: más cómodo para
+              personas mayores que teclear o abrir un selector emergente
+              (sección Usuario: "el calendario... es incómodo"). */}
+          <div className="grid grid-cols-3 gap-2">
+            {diasVisibles.map((d) => {
+              const iso = aISO(d);
+              return (
+                <button
+                  key={iso}
+                  type="button"
+                  onClick={() => setFecha(iso)}
+                  className={`rounded-lg border-2 px-2 py-3 text-center text-sm font-medium ${
+                    fecha === iso ? "border-brand bg-brand text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  {etiquetaDia(d)}
+                </button>
+              );
+            })}
+          </div>
+          {!masOpciones && (
+            <button type="button" onClick={() => setMasOpciones(true)} className="mt-2 text-sm text-slate-500 underline decoration-dotted hover:text-slate-700">
+              Ver más días
+            </button>
+          )}
         </div>
 
         <div>

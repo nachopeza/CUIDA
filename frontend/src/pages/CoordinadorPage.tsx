@@ -9,6 +9,7 @@ import { ProfesionalesTab } from "./coordinador/ProfesionalesTab.js";
 import { EmpresasTab } from "./coordinador/EmpresasTab.js";
 import { CalendarioTab } from "./coordinador/CalendarioTab.js";
 import { ActividadTab } from "./coordinador/ActividadTab.js";
+import { FacturacionTab } from "./coordinador/FacturacionTab.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
 import { SolicitudFichaModal } from "../components/SolicitudFichaModal.js";
 import type { EmpresaColaboradora, Incidencia, Necesidad, Persona, Profesional, Servicio, Solicitud } from "../lib/types.js";
@@ -21,7 +22,7 @@ const SIGUIENTE_INCIDENCIA: Record<string, string> = {
   RESUELTA: "CERRADA",
 };
 
-type Tab = "solicitudes" | "incidencias" | "personas" | "profesionales" | "empresas" | "calendario" | "actividad";
+type Tab = "solicitudes" | "incidencias" | "personas" | "profesionales" | "empresas" | "calendario" | "facturacion" | "actividad";
 
 const TAB_LABEL: Record<Tab, string> = {
   solicitudes: "Solicitudes",
@@ -30,6 +31,7 @@ const TAB_LABEL: Record<Tab, string> = {
   profesionales: "Profesionales",
   empresas: "Empresas colaboradoras",
   calendario: "Calendario",
+  facturacion: "Facturación",
   actividad: "Actividad",
 };
 
@@ -204,8 +206,12 @@ export function CoordinadorPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <EstadoBadge estado={s.estado} />
-                    {s.servicio && <EstadoBadge estado={s.servicio.estado} />}
+                    <EstadoBadge estado={s.servicio ? s.servicio.estado : s.estado} />
+                    {s.servicio?.incidencias?.some((i) => !["RESUELTA", "CERRADA"].includes(i.estado)) && (
+                      <span className="text-xs text-amber-600" title="Incidencia abierta">
+                        ⚠
+                      </span>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -268,6 +274,7 @@ export function CoordinadorPage() {
       {tab === "profesionales" && <ProfesionalesTab />}
       {tab === "empresas" && <EmpresasTab />}
       {tab === "calendario" && <CalendarioTab />}
+      {tab === "facturacion" && <FacturacionTab />}
       {tab === "actividad" && <ActividadTab />}
 
       {nuevaSolicitud && (

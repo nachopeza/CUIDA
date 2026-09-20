@@ -5,20 +5,40 @@ import { Modal } from "./Modal.js";
 import { EstadoBadge } from "./EstadoBadge.js";
 import type { EmpresaColaboradora, Necesidad, Profesional, Solicitud } from "../lib/types.js";
 
-const SIGUIENTE_SOLICITUD: Record<string, string> = {
-  BORRADOR: "ENVIADA",
-  ENVIADA: "EN_REVISION",
-  EN_REVISION: "BUSCANDO",
-  BUSCANDO: "PROPUESTA",
-  PROPUESTA: "ACEPTADA",
+// Espejo de TRANSICIONES_SOLICITUD/TRANSICIONES_SERVICIO del backend
+// (backend/src/services/estados.ts): un desplegable solo debe ofrecer
+// estados a los que realmente se pueda pasar desde el actual, para que la
+// selección de estado sea segura y no un simple botón "avanzar" ciego.
+const TRANSICIONES_SOLICITUD: Record<string, string[]> = {
+  BORRADOR: ["ENVIADA", "CANCELADA"],
+  ENVIADA: ["EN_REVISION", "CANCELADA"],
+  EN_REVISION: ["BUSCANDO", "CANCELADA"],
+  BUSCANDO: ["PROPUESTA", "CANCELADA"],
+  PROPUESTA: ["ACEPTADA", "CANCELADA"],
+  ACEPTADA: [],
+  CANCELADA: [],
+  CERRADA: [],
 };
 
-const SIGUIENTE_SERVICIO: Record<string, string> = {
-  CONFIRMADO: "EN_CURSO",
-  EN_CURSO: "FINALIZADO",
-  FINALIZADO: "VALIDADO",
-  VALIDADO: "CERRADO",
+// Solo los estados alcanzables manualmente vía POST /servicios/:id/estado
+// (CONFIRMADO queda excluido a propósito: solo lo alcanza el profesional
+// aceptando explícitamente su propuesta).
+const TRANSICIONES_SERVICIO_MANUAL: Record<string, string[]> = {
+  PENDIENTE: [],
+  ASIGNADO: [],
+  CONFIRMADO: ["EN_CURSO"],
+  EN_CURSO: ["FINALIZADO"],
+  FINALIZADO: ["VALIDADO"],
+  VALIDADO: ["CERRADO"],
+  CERRADO: [],
+  CANCELADO: [],
 };
+
+// Los estados que cierran o archivan el servicio quedan bloqueados mientras
+// haya una incidencia general sin resolver (mismo bug fix que en el
+// backend): así el desplegable nunca ofrece una opción que el servidor
+// vaya a rechazar.
+const ESTADOS_BLOQUEADOS_CON_INCIDENCIA = ["FINALIZADO", "VALIDADO", "CERRADO"];
 
 const SERVICIO_CANCELABLE = ["PENDIENTE", "ASIGNADO", "CONFIRMADO", "EN_CURSO"];
 const FRANJAS = ["Mañana", "Tarde", "Todo el día"];
@@ -88,11 +108,9 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
     await recargar();
   }
 
-  async function avanzarSolicitud() {
-    if (!s) return;
-    const siguiente = SIGUIENTE_SOLICITUD[s.estado];
-    if (!siguiente) return;
-    await api.post(`/solicitudes/${solicitudId}/estado`, { estado: siguiente }, token);
+  async function cambiarEstadoSolicitud(estado: string) {
+    if (!s || estado === s.estado) return;
+    await api.post(`/solicitudes/${solicitudId}/estado`, { estado }, token);
     await recargar();
   }
 
@@ -138,11 +156,9 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
     await recargar();
   }
 
-  async function avanzarServicio() {
-    if (!s?.servicio) return;
-    const siguiente = SIGUIENTE_SERVICIO[s.servicio.estado];
-    if (!siguiente) return;
-    await api.post(`/servicios/${s.servicio.id}/estado`, { estado: siguiente }, token);
+  async function cambiarEstadoServicio(estado: string) {
+    if (!s?.servicio || estado === s.servicio.estado) return;
+    await api.post(`/servicios/${s.servicio.id}/estado`, { estado }, token);
     await recargar();
   }
 
@@ -204,6 +220,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
 
   const srv = s.servicio;
   const cancelacionPendiente = srv?.incidencias?.find((i) => i.tipo === "SOLICITUD_CANCELACION" && !["RESUELTA", "CERRADA"].includes(i.estado));
+  const incidenciaGeneralAbierta = srv?.incidencias?.find((i) => i.tipo !== "SOLICITUD_CANCELACION" && !["RESUELTA", "CERRADA"].includes(i.estado));
 
   return (
     <Modal title={`${s.persona.nombre} ${s.persona.apellidos} · ${s.codigo}`} onClose={onClose} size="lg">
@@ -232,14 +249,25 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 </option>
               ))}
             </select>
-            <EstadoBadge estado={s.estado} />
-            {SIGUIENTE_SOLICITUD[s.estado] && (
-              <button onClick={avanzarSolicitud} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-100">
-                Avanzar a {SIGUIENTE_SOLICITUD[s.estado].replace(/_/g, " ")}
-              </button>
+            {!srv ? (
+              <select
+                value={s.estado}
+                onChange={(e) => cambiarEstadoSolicitud(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm font-medium"
+              >
+                <option value={s.estado}>{s.estado.replace(/_/g, " ")}</option>
+                {(TRANSICIONES_SOLICITUD[s.estado] ?? []).map((estado) => (
+                  <option key={estado} value={estado}>
+                    → {estado.replace(/_/g, " ")}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <EstadoBadge estado={s.estado} />
             )}
           </div>
           <p className="mt-1 text-xs text-slate-400">{s.descripcionLibre}</p>
+          {srv && <p className="mt-1 text-xs text-slate-400">La solicitud quedó aceptada; el estado operativo lo lleva ahora el servicio, abajo.</p>}
         </div>
 
         <div className="border-t border-slate-100 pt-4">
@@ -303,19 +331,36 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-slate-400">{srv.codigo}</span>
-                <EstadoBadge estado={srv.estado} />
-                {srv.estado === "ASIGNADO" && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">Esperando aceptación…</span>}
-                {SIGUIENTE_SERVICIO[srv.estado] && (
-                  <button onClick={avanzarServicio} className="rounded-md bg-brand px-3 py-1 text-xs font-medium text-white hover:bg-brand-800">
-                    Avanzar a {SIGUIENTE_SERVICIO[srv.estado].replace(/_/g, " ")}
-                  </button>
+                {(TRANSICIONES_SERVICIO_MANUAL[srv.estado] ?? []).length > 0 ? (
+                  <select
+                    value={srv.estado}
+                    onChange={(e) => cambiarEstadoServicio(e.target.value)}
+                    className="rounded-md border border-slate-300 px-2 py-1.5 text-xs font-medium"
+                  >
+                    <option value={srv.estado}>{srv.estado.replace(/_/g, " ")}</option>
+                    {(TRANSICIONES_SERVICIO_MANUAL[srv.estado] ?? [])
+                      .filter((estado) => !incidenciaGeneralAbierta || !ESTADOS_BLOQUEADOS_CON_INCIDENCIA.includes(estado))
+                      .map((estado) => (
+                        <option key={estado} value={estado}>
+                          → {estado.replace(/_/g, " ")}
+                        </option>
+                      ))}
+                  </select>
+                ) : (
+                  <EstadoBadge estado={srv.estado} />
                 )}
+                {srv.estado === "ASIGNADO" && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">Esperando aceptación…</span>}
                 {SERVICIO_CANCELABLE.includes(srv.estado) && (
                   <button onClick={cancelarServicio} className="rounded-md border border-rose-200 px-3 py-1 text-xs text-rose-600 hover:bg-rose-50">
                     Cancelar
                   </button>
                 )}
               </div>
+              {incidenciaGeneralAbierta && (
+                <p className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-700">
+                  ⚠ Incidencia {incidenciaGeneralAbierta.codigo} abierta ({incidenciaGeneralAbierta.descripcion}) — resuélvela antes de finalizar/validar/cerrar el servicio.
+                </p>
+              )}
 
               <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                 <label className="text-slate-500">

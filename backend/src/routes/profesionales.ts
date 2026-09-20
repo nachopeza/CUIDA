@@ -15,9 +15,23 @@ const crearProfesionalSchema = z.object({
   apellidos: z.string().min(1),
   telefono: z.string().optional(),
   zona: z.string().optional(),
+  dni: z.string().optional(),
+  numeroCuenta: z.string().optional(),
+  bizum: z.string().optional(),
   empresaColaboradoraId: z.string().optional(),
   email: z.string().email().optional(),
   password: z.string().min(6).optional(),
+});
+
+const editarProfesionalSchema = z.object({
+  nombre: z.string().min(1).optional(),
+  apellidos: z.string().min(1).optional(),
+  telefono: z.string().optional(),
+  zona: z.string().optional(),
+  dni: z.string().optional(),
+  numeroCuenta: z.string().optional(),
+  bizum: z.string().optional(),
+  empresaColaboradoraId: z.string().nullable().optional(),
 });
 
 // Alta de profesional (sección 6). Email+password son opcionales: si se dan,
@@ -38,6 +52,9 @@ profesionalesRouter.post("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"
       apellidos: parsed.data.apellidos,
       telefono: parsed.data.telefono,
       zona: parsed.data.zona,
+      dni: parsed.data.dni,
+      numeroCuenta: parsed.data.numeroCuenta,
+      bizum: parsed.data.bizum,
       empresaColaboradoraId: parsed.data.empresaColaboradoraId,
       estado: "ACTIVO",
       organizacionId: req.usuario!.organizacionId,
@@ -77,6 +94,63 @@ profesionalesRouter.get("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN")
     orderBy: { nombre: "asc" },
   });
   res.json(profesionales);
+});
+
+// Ficha de un profesional (para que pueda ver/editar su propio perfil, o un
+// gestor consulte el de cualquiera de su organización).
+profesionalesRouter.get("/:id", async (req, res) => {
+  const usuario = req.usuario!;
+  const esPropio = usuario.rol === "PROFESIONAL" && usuario.profesionalId === req.params.id;
+  const esGestor = ["COORDINADOR", "ORGANIZACION", "ADMIN"].includes(usuario.rol);
+  if (!esPropio && !esGestor) return res.status(403).json({ error: "Sin permiso" });
+
+  const profesional = await prisma.profesional.findUnique({
+    where: { id: req.params.id },
+    include: { empresaColaboradora: true },
+  });
+  if (!profesional || profesional.organizacionId !== usuario.organizacionId) return res.status(404).json({ error: "No encontrado" });
+
+  res.json(profesional);
+});
+
+// Editar perfil (sección coordinación: "los perfiles de profesionales se
+// deben poder editar e incluir número de cuenta, Bizum, carné..."). El
+// propio profesional puede editar sus datos de contacto/cobro; un gestor
+// puede editar cualquier profesional de su organización, incluida la
+// empresa colaboradora para la que trabaja.
+profesionalesRouter.patch("/:id", async (req, res) => {
+  const usuario = req.usuario!;
+  const esPropio = usuario.rol === "PROFESIONAL" && usuario.profesionalId === req.params.id;
+  const esGestor = ["COORDINADOR", "ORGANIZACION", "ADMIN"].includes(usuario.rol);
+  if (!esPropio && !esGestor) return res.status(403).json({ error: "Sin permiso" });
+
+  const parsed = editarProfesionalSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const profesional = await prisma.profesional.findUnique({ where: { id: req.params.id } });
+  if (!profesional) return res.status(404).json({ error: "No encontrado" });
+  if (profesional.organizacionId !== usuario.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+
+  const datos = { ...parsed.data };
+  // El profesional no puede autoasignarse una empresa colaboradora distinta;
+  // eso lo decide coordinación.
+  if (!esGestor) delete datos.empresaColaboradoraId;
+
+  const actualizado = await prisma.profesional.update({
+    where: { id: profesional.id },
+    data: datos,
+    include: { empresaColaboradora: true },
+  });
+
+  await registrarAuditoria({
+    usuarioId: usuario.sub,
+    organizacionId: profesional.organizacionId,
+    accion: "editar_profesional",
+    entidadTipo: "Profesional",
+    entidadId: profesional.id,
+  });
+
+  res.json(actualizado);
 });
 
 // Agenda del día/periodo del profesional (interfaz CUIDA PROFESIONAL, sección 9).

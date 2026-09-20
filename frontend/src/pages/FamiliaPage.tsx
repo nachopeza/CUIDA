@@ -5,6 +5,7 @@ import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
+import { ChatPanel } from "../components/ChatPanel.js";
 import type { Necesidad, PersonaConFamiliares, Solicitud } from "../lib/types.js";
 
 const ICONOS: Record<string, string> = {
@@ -32,6 +33,7 @@ export function FamiliaPage() {
   const [necesidadModal, setNecesidadModal] = useState<Necesidad | null>(null);
   const [cancelando, setCancelando] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
+  const [chatAbierto, setChatAbierto] = useState<string | null>(null);
 
   async function cargar() {
     const [sols, necs] = await Promise.all([
@@ -153,11 +155,24 @@ export function FamiliaPage() {
                       {s.servicio.profesional.telefono && ` · ${s.servicio.profesional.telefono}`}
                     </span>
                   )}
+                  {s.servicio.profesionalId && (
+                    <button
+                      onClick={() => setChatAbierto(chatAbierto === s.servicio!.id ? null : s.servicio!.id)}
+                      className="rounded-md border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
+                    >
+                      💬 Chat
+                    </button>
+                  )}
                   {SERVICIO_CANCELABLE.includes(s.servicio.estado) && (
                     <button onClick={() => setCancelando(s.servicio!.id)} className="ml-auto rounded-md border border-rose-200 px-2 py-0.5 text-rose-600 hover:bg-rose-50">
                       Cancelar
                     </button>
                   )}
+                </div>
+              )}
+              {s.servicio && chatAbierto === s.servicio.id && (
+                <div className="mt-2 pl-2">
+                  <ChatPanel servicioId={s.servicio.id} titulo={`Chat con ${s.servicio.profesional?.nombre ?? "el profesional"}`} />
                 </div>
               )}
             </li>

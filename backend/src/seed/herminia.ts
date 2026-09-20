@@ -53,8 +53,10 @@ async function limpiarOrganizacion(organizacionId: string) {
   await prisma.documento.deleteMany({
     where: { OR: [{ personaId: { in: personaIds } }, { servicioId: { in: servicioIds } }, { visitaId: { in: visitaIds } }] },
   });
+  await prisma.mensaje.deleteMany({ where: { servicioId: { in: servicioIds } } });
   await prisma.visita.deleteMany({ where: { id: { in: visitaIds } } });
   await prisma.plan.deleteMany({ where: { solicitudId: { in: solicitudIds } } });
+  await prisma.factura.deleteMany({ where: { personaId: { in: personaIds } } });
   await prisma.servicio.deleteMany({ where: { id: { in: servicioIds } } });
   await prisma.solicitud.deleteMany({ where: { id: { in: solicitudIds } } });
   // Por personaId y también por usuarioId: si una ejecución anterior (antes
@@ -154,6 +156,9 @@ async function main() {
       codigo: codigoEmpresa,
       nombre: "Cuidados del Bages S.L.",
       contacto: "coordinacion@cuidadosdelbages.demo",
+      cif: "B12345678",
+      direccion: "Calle Mayor 12, Sant Fruitós",
+      numeroCuenta: "ES00 0000 0000 0000 0000 0000",
       estado: "ACTIVA",
       organizacionId: organizacion.id,
     },
@@ -170,6 +175,9 @@ async function main() {
       apellidos: "López Vidal",
       telefono: "600 555 666",
       zona: "Centro",
+      dni: "12345678A",
+      numeroCuenta: "ES00 1111 1111 1111 1111 1111",
+      bizum: "600 555 666",
       estado: "ACTIVO",
       organizacionId: organizacion.id,
     },
@@ -275,7 +283,15 @@ async function main() {
   // para la hija (puedeVerImportes=true por defecto), nunca para Herminia.
   servicio = await prisma.servicio.update({
     where: { id: servicio.id },
-    data: { tarifaImporte: 12.5, tarifaTipo: "PAGADO", tarifaNotas: "Tarifa estándar de servicio doméstico por hora" },
+    data: {
+      tarifaImporte: 12.5,
+      tarifaTipo: "PAGADO",
+      tarifaNotas: "Tarifa estándar de servicio doméstico por hora",
+      // Comisión de gestión (15% por defecto de la organización): mismo
+      // cálculo que hace POST /servicios/:id/tarifa.
+      comisionImporte: 1.88,
+      importeProfesional: 10.62,
+    },
   });
 
   // 12. Primera visita (etapa 6: Ejecución)
@@ -316,6 +332,23 @@ async function main() {
     motivo: "Primera visita completada; servicio en curso durante los 10 días planificados",
     servicioId: servicio.id,
   });
+
+  // 12b. Chat de ejemplo entre Herminia y Carmen (sección Usuario: "chat con
+  // la profesional... estilo WhatsApp").
+  await prisma.mensaje.create({
+    data: { servicioId: servicio.id, autorUsuarioId: usuarioFamiliar.id, texto: "Hola Carmen, gracias por venir hoy. ¿Todo bien con mi madre?" },
+  });
+  const usuarioCarmen = await prisma.usuario.findUnique({ where: { email: "carmen.profesional@cuida.demo" } });
+  if (usuarioCarmen) {
+    await prisma.mensaje.create({
+      data: {
+        servicioId: servicio.id,
+        autorUsuarioId: usuarioCarmen.id,
+        profesionalId: profesional.id,
+        texto: "¡Hola! Sí, todo perfecto. Hemos hecho la compra y está comiendo tranquila.",
+      },
+    });
+  }
 
   // 13. Notificación de seguimiento para la familia (etapa 7)
   await prisma.notificacion.create({

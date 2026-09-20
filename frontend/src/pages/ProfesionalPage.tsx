@@ -3,14 +3,22 @@ import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
+import { ChatPanel } from "../components/ChatPanel.js";
+import { BuscarSolicitudesTab } from "./profesional/BuscarSolicitudesTab.js";
+import { MiPerfilTab } from "./profesional/MiPerfilTab.js";
 import type { Servicio, Visita } from "../lib/types.js";
+
+type Tab = "agenda" | "buscar" | "perfil";
+const TAB_LABEL: Record<Tab, string> = { agenda: "Tu agenda", buscar: "Buscar solicitudes", perfil: "Mi perfil" };
 
 export function ProfesionalPage() {
   const { token, usuario } = useAuth();
+  const [tab, setTab] = useState<Tab>("agenda");
   const [visitas, setVisitas] = useState<Visita[]>([]);
   const [propuestas, setPropuestas] = useState<Servicio[]>([]);
   const [observaciones, setObservaciones] = useState<Record<string, string>>({});
   const [perfilAbierto, setPerfilAbierto] = useState<string | null>(null);
+  const [chatAbierto, setChatAbierto] = useState<string | null>(null);
 
   async function cargar() {
     if (!usuario?.profesionalId) return;
@@ -50,8 +58,23 @@ export function ProfesionalPage() {
 
   return (
     <div>
-      <h2 className="mb-4 text-lg font-semibold">Tu agenda</h2>
+      <div className="mb-4 flex flex-wrap gap-2 text-sm">
+        {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`rounded-md px-3 py-1.5 font-medium ${tab === t ? "bg-brand text-white" : "border border-slate-300 bg-white text-slate-600"}`}
+          >
+            {TAB_LABEL[t]}
+          </button>
+        ))}
+      </div>
 
+      {tab === "buscar" && <BuscarSolicitudesTab />}
+      {tab === "perfil" && <MiPerfilTab />}
+
+      {tab === "agenda" && (
+        <>
       {propuestas.length > 0 && (
         <Card title="Te han propuesto estos servicios">
           <ul className="space-y-2">
@@ -89,12 +112,28 @@ export function ProfesionalPage() {
             </div>
 
             {persona && (
-              <button
-                onClick={() => setPerfilAbierto(perfilAbierto === v.id ? null : v.id)}
-                className="mb-2 text-xs font-medium text-slate-500 underline decoration-dotted hover:text-slate-700"
-              >
-                {perfilAbierto === v.id ? "Ocultar perfil" : "Ver perfil completo"}
-              </button>
+              <div className="mb-2 flex items-center gap-3">
+                <button
+                  onClick={() => setPerfilAbierto(perfilAbierto === v.id ? null : v.id)}
+                  className="text-xs font-medium text-slate-500 underline decoration-dotted hover:text-slate-700"
+                >
+                  {perfilAbierto === v.id ? "Ocultar perfil" : "Ver perfil completo"}
+                </button>
+                {v.servicio?.id && (
+                  <button
+                    onClick={() => setChatAbierto(chatAbierto === v.id ? null : v.id)}
+                    className="text-xs font-medium text-slate-500 underline decoration-dotted hover:text-slate-700"
+                  >
+                    {chatAbierto === v.id ? "Ocultar chat" : "💬 Chat"}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {chatAbierto === v.id && v.servicio?.id && (
+              <div className="mb-3">
+                <ChatPanel servicioId={v.servicio.id} titulo={`Chat con ${persona?.nombre ?? "la familia"}`} />
+              </div>
             )}
 
             {perfilAbierto === v.id && persona && (
@@ -168,6 +207,8 @@ export function ProfesionalPage() {
           </Card>
         );
       })}
+        </>
+      )}
     </div>
   );
 }

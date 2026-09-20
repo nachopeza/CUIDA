@@ -123,7 +123,12 @@ solicitudesRouter.get("/", async (req, res) => {
 
   const solicitudes = await prisma.solicitud.findMany({
     where,
-    include: { persona: true, necesidad: true, plan: true, servicio: { include: { empresaColaboradora: true, profesional: true } } },
+    include: {
+      persona: true,
+      necesidad: true,
+      plan: true,
+      servicio: { include: { empresaColaboradora: true, profesional: true, incidencias: true, visitas: { orderBy: { fecha: "asc" } } } },
+    },
     orderBy: { createdAt: "desc" },
   });
 

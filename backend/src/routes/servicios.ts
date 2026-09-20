@@ -59,6 +59,53 @@ serviciosRouter.get("/", async (req, res) => {
   res.json(resultado);
 });
 
+// "Debe tener un apartado donde pueda buscar solicitudes de su estilo o
+// propuestas" (sección Profesional): servicios sin profesional asignado
+// todavía, de la misma organización, para que el profesional se proponga
+// en vez de esperar pasivamente a que coordinación le asigne uno.
+serviciosRouter.get("/disponibles", requiereRol("PROFESIONAL"), async (req, res) => {
+  const usuario = req.usuario!;
+  const servicios = await prisma.servicio.findMany({
+    where: {
+      organizacionId: usuario.organizacionId ?? "__none__",
+      estado: "PENDIENTE",
+      profesionalId: null,
+    },
+    include: INCLUDE_SERVICIO,
+    orderBy: { createdAt: "desc" },
+  });
+  // Nunca ve tarifa ni empresa: solo necesita saber qué se pide y cuándo
+  // para decidir si le interesa.
+  res.json(servicios.map((s) => ocultarTarifaSiProcede(s, false)));
+});
+
+const interesSchema = z.object({ mensaje: z.string().optional() });
+
+serviciosRouter.post("/:id/interes", requiereRol("PROFESIONAL"), async (req, res) => {
+  const parsed = interesSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const usuario = req.usuario!;
+  const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id } });
+  if (!servicio) return res.status(404).json({ error: "No encontrado" });
+  if (servicio.organizacionId !== usuario.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+  if (servicio.estado !== "PENDIENTE" || servicio.profesionalId) {
+    return res.status(409).json({ error: "Este servicio ya no está disponible" });
+  }
+
+  const profesional = await prisma.profesional.findUnique({ where: { id: usuario.profesionalId ?? "__none__" } });
+  if (!profesional) return res.status(400).json({ error: "Perfil de profesional no encontrado" });
+
+  await notificarGestores(
+    servicio.organizacionId,
+    "profesional_interesado",
+    `${profesional.nombre} ${profesional.apellidos} está interesada/o en el servicio ${servicio.codigo}.${parsed.data.mensaje ? ` "${parsed.data.mensaje}"` : ""}`,
+    servicio.solicitudId,
+  );
+
+  res.status(201).json({ ok: true });
+});
+
 serviciosRouter.get("/:id", async (req, res) => {
   const servicio = await prisma.servicio.findUnique({
     where: { id: req.params.id },
@@ -100,6 +147,18 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
     }
   }
 
+  // Comisión de gestión (sección "cobrar por gestión un pequeño
+  // porcentaje"): se calcula al fijar/actualizar la tarifa, con el % vigente
+  // de la organización, y queda congelada en el servicio.
+  let comisionImporte: number | null = null;
+  let importeProfesional: number | null = null;
+  if (parsed.data.tarifaTipo === "PAGADO" && parsed.data.tarifaImporte != null) {
+    const organizacion = await prisma.organizacion.findUnique({ where: { id: servicio.organizacionId } });
+    const porcentaje = Number(organizacion?.comisionPorcentaje ?? 15);
+    comisionImporte = Math.round(parsed.data.tarifaImporte * (porcentaje / 100) * 100) / 100;
+    importeProfesional = Math.round((parsed.data.tarifaImporte - comisionImporte) * 100) / 100;
+  }
+
   const actualizado = await prisma.servicio.update({
     where: { id: servicio.id },
     data: {
@@ -107,6 +166,8 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
       tarifaImporte: parsed.data.tarifaImporte,
       tarifaTipo: parsed.data.tarifaTipo,
       tarifaNotas: parsed.data.tarifaNotas,
+      comisionImporte,
+      importeProfesional,
     },
     include: INCLUDE_SERVICIO,
   });
@@ -258,6 +319,26 @@ serviciosRouter.post("/:id/estado", async (req, res) => {
   } catch (err) {
     if (err instanceof TransicionInvalidaError) return res.status(409).json({ error: err.message });
     throw err;
+  }
+
+  // Bug conocido (sección "veo un bug... puede estar aceptada, en curso e
+  // incidencia a la vez"): un servicio no puede darse por FINALIZADO,
+  // VALIDADO ni CERRADO mientras tenga una incidencia general abierta — debe
+  // resolverse (o clasificarse como no bloqueante) antes de seguir avanzando,
+  // para que el estado del servicio sea siempre una fuente única de verdad.
+  if (["FINALIZADO", "VALIDADO", "CERRADO"].includes(parsed.data.estado)) {
+    const incidenciaAbierta = await prisma.incidencia.findFirst({
+      where: {
+        servicioId: servicio.id,
+        tipo: "GENERAL",
+        estado: { notIn: ["RESUELTA", "CERRADA"] },
+      },
+    });
+    if (incidenciaAbierta) {
+      return res.status(409).json({
+        error: `No se puede pasar a ${parsed.data.estado} con la incidencia ${incidenciaAbierta.codigo} todavía abierta. Resuélvela primero.`,
+      });
+    }
   }
 
   const actualizado = await prisma.servicio.update({

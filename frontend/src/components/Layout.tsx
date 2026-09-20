@@ -13,6 +13,18 @@ const ROL_LABEL: Record<string, string> = {
   SUPERADMIN: "Superadmin",
 };
 
+// Subtítulo del área según el rol, para que quede claro en qué parte de la
+// app está cada quien (sustituye a la etiqueta genérica "prototipo · fase 1").
+const AREA_LABEL: Record<string, string> = {
+  PERSONA: "Tu espacio",
+  FAMILIAR: "Seguimiento familiar",
+  PROFESIONAL: "Panel profesional",
+  COORDINADOR: "Coordinación",
+  ORGANIZACION: "Coordinación",
+  ADMIN: "Coordinación",
+  SUPERADMIN: "Coordinación",
+};
+
 export function Layout({ children }: { children: ReactNode }) {
   const { usuario, logout } = useAuth();
 
@@ -20,9 +32,9 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <img src={logoCuida} alt="CUIDA" className="h-6 w-auto" />
-            <span className="text-sm text-slate-400">prototipo · fase 1</span>
+          <div className="flex items-center gap-3">
+            <img src={logoCuida} alt="CUIDA" className="h-9 w-auto sm:h-10" />
+            {usuario && <span className="text-sm font-medium text-slate-500">{AREA_LABEL[usuario.rol] ?? ""}</span>}
           </div>
           {usuario && (
             <div className="flex items-center gap-3 text-sm">

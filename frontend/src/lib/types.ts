@@ -35,6 +35,9 @@ export interface EmpresaColaboradora {
   codigo: string;
   nombre: string;
   contacto: string | null;
+  cif?: string | null;
+  direccion?: string | null;
+  numeroCuenta?: string | null;
   estado: string;
 }
 
@@ -50,6 +53,8 @@ export interface Servicio {
   tarifaTipo?: "PAGADO" | "VOLUNTARIO" | null;
   tarifaNotas?: string | null;
   pagoProfesionalEstado?: "PENDIENTE" | "PAGADO";
+  comisionImporte?: string | number | null;
+  importeProfesional?: string | number | null;
   solicitud?: Solicitud;
   visitas?: Visita[];
   incidencias?: Incidencia[];
@@ -108,7 +113,7 @@ export interface Visita {
   tareas: Tarea[];
   actuaciones?: Actuacion[];
   incidencias?: Incidencia[];
-  servicio?: { solicitud: { persona: Persona; necesidad: Necesidad } };
+  servicio?: { id: string; profesionalId?: string | null; solicitud: { persona: Persona; necesidad: Necesidad } };
 }
 
 export interface Profesional {
@@ -118,9 +123,34 @@ export interface Profesional {
   apellidos: string;
   telefono: string | null;
   zona: string | null;
+  dni?: string | null;
+  numeroCuenta?: string | null;
+  bizum?: string | null;
   estado: string;
   empresaColaboradoraId?: string | null;
   empresaColaboradora?: EmpresaColaboradora | null;
+}
+
+export interface Factura {
+  id: string;
+  codigo: string;
+  mes: string;
+  importeTotal: string | number;
+  comisionTotal: string | number;
+  importeProfesionales: string | number;
+  estado: "BORRADOR" | "EMITIDA" | "PAGADA";
+  createdAt: string;
+  persona: Persona;
+  servicios: Servicio[];
+}
+
+export interface Mensaje {
+  id: string;
+  texto: string;
+  createdAt: string;
+  autorUsuarioId: string;
+  profesionalId?: string | null;
+  autor: { id: string; rol: string; email: string };
 }
 
 export interface Notificacion {
@@ -158,6 +188,8 @@ export interface AuditLogEntry {
 
 export interface VisitaAgenda extends Visita {
   servicio: {
+    id: string;
+    profesionalId?: string | null;
     profesional: Profesional | null;
     solicitud: { persona: Persona; necesidad: Necesidad };
   };

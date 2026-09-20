@@ -5,6 +5,8 @@ import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
+import { ChatPanel } from "../components/ChatPanel.js";
+import { cuentaAtras } from "../lib/fechas.js";
 import type { Necesidad, Solicitud } from "../lib/types.js";
 
 const ICONOS: Record<string, string> = {
@@ -54,6 +56,8 @@ export function PersonaPage() {
   }
 
   const enCurso = solicitudes.find((s) => s.servicio && !["CERRADO", "CANCELADO"].includes(s.servicio.estado));
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  const proximaVisita = enCurso?.servicio?.visitas?.find((v) => v.fecha.slice(0, 10) >= hoyISO && v.estado !== "REVISADA");
 
   return (
     <div>
@@ -61,6 +65,12 @@ export function PersonaPage() {
 
       {enCurso?.servicio && (
         <Card title="Tu próximo servicio">
+          {proximaVisita && (
+            <div className="mb-3 flex items-center gap-3 rounded-xl bg-brand-green-50 px-4 py-3">
+              <span className="text-3xl font-bold text-brand-green-700">{cuentaAtras(proximaVisita.fecha)}</span>
+              {proximaVisita.horaInicioProg && <span className="text-base text-brand-green-700">a las {proximaVisita.horaInicioProg}</span>}
+            </div>
+          )}
           <p className="text-base text-slate-700">
             {enCurso.necesidad.nombre} — <EstadoBadge estado={enCurso.servicio.estado} />
           </p>
@@ -79,6 +89,12 @@ export function PersonaPage() {
             </button>
           )}
         </Card>
+      )}
+
+      {enCurso?.servicio?.profesionalId && (
+        <div className="mb-4">
+          <ChatPanel servicioId={enCurso.servicio.id} titulo={`Chat con ${enCurso.servicio.profesional?.nombre ?? "tu profesional"}`} />
+        </div>
       )}
 
       {mensaje && (
