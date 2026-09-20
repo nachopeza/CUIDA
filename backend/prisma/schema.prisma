@@ -1,0 +1,452 @@
+// CUIDA — Modelo de datos, fase 1
+//
+// Hereda el patrón de IDENTIA: identidad permanente, roles, estados, auditoría,
+// multi-tenant por organización desde el principio.
+// Añade la capa que faltaba en IDENTIA: necesidad → solicitud → servicio →
+// asignación → visita → actuación → seguimiento → cierre.
+//
+// Regla del masterplan (sección 5): PERSONA ≠ SOLICITUD ≠ SERVICIO ≠ VISITA.
+// Una persona puede tener muchas solicitudes y servicios; una modificación
+// administrativa nunca debe destruir el historial (por eso el AuditLog y el
+// EstadoHistorial son de solo-inserción).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identidad, tenancy y roles (heredado de IDENTIA)
+// ---------------------------------------------------------------------------
+
+enum EstadoOrganizacion {
+  PRUEBA
+  ACTIVA
+  SUSPENDIDA
+  CERRADA
+}
+
+model Organizacion {
+  id        String             @id @default(cuid())
+  codigo    String             @unique // ORG-00017
+  nombre    String
+  estado    EstadoOrganizacion @default(PRUEBA)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  usuarios      Usuario[]
+  personas      Persona[]
+  profesionales Profesional[]
+  solicitudes   Solicitud[]
+  servicios     Servicio[]
+  auditLogs     AuditLog[]
+
+  @@map("organizaciones")
+}
+
+enum RolUsuario {
+  PERSONA
+  FAMILIAR
+  PROFESIONAL
+  COORDINADOR
+  ORGANIZACION
+  ADMIN
+  SUPERADMIN
+}
+
+// El acceso a información personal debe estar justificado y limitado a lo
+// necesario (AEPD). El rol determina la intención de acceso; los permisos
+// finos (qué persona concreta) los otorgan FamiliarRelacion y la pertenencia
+// a organización.
+model Usuario {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  rol          RolUsuario
+  activo       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  organizacionId String?
+  organizacion   Organizacion? @relation(fields: [organizacionId], references: [id])
+
+  // Un usuario PERSONA está enlazado 1:1 a su ficha de Persona.
+  personaId String?  @unique
+  persona   Persona? @relation("PersonaUsuario", fields: [personaId], references: [id])
+
+  // Un usuario PROFESIONAL está enlazado 1:1 a su ficha de Profesional.
+  profesionalId String?      @unique
+  profesional   Profesional? @relation(fields: [profesionalId], references: [id])
+
+  familiarDe        FamiliarRelacion[] @relation("UsuarioFamiliar")
+  solicitudesCreadas Solicitud[]       @relation("SolicitudCreadaPor")
+  incidenciasAsignadas Incidencia[]    @relation("IncidenciaResponsable")
+  notificaciones    Notificacion[]
+  auditLogs         AuditLog[]
+
+  @@map("usuarios")
+}
+
+// ---------------------------------------------------------------------------
+// Personas, familiares y profesionales
+// ---------------------------------------------------------------------------
+
+enum EstadoPersona {
+  PENDIENTE
+  ACTIVA
+  SUSPENDIDA
+  ARCHIVADA
+}
+
+model Persona {
+  id               String        @id @default(cuid())
+  codigo           String        @unique // CUI-000184 (identificador permanente)
+  nombre           String
+  apellidos        String
+  fechaNacimiento  DateTime?
+  telefono         String?
+  direccion        String?
+  preferencias     String?
+  estado           EstadoPersona @default(PENDIENTE)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
+
+  usuario     Usuario?           @relation("PersonaUsuario")
+  familiares  FamiliarRelacion[]
+  solicitudes Solicitud[]
+  documentos  Documento[]
+
+  @@map("personas")
+}
+
+// Relación autorizada de un familiar/representante sobre una persona atendida.
+// El acceso del familiar se limita a los permisos concedidos aquí, nunca al
+// rol por sí solo (principio de minimización, AEPD).
+model FamiliarRelacion {
+  id                String   @id @default(cuid())
+  personaId         String
+  persona           Persona  @relation(fields: [personaId], references: [id])
+  usuarioId         String
+  usuario           Usuario  @relation("UsuarioFamiliar", fields: [usuarioId], references: [id])
+  parentesco        String // "Hija", "Hijo", "Cónyuge"...
+  esRepresentante   Boolean  @default(false)
+  puedeSolicitar    Boolean  @default(true)
+  puedeVerHistorial Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  revocadoAt        DateTime?
+
+  @@unique([personaId, usuarioId])
+  @@map("familiar_relaciones")
+}
+
+enum EstadoProfesional {
+  PENDIENTE
+  VERIFICADO
+  ACTIVO
+  SUSPENDIDO
+  INACTIVO
+}
+
+model Profesional {
+  id        String            @id @default(cuid())
+  codigo    String            @unique // PRO-00031
+  nombre    String
+  apellidos String
+  zona      String?
+  estado    EstadoProfesional @default(PENDIENTE)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
+
+  usuario   Usuario?
+  servicios Servicio[]
+
+  @@map("profesionales")
+}
+
+// ---------------------------------------------------------------------------
+// Catálogo de necesidades (lenguaje humano → dato estructurado)
+// ---------------------------------------------------------------------------
+
+model NecesidadCatalogo {
+  id          String @id @default(cuid())
+  codigo      String @unique // "compra", "acompanamiento", "compania"...
+  nombre      String
+  descripcion String?
+  activo      Boolean @default(true)
+
+  solicitudes Solicitud[]
+
+  @@map("necesidades_catalogo")
+}
+
+// ---------------------------------------------------------------------------
+// Cadena funcional de CUIDA: necesidad → solicitud → servicio → visita →
+// actuación → seguimiento → cierre
+// ---------------------------------------------------------------------------
+
+enum EstadoSolicitud {
+  BORRADOR
+  ENVIADA
+  EN_REVISION
+  BUSCANDO
+  PROPUESTA
+  ACEPTADA
+  CANCELADA
+  CERRADA
+}
+
+model Solicitud {
+  id              String          @id @default(cuid())
+  codigo          String          @unique // SOL-000582
+  descripcionLibre String         // texto tal cual lo pide la persona/familiar
+  estado          EstadoSolicitud @default(BORRADOR)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
+
+  personaId String
+  persona   Persona @relation(fields: [personaId], references: [id])
+
+  necesidadId String
+  necesidad   NecesidadCatalogo @relation(fields: [necesidadId], references: [id])
+
+  creadaPorUsuarioId String
+  creadaPor          Usuario @relation("SolicitudCreadaPor", fields: [creadaPorUsuarioId], references: [id])
+
+  plan     Plan?
+  servicio Servicio?
+
+  estadoHistorial EstadoHistorial[]
+
+  @@map("solicitudes")
+}
+
+model Plan {
+  id             String    @id @default(cuid())
+  solicitudId    String    @unique
+  solicitud      Solicitud @relation(fields: [solicitudId], references: [id])
+  fechaInicio    DateTime
+  fechaFin       DateTime
+  recurrencia    String? // "diaria", "L-V", "puntual"...
+  franjaHoraria  String? // "mañanas", "09:00-13:00"...
+  tareasPrevistas String? // lista libre inicial de tareas esperadas
+  notas          String?
+  createdAt      DateTime  @default(now())
+
+  @@map("planes")
+}
+
+enum EstadoServicio {
+  PENDIENTE
+  ASIGNADO
+  CONFIRMADO
+  EN_CURSO
+  FINALIZADO
+  VALIDADO
+  CERRADO
+}
+
+model Servicio {
+  id        String         @id @default(cuid())
+  codigo    String         @unique // SRV-000721
+  estado    EstadoServicio @default(PENDIENTE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
+
+  solicitudId String    @unique
+  solicitud   Solicitud @relation(fields: [solicitudId], references: [id])
+
+  profesionalId String?
+  profesional   Profesional? @relation(fields: [profesionalId], references: [id])
+
+  visitas         Visita[]
+  incidencias     Incidencia[]
+  estadoHistorial EstadoHistorial[]
+  documentos      Documento[]
+
+  @@map("servicios")
+}
+
+enum EstadoVisita {
+  PROGRAMADA
+  CONFIRMADA
+  EN_CURSO
+  FINALIZADA
+  INCIDENCIA
+  REVISADA
+}
+
+model Visita {
+  id            String       @id @default(cuid())
+  codigo        String       @unique // VIS-001923
+  fecha         DateTime
+  horaInicioProg String?
+  horaFinProg    String?
+  horaInicioReal DateTime?
+  horaFinReal    DateTime?
+  estado        EstadoVisita @default(PROGRAMADA)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  servicioId String
+  servicio   Servicio @relation(fields: [servicioId], references: [id])
+
+  tareas          Tarea[]
+  actuaciones     Actuacion[]
+  incidencias     Incidencia[]
+  documentos      Documento[]
+  estadoHistorial EstadoHistorial[]
+
+  @@map("visitas")
+}
+
+model Tarea {
+  id          String   @id @default(cuid())
+  visitaId    String
+  visita      Visita   @relation(fields: [visitaId], references: [id])
+  descripcion String
+  completada  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@map("tareas")
+}
+
+// "Lo ocurrido": observación registrada durante o al cierre de la visita.
+// Nunca sustituye una historia clínica ni un diagnóstico (sección 14).
+model Actuacion {
+  id          String   @id @default(cuid())
+  visitaId    String
+  visita      Visita   @relation(fields: [visitaId], references: [id])
+  descripcion String
+  createdAt   DateTime @default(now())
+
+  @@map("actuaciones")
+}
+
+enum EstadoIncidencia {
+  NUEVA
+  EN_REVISION
+  ASIGNADA
+  EN_RESOLUCION
+  RESUELTA
+  CERRADA
+}
+
+enum PrioridadIncidencia {
+  BAJA
+  MEDIA
+  ALTA
+}
+
+model Incidencia {
+  id          String              @id @default(cuid())
+  codigo      String              @unique // INC-000045
+  descripcion String
+  prioridad   PrioridadIncidencia @default(MEDIA)
+  estado      EstadoIncidencia    @default(NUEVA)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  visitaId String?
+  visita   Visita? @relation(fields: [visitaId], references: [id])
+
+  servicioId String?
+  servicio   Servicio? @relation(fields: [servicioId], references: [id])
+
+  responsableUsuarioId String?
+  responsable           Usuario? @relation("IncidenciaResponsable", fields: [responsableUsuarioId], references: [id])
+
+  estadoHistorial EstadoHistorial[]
+
+  @@map("incidencias")
+}
+
+// ---------------------------------------------------------------------------
+// Documentos, notificaciones, historial de estados y auditoría
+// ---------------------------------------------------------------------------
+
+model Documento {
+  id        String   @id @default(cuid())
+  nombre    String
+  url       String
+  createdAt DateTime @default(now())
+
+  personaId String?
+  persona   Persona? @relation(fields: [personaId], references: [id])
+
+  servicioId String?
+  servicio   Servicio? @relation(fields: [servicioId], references: [id])
+
+  visitaId String?
+  visita   Visita? @relation(fields: [visitaId], references: [id])
+
+  @@map("documentos")
+}
+
+model Notificacion {
+  id        String   @id @default(cuid())
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id])
+  tipo      String
+  mensaje   String
+  leida     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("notificaciones")
+}
+
+// Historial de solo-inserción de cambios de estado. Cada transición registra
+// quién, cuándo, estado anterior, nuevo estado y motivo (sección 8).
+model EstadoHistorial {
+  id             String   @id @default(cuid())
+  entidadTipo    String // "Solicitud" | "Servicio" | "Visita" | "Incidencia"...
+  estadoAnterior String?
+  estadoNuevo    String
+  motivo         String?
+  createdAt      DateTime @default(now())
+
+  solicitudId  String?
+  solicitud    Solicitud?  @relation(fields: [solicitudId], references: [id])
+  servicioId   String?
+  servicio     Servicio?   @relation(fields: [servicioId], references: [id])
+  visitaId     String?
+  visita       Visita?     @relation(fields: [visitaId], references: [id])
+  incidenciaId String?
+  incidencia   Incidencia? @relation(fields: [incidenciaId], references: [id])
+
+  @@map("estado_historial")
+}
+
+// Auditoría: quién / cuándo / qué acción, nunca modificable ni borrable
+// desde la aplicación (append-only).
+model AuditLog {
+  id          String   @id @default(cuid())
+  accion      String // "login", "ver_persona", "crear_solicitud", "cambiar_estado"...
+  entidadTipo String?
+  entidadId   String?
+  detalle     String?
+  createdAt   DateTime @default(now())
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  organizacionId String?
+  organizacion   Organizacion? @relation(fields: [organizacionId], references: [id])
+
+  @@map("audit_logs")
+}

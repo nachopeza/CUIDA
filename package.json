@@ -1,0 +1,17 @@
+{
+  "name": "cuida",
+  "private": true,
+  "version": "0.1.0",
+  "description": "CUIDA — Plataforma de coordinación de ayuda y cuidados a domicilio. Fase 1: prototipo conceptual heredero de la infraestructura de IDENTIA.",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:frontend": "npm run dev --workspace frontend",
+    "build": "npm run build --workspace backend && npm run build --workspace frontend",
+    "typecheck": "npm run typecheck --workspace backend && npm run typecheck --workspace frontend",
+    "seed": "npm run seed --workspace backend"
+  }
+}
