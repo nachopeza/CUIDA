@@ -150,7 +150,7 @@ export function CoordinadorPage() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Panel de coordinación</h2>
-        <button onClick={() => setNuevaSolicitud(true)} className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800">
+        <button onClick={() => setNuevaSolicitud(true)} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800">
           + Nueva solicitud
         </button>
       </div>
@@ -176,7 +176,7 @@ export function CoordinadorPage() {
               setTab(t);
               if (t !== "solicitudes") setFiltro(null);
             }}
-            className={`rounded-md px-3 py-1.5 font-medium ${tab === t ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-600"}`}
+            className={`rounded-md px-3 py-1.5 font-medium ${tab === t ? "bg-brand text-white" : "border border-slate-300 bg-white text-slate-600"}`}
           >
             {TAB_LABEL[t]}
           </button>

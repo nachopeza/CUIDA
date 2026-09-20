@@ -107,13 +107,13 @@ export function PersonasTab() {
       <Card title="Dar de alta un usuario">
         <form onSubmit={crearPersona} className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <CamposPerfil perfil={nuevo} onChange={setNuevo} />
-          <button type="submit" className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 sm:col-span-3">
+          <button type="submit" className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 sm:col-span-3">
             Crear usuario
           </button>
         </form>
       </Card>
 
-      {mensaje && <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">{mensaje}</div>}
+      {mensaje && <div className="mb-4 rounded-lg border border-brand-green-200 bg-brand-green-50 px-4 py-2 text-sm text-brand-green-700">{mensaje}</div>}
 
       {personas.map((p) => (
         <Card key={p.id}>
@@ -149,7 +149,7 @@ export function PersonasTab() {
           {abierta?.id === p.id && abierta.modo === "editar" && (
             <form onSubmit={(e) => guardarEdicion(p.id, e)} className="mt-3 grid grid-cols-1 gap-2 border-t border-slate-100 pt-3 text-sm sm:grid-cols-3">
               <CamposPerfil perfil={editForm} onChange={setEditForm} />
-              <button type="submit" className="rounded-md bg-slate-900 px-4 py-2 font-medium text-white hover:bg-slate-800 sm:col-span-3">
+              <button type="submit" className="rounded-md bg-brand px-4 py-2 font-medium text-white hover:bg-brand-800 sm:col-span-3">
                 Guardar cambios
               </button>
             </form>
@@ -189,7 +189,7 @@ export function PersonasTab() {
                 <input type="checkbox" checked={familiarForm.puedeVerImportes} onChange={(e) => setFamiliarForm((f) => ({ ...f, puedeVerImportes: e.target.checked }))} />
                 Puede ver importes/tarifas
               </label>
-              <button type="submit" className="rounded-md bg-slate-900 px-4 py-2 font-medium text-white hover:bg-slate-800 sm:col-span-2">
+              <button type="submit" className="rounded-md bg-brand px-4 py-2 font-medium text-white hover:bg-brand-800 sm:col-span-2">
                 Vincular
               </button>
             </form>

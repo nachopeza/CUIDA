@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useAuth } from "../lib/auth.js";
 import { ApiError } from "../lib/api.js";
+import logoCuida from "../assets/logo-cuida.svg";
 
 const DEMO_USUARIOS = [
   { email: "herminia@cuida.demo", rol: "Persona (Herminia)" },
@@ -33,8 +34,8 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">CUIDA</h1>
-          <p className="mt-1 text-sm text-slate-500">Coordinación de ayuda y cuidados a domicilio</p>
+          <img src={logoCuida} alt="CUIDA" className="mx-auto h-9 w-auto" />
+          <p className="mt-2 text-sm text-slate-500">Coordinación de ayuda y cuidados a domicilio</p>
         </div>
         <form onSubmit={onSubmit} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>
@@ -58,7 +59,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={cargando}
-            className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+            className="w-full rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-60"
           >
             {cargando ? "Entrando…" : "Entrar"}
           </button>

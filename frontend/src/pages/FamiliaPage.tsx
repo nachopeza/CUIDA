@@ -63,7 +63,7 @@ export function FamiliaPage() {
     <div>
       <h2 className="mb-4 text-lg font-semibold">Seguimiento familiar</h2>
 
-      {mensaje && <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{mensaje}</div>}
+      {mensaje && <div className="mb-4 rounded-lg border border-brand-green-200 bg-brand-green-50 px-4 py-3 text-sm text-brand-green-700">{mensaje}</div>}
 
       {personas.map((p) => (
         <Card key={p.id} title={`${p.nombre} ${p.apellidos}`}>

@@ -82,7 +82,7 @@ export function PersonaPage() {
       )}
 
       {mensaje && (
-        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-base text-emerald-700">{mensaje}</div>
+        <div className="mb-4 rounded-lg border border-brand-green-200 bg-brand-green-50 px-4 py-3 text-base text-brand-green-700">{mensaje}</div>
       )}
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">

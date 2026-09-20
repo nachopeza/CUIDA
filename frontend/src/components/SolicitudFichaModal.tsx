@@ -267,7 +267,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
               <button
                 key={f}
                 onClick={() => setPlan((p) => ({ ...p, franjaHoraria: f }))}
-                className={`rounded-md border px-2.5 py-1 text-xs ${plan.franjaHoraria === f ? "border-slate-800 bg-slate-800 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                className={`rounded-md border px-2.5 py-1 text-xs ${plan.franjaHoraria === f ? "border-brand bg-brand text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
               >
                 {f}
               </button>
@@ -279,7 +279,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
               onChange={(e) => setPlan((p) => ({ ...p, recurrencia: e.target.value }))}
               className="rounded-md border border-slate-300 px-2 py-1 text-xs"
             />
-            <button onClick={guardarPlan} className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800">
+            <button onClick={guardarPlan} className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
               Guardar días/horas
             </button>
           </div>
@@ -289,7 +289,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Servicio</p>
 
           {!srv && s.estado === "ACEPTADA" && s.plan && (
-            <button onClick={crearServicio} className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800">
+            <button onClick={crearServicio} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800">
               Crear servicio
             </button>
           )}
@@ -306,7 +306,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 <EstadoBadge estado={srv.estado} />
                 {srv.estado === "ASIGNADO" && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">Esperando aceptación…</span>}
                 {SIGUIENTE_SERVICIO[srv.estado] && (
-                  <button onClick={avanzarServicio} className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800">
+                  <button onClick={avanzarServicio} className="rounded-md bg-brand px-3 py-1 text-xs font-medium text-white hover:bg-brand-800">
                     Avanzar a {SIGUIENTE_SERVICIO[srv.estado].replace(/_/g, " ")}
                   </button>
                 )}
@@ -392,7 +392,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                   <span className="text-slate-500">Pago al profesional/empresa:</span>
                   <EstadoBadge estado={srv.pagoProfesionalEstado ?? "PENDIENTE"} />
                   {srv.pagoProfesionalEstado !== "PAGADO" && ["FINALIZADO", "VALIDADO", "CERRADO"].includes(srv.estado) && (
-                    <button onClick={marcarPagado} className="rounded-md bg-emerald-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-800">
+                    <button onClick={marcarPagado} className="rounded-md bg-brand-green-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-green-800">
                       Marcar como pagado
                     </button>
                   )}

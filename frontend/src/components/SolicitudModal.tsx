@@ -124,7 +124,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
                 type="button"
                 onClick={() => setFranja(f)}
                 className={`flex-1 rounded-lg border-2 px-2 py-2 text-sm font-medium ${
-                  franja === f ? "border-slate-800 bg-slate-800 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                  franja === f ? "border-brand bg-brand text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"
                 }`}
               >
                 {f}
@@ -141,7 +141,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
         <button
           onClick={confirmar}
           disabled={enviando || !personaSel || !necesidadSel}
-          className="w-full rounded-lg bg-slate-900 px-4 py-3 text-base font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+          className="w-full rounded-lg bg-brand px-4 py-3 text-base font-semibold text-white hover:bg-brand-800 disabled:opacity-50"
         >
           {enviando ? "Enviando…" : "Confirmar"}
         </button>

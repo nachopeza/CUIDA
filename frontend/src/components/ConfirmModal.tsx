@@ -33,7 +33,7 @@ export function ConfirmModal({ title, description, confirmLabel, danger, onConfi
         <button
           onClick={confirmar}
           disabled={enviando}
-          className={`flex-1 rounded-lg px-4 py-2.5 text-base font-semibold text-white disabled:opacity-50 ${danger ? "bg-rose-600 hover:bg-rose-700" : "bg-slate-900 hover:bg-slate-800"}`}
+          className={`flex-1 rounded-lg px-4 py-2.5 text-base font-semibold text-white disabled:opacity-50 ${danger ? "bg-rose-600 hover:bg-rose-700" : "bg-brand hover:bg-brand-800"}`}
         >
           {enviando ? "Enviando…" : confirmLabel}
         </button>

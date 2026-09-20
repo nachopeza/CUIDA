@@ -60,7 +60,7 @@ export function ProfesionalPage() {
                 <span>
                   {s.solicitud?.persona.nombre} {s.solicitud?.persona.apellidos} · {s.solicitud?.necesidad.nombre}
                 </span>
-                <button onClick={() => aceptar(s.id)} className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800">
+                <button onClick={() => aceptar(s.id)} className="rounded-md bg-brand px-3 py-1 text-xs font-medium text-white hover:bg-brand-800">
                   Aceptar
                 </button>
               </li>
@@ -144,7 +144,7 @@ export function ProfesionalPage() {
 
             <div className="flex items-center gap-2">
               {(v.estado === "PROGRAMADA" || v.estado === "CONFIRMADA") && (
-                <button onClick={() => iniciar(v.id)} className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800">
+                <button onClick={() => iniciar(v.id)} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800">
                   He llegado
                 </button>
               )}
@@ -157,13 +157,13 @@ export function ProfesionalPage() {
                     onChange={(e) => setObservaciones((prev) => ({ ...prev, [v.id]: e.target.value }))}
                     className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
                   />
-                  <button onClick={() => finalizar(v.id)} className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800">
+                  <button onClick={() => finalizar(v.id)} className="rounded-md bg-brand-green-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-green-800">
                     Cerrar tarea
                   </button>
                 </div>
               )}
               {v.estado === "FINALIZADA" && <span className="text-xs text-slate-400">Enviada a coordinación para verificar</span>}
-              {v.estado === "REVISADA" && <span className="text-xs text-emerald-600">Verificada y archivada</span>}
+              {v.estado === "REVISADA" && <span className="text-xs text-brand-green-600">Verificada y archivada</span>}
             </div>
           </Card>
         );

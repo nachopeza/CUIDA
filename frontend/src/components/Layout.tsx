@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useAuth } from "../lib/auth.js";
 import { NotificationBell } from "./NotificationBell.js";
+import logoCuida from "../assets/logo-cuida.svg";
 
 const ROL_LABEL: Record<string, string> = {
   PERSONA: "Persona atendida",
@@ -19,9 +20,9 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <div>
-            <span className="text-lg font-semibold tracking-tight">CUIDA</span>
-            <span className="ml-2 text-sm text-slate-500">prototipo · fase 1</span>
+          <div className="flex items-center gap-2">
+            <img src={logoCuida} alt="CUIDA" className="h-6 w-auto" />
+            <span className="text-sm text-slate-400">prototipo · fase 1</span>
           </div>
           {usuario && (
             <div className="flex items-center gap-3 text-sm">
