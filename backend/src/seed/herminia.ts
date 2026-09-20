@@ -102,7 +102,7 @@ async function main() {
   const necesidadCompra = await prisma.necesidadCatalogo.findUniqueOrThrow({ where: { codigo: "compra" } });
 
   // 3. Coordinador de la organización
-  const coordinador = await crearUsuario("coordinadora@cuida.demo", "COORDINADOR", { organizacionId: organizacion.id });
+  const coordinador = await crearUsuario("coordinadora@cuida.demo", "COORDINADOR", { nombre: "Coordinación", organizacionId: organizacion.id });
 
   // 4. Persona: Herminia
   const codigoPersona = await generarCodigo("persona");
@@ -126,12 +126,13 @@ async function main() {
   });
 
   const usuarioHerminia = await crearUsuario("herminia@cuida.demo", "PERSONA", {
+    nombre: "Herminia Ruiz Campos",
     organizacionId: organizacion.id,
     personaId: herminia.id,
   });
 
   // 5. Familiar autorizado
-  const usuarioFamiliar = await crearUsuario("hija.herminia@cuida.demo", "FAMILIAR", { organizacionId: organizacion.id });
+  const usuarioFamiliar = await crearUsuario("hija.herminia@cuida.demo", "FAMILIAR", { nombre: "Isabel Ruiz", organizacionId: organizacion.id });
   await prisma.familiarRelacion.upsert({
     where: { personaId_usuarioId: { personaId: herminia.id, usuarioId: usuarioFamiliar.id } },
     update: {},
@@ -183,6 +184,7 @@ async function main() {
     },
   });
   await crearUsuario("carmen.profesional@cuida.demo", "PROFESIONAL", {
+    nombre: "Carmen López Vidal",
     organizacionId: organizacion.id,
     profesionalId: profesional.id,
   });

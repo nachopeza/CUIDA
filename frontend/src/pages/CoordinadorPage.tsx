@@ -152,7 +152,17 @@ export function CoordinadorPage() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Panel de coordinación</h2>
-        <button onClick={() => setNuevaSolicitud(true)} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800">
+        <button
+          onClick={async () => {
+            // Refrescamos antes de abrir para que un usuario recién creado en
+            // la pestaña "Usuarios" aparezca siempre en el selector, aunque
+            // esta lista lleve un rato cargada (bug: "si creo un perfil no
+            // te sale para añadirle un servicio").
+            await cargar();
+            setNuevaSolicitud(true);
+          }}
+          className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800"
+        >
           + Nueva solicitud
         </button>
       </div>
@@ -270,7 +280,7 @@ export function CoordinadorPage() {
         </div>
       )}
 
-      {tab === "personas" && <PersonasTab />}
+      {tab === "personas" && <PersonasTab onCambiado={cargar} />}
       {tab === "profesionales" && <ProfesionalesTab />}
       {tab === "empresas" && <EmpresasTab />}
       {tab === "calendario" && <CalendarioTab />}

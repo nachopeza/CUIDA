@@ -70,6 +70,11 @@ enum RolUsuario {
 // a organización.
 model Usuario {
   id           String     @id @default(cuid())
+  // Nombre para mostrar (sección "unificar... en un único perfil"): permite
+  // identificar a un familiar o cuidador por su nombre en vez de solo por
+  // email en listados, chat y actividad. Opcional: el email sigue siendo el
+  // identificador de acceso.
+  nombre       String?
   email        String     @unique
   passwordHash String
   rol          RolUsuario
@@ -202,6 +207,7 @@ model Profesional {
   usuario   Usuario?
   servicios Servicio[]
   mensajes  Mensaje[]
+  interesEn ServicioInteres[]
 
   @@map("profesionales")
 }
@@ -333,10 +339,20 @@ enum EstadoPagoProfesional {
   PAGADO
 }
 
+// Clasificación operativa del servicio (sección "hay que clasificar bien
+// los servicios para poder cotizarlos y ubicarlos y gestionarlos
+// correctamente"): un encargo puntual (ej. "limpieza el viernes") frente a
+// un contrato recurrente (ej. "acompañamiento todos los días de 9 a 13").
+enum TipoServicio {
+  PUNTUAL
+  RECURRENTE
+}
+
 model Servicio {
   id        String         @id @default(cuid())
   codigo    String         @unique // SRV-000721
   estado    EstadoServicio @default(PENDIENTE)
+  tipoServicio TipoServicio @default(PUNTUAL)
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
@@ -384,8 +400,29 @@ model Servicio {
   estadoHistorial EstadoHistorial[]
   documentos      Documento[]
   mensajes        Mensaje[]
+  interesados     ServicioInteres[]
 
   @@map("servicios")
+}
+
+// Candidatura de un profesional a un servicio publicado sin asignar todavía
+// (sección "sale en la búsqueda para ser aceptado por los profesionales...
+// a Carmen le sale una nueva publicación... ella acepta"): coordinación ve
+// la lista de interesados y elige, en vez de depender de una notificación
+// suelta sin registro consultable.
+model ServicioInteres {
+  id        String   @id @default(cuid())
+  mensaje   String?
+  createdAt DateTime @default(now())
+
+  servicioId String
+  servicio   Servicio @relation(fields: [servicioId], references: [id])
+
+  profesionalId String
+  profesional   Profesional @relation(fields: [profesionalId], references: [id])
+
+  @@unique([servicioId, profesionalId])
+  @@map("servicio_interesados")
 }
 
 enum EstadoFactura {

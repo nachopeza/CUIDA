@@ -200,6 +200,7 @@ solicitudesRouter.get("/:id", async (req, res) => {
           profesional: true,
           visitas: { orderBy: { fecha: "asc" } },
           incidencias: { orderBy: { createdAt: "desc" } },
+          interesados: { include: { profesional: true }, orderBy: { createdAt: "asc" } },
         },
       },
       estadoHistorial: { orderBy: { createdAt: "asc" } },

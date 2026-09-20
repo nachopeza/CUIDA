@@ -23,14 +23,35 @@ const perfilPersonaSchema = {
   recomendaciones: z.string().optional(),
 };
 
-const crearPersonaSchema = z.object(perfilPersonaSchema);
+const crearPersonaSchema = z.object({
+  ...perfilPersonaSchema,
+  // Cuenta de acceso de la persona, creada en el mismo paso de alta (sección
+  // "se debe generar automáticamente un usuario, que tenga plenas
+  // funciones" — nunca debería quedar un perfil sin forma de entrar a la
+  // app, salvo que coordinación decida no darle acceso todavía).
+  email: z.string().email().optional(),
+  password: z.string().min(6).optional(),
+});
 const editarPersonaSchema = z.object(perfilPersonaSchema).partial();
 
-// Alta de persona (sección 6: alta, identificación permanente...)
+function generarPassword(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+// Alta de persona (sección 6: alta, identificación permanente...). Si se da
+// email, se crea también su cuenta de acceso (rol PERSONA) en el mismo paso;
+// si no se da password, se genera una y se devuelve en la respuesta — es la
+// única vez que se puede mostrar en claro.
 personasRouter.post("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
   const parsed = crearPersonaSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   if (!req.usuario!.organizacionId) return res.status(400).json({ error: "Usuario sin organización" });
+
+  const { email, password, ...datosPersona } = parsed.data;
+  if (email) {
+    const existente = await prisma.usuario.findUnique({ where: { email } });
+    if (existente) return res.status(409).json({ error: "Ya existe un usuario con ese email" });
+  }
 
   const codigo = await generarCodigo("persona");
   const persona = await prisma.persona.create({
@@ -38,8 +59,8 @@ personasRouter.post("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), as
       codigo,
       estado: "ACTIVA",
       organizacionId: req.usuario!.organizacionId,
-      ...parsed.data,
-      fechaNacimiento: parsed.data.fechaNacimiento ? new Date(parsed.data.fechaNacimiento) : undefined,
+      ...datosPersona,
+      fechaNacimiento: datosPersona.fechaNacimiento ? new Date(datosPersona.fechaNacimiento) : undefined,
     },
   });
 
@@ -51,12 +72,75 @@ personasRouter.post("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), as
     entidadId: persona.id,
   });
 
-  res.status(201).json(persona);
+  let passwordGenerada: string | undefined;
+  if (email) {
+    passwordGenerada = password ?? generarPassword();
+    const passwordHash = await bcrypt.hash(passwordGenerada, 10);
+    await prisma.usuario.create({
+      data: {
+        email,
+        passwordHash,
+        rol: "PERSONA",
+        nombre: `${datosPersona.nombre} ${datosPersona.apellidos}`,
+        organizacionId: req.usuario!.organizacionId,
+        personaId: persona.id,
+      },
+    });
+    await registrarAuditoria({
+      usuarioId: req.usuario!.sub,
+      organizacionId: req.usuario!.organizacionId,
+      accion: "crear_cuenta_persona",
+      entidadTipo: "Persona",
+      entidadId: persona.id,
+    });
+  }
+
+  res.status(201).json({ ...persona, cuentaCreada: Boolean(email), email, passwordGenerada: password ? undefined : passwordGenerada });
+});
+
+const crearCuentaSchema = z.object({ email: z.string().email(), password: z.string().min(6).optional() });
+
+// Crear la cuenta de acceso más adelante, si no se dio al dar de alta a la
+// persona (sección "si sale, pero tiempo después" — cubre ese caso también).
+personasRouter.post("/:id/cuenta", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const parsed = crearCuentaSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const persona = await prisma.persona.findUnique({ where: { id: req.params.id }, include: { usuario: true } });
+  if (!persona || persona.organizacionId !== req.usuario!.organizacionId) return res.status(404).json({ error: "No encontrada" });
+  if (persona.usuario) return res.status(409).json({ error: "Esta persona ya tiene una cuenta de acceso" });
+
+  const existente = await prisma.usuario.findUnique({ where: { email: parsed.data.email } });
+  if (existente) return res.status(409).json({ error: "Ya existe un usuario con ese email" });
+
+  const passwordGenerada = parsed.data.password ?? generarPassword();
+  const passwordHash = await bcrypt.hash(passwordGenerada, 10);
+  await prisma.usuario.create({
+    data: {
+      email: parsed.data.email,
+      passwordHash,
+      rol: "PERSONA",
+      nombre: `${persona.nombre} ${persona.apellidos}`,
+      organizacionId: req.usuario!.organizacionId,
+      personaId: persona.id,
+    },
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: req.usuario!.organizacionId,
+    accion: "crear_cuenta_persona",
+    entidadTipo: "Persona",
+    entidadId: persona.id,
+  });
+
+  res.status(201).json({ email: parsed.data.email, passwordGenerada: parsed.data.password ? undefined : passwordGenerada });
 });
 
 personasRouter.get("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
   const personas = await prisma.persona.findMany({
     where: { organizacionId: req.usuario!.organizacionId ?? undefined },
+    include: { usuario: { select: { id: true, email: true, activo: true, nombre: true } } },
     orderBy: { createdAt: "desc" },
   });
   res.json(personas);
@@ -68,7 +152,10 @@ personasRouter.get("/:id", async (req, res) => {
 
   const persona = await prisma.persona.findUnique({
     where: { id: req.params.id },
-    include: { familiares: true },
+    include: {
+      usuario: { select: { id: true, email: true, activo: true, nombre: true } },
+      familiares: { include: { usuario: { select: { id: true, email: true, activo: true, nombre: true } } } },
+    },
   });
   if (!persona) return res.status(404).json({ error: "No encontrada" });
 
@@ -115,6 +202,7 @@ personasRouter.patch("/:id", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN")
 const vincularFamiliarSchema = z
   .object({
     usuarioId: z.string().min(1).optional(),
+    nombre: z.string().optional(),
     email: z.string().email().optional(),
     password: z.string().min(6).optional(),
     parentesco: z.string().min(1),
@@ -144,7 +232,7 @@ personasRouter.post("/:id/familiares", requiereRol("COORDINADOR", "ORGANIZACION"
     if (existente) return res.status(409).json({ error: "Ya existe un usuario con ese email" });
     const passwordHash = await bcrypt.hash(parsed.data.password, 10);
     const usuario = await prisma.usuario.create({
-      data: { email: parsed.data.email, passwordHash, rol: "FAMILIAR", organizacionId: req.usuario!.organizacionId },
+      data: { email: parsed.data.email, passwordHash, rol: "FAMILIAR", nombre: parsed.data.nombre, organizacionId: req.usuario!.organizacionId },
     });
     usuarioId = usuario.id;
   }
@@ -159,7 +247,7 @@ personasRouter.post("/:id/familiares", requiereRol("COORDINADOR", "ORGANIZACION"
       puedeVerHistorial: parsed.data.puedeVerHistorial,
       puedeVerImportes: parsed.data.puedeVerImportes,
     },
-    include: { usuario: { select: { email: true } } },
+    include: { usuario: { select: { id: true, email: true, nombre: true } } },
   });
 
   await registrarAuditoria({

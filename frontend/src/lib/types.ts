@@ -1,3 +1,10 @@
+export interface CuentaResumen {
+  id: string;
+  email: string;
+  activo: boolean;
+  nombre: string | null;
+}
+
 export interface Persona {
   id: string;
   codigo: string;
@@ -11,6 +18,7 @@ export interface Persona {
   medico: string | null;
   recomendaciones: string | null;
   estado: string;
+  usuario?: CuentaResumen | null;
 }
 
 export interface Necesidad {
@@ -41,10 +49,18 @@ export interface EmpresaColaboradora {
   estado: string;
 }
 
+export interface ServicioInteres {
+  id: string;
+  mensaje: string | null;
+  createdAt: string;
+  profesional: Profesional;
+}
+
 export interface Servicio {
   id: string;
   codigo: string;
   estado: string;
+  tipoServicio?: "PUNTUAL" | "RECURRENTE";
   profesionalId: string | null;
   profesional?: Profesional | null;
   empresaColaboradoraId?: string | null;
@@ -58,6 +74,7 @@ export interface Servicio {
   solicitud?: Solicitud;
   visitas?: Visita[];
   incidencias?: Incidencia[];
+  interesados?: ServicioInteres[];
 }
 
 export interface EstadoHistorialEntry {
@@ -170,6 +187,7 @@ export interface FamiliarRelacion {
   puedeSolicitar: boolean;
   puedeVerHistorial: boolean;
   puedeVerImportes: boolean;
+  usuario?: CuentaResumen;
 }
 
 export interface PersonaConFamiliares extends Persona {

@@ -81,6 +81,10 @@ serviciosRouter.get("/disponibles", requiereRol("PROFESIONAL"), async (req, res)
 
 const interesSchema = z.object({ mensaje: z.string().optional() });
 
+// Candidatura del profesional a un servicio publicado (sección "sale en la
+// búsqueda para ser aceptado... a Carmen le sale una nueva publicación...
+// ella acepta"): queda registrada y consultable por coordinación, no es
+// solo una notificación que se pierde en la bandeja.
 serviciosRouter.post("/:id/interes", requiereRol("PROFESIONAL"), async (req, res) => {
   const parsed = interesSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -95,6 +99,12 @@ serviciosRouter.post("/:id/interes", requiereRol("PROFESIONAL"), async (req, res
 
   const profesional = await prisma.profesional.findUnique({ where: { id: usuario.profesionalId ?? "__none__" } });
   if (!profesional) return res.status(400).json({ error: "Perfil de profesional no encontrado" });
+
+  await prisma.servicioInteres.upsert({
+    where: { servicioId_profesionalId: { servicioId: servicio.id, profesionalId: profesional.id } },
+    update: { mensaje: parsed.data.mensaje },
+    create: { servicioId: servicio.id, profesionalId: profesional.id, mensaje: parsed.data.mensaje },
+  });
 
   await notificarGestores(
     servicio.organizacionId,
@@ -113,6 +123,7 @@ serviciosRouter.get("/:id", async (req, res) => {
       ...INCLUDE_SERVICIO,
       visitas: { include: { tareas: true, actuaciones: true, incidencias: true } },
       incidencias: true,
+      interesados: { include: { profesional: true }, orderBy: { createdAt: "asc" } },
       estadoHistorial: { orderBy: { createdAt: "asc" } },
     },
   });
@@ -128,6 +139,7 @@ const tarifaSchema = z.object({
   tarifaImporte: z.number().nonnegative().nullable().optional(),
   tarifaTipo: z.enum(["PAGADO", "VOLUNTARIO"]).nullable().optional(),
   tarifaNotas: z.string().optional(),
+  tipoServicio: z.enum(["PUNTUAL", "RECURRENTE"]).optional(),
 });
 
 // Asignar empresa colaboradora y/o estimar tarifa. Solo gestores; nunca
@@ -166,6 +178,7 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
       tarifaImporte: parsed.data.tarifaImporte,
       tarifaTipo: parsed.data.tarifaTipo,
       tarifaNotas: parsed.data.tarifaNotas,
+      tipoServicio: parsed.data.tipoServicio,
       comisionImporte,
       importeProfesional,
     },

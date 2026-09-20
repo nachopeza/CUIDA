@@ -59,7 +59,13 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   const [empresas, setEmpresas] = useState<EmpresaColaboradora[]>([]);
 
   const [plan, setPlan] = useState({ fechaInicio: "", fechaFin: "", horaInicio: "", horaFin: "", franjaHoraria: "Mañana", recurrencia: "" });
-  const [tarifa, setTarifa] = useState({ empresaColaboradoraId: "", tarifaImporte: "", tarifaTipo: "" as "" | "PAGADO" | "VOLUNTARIO", tarifaNotas: "" });
+  const [tarifa, setTarifa] = useState({
+    empresaColaboradoraId: "",
+    tarifaImporte: "",
+    tarifaTipo: "" as "" | "PAGADO" | "VOLUNTARIO",
+    tarifaNotas: "",
+    tipoServicio: "PUNTUAL" as "PUNTUAL" | "RECURRENTE",
+  });
   const [nuevaVisita, setNuevaVisita] = useState({ fecha: "", horaInicio: "", horaFin: "", tareas: "" });
 
   async function cargar() {
@@ -89,6 +95,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
         tarifaImporte: sol.servicio.tarifaImporte != null ? String(sol.servicio.tarifaImporte) : "",
         tarifaTipo: sol.servicio.tarifaTipo ?? "",
         tarifaNotas: sol.servicio.tarifaNotas ?? "",
+        tipoServicio: sol.servicio.tipoServicio ?? "PUNTUAL",
       });
     }
   }
@@ -150,6 +157,24 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
         tarifaImporte: tarifa.tarifaImporte ? Number(tarifa.tarifaImporte) : null,
         tarifaTipo: tarifa.tarifaTipo || null,
         tarifaNotas: tarifa.tarifaNotas || undefined,
+        tipoServicio: tarifa.tipoServicio,
+      },
+      token,
+    );
+    await recargar();
+  }
+
+  async function cambiarTipoServicio(t: "PUNTUAL" | "RECURRENTE") {
+    if (!s?.servicio) return;
+    setTarifa((v) => ({ ...v, tipoServicio: t }));
+    await api.post(
+      `/servicios/${s.servicio.id}/tarifa`,
+      {
+        empresaColaboradoraId: tarifa.empresaColaboradoraId || null,
+        tarifaImporte: tarifa.tarifaImporte ? Number(tarifa.tarifaImporte) : null,
+        tarifaTipo: tarifa.tarifaTipo || null,
+        tarifaNotas: tarifa.tarifaNotas || undefined,
+        tipoServicio: t,
       },
       token,
     );
@@ -314,7 +339,22 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
         </div>
 
         <div className="border-t border-slate-100 pt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Servicio</p>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Servicio</p>
+            {srv && (
+              <div className="flex gap-1 text-xs">
+                {(["PUNTUAL", "RECURRENTE"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => cambiarTipoServicio(t)}
+                    className={`rounded-full px-2.5 py-1 ${tarifa.tipoServicio === t ? "bg-brand text-white" : "border border-slate-200 text-slate-500 hover:bg-slate-50"}`}
+                  >
+                    {t === "PUNTUAL" ? "Puntual" : "Recurrente"}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {!srv && s.estado === "ACEPTADA" && s.plan && (
             <button onClick={crearServicio} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800">
@@ -362,9 +402,30 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 </p>
               )}
 
+              {srv.estado === "PENDIENTE" && srv.interesados && srv.interesados.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <p className="mb-1.5 text-xs font-semibold text-amber-800">
+                    Candidatos interesados — este servicio está publicado y estos profesionales quieren cubrirlo
+                  </p>
+                  <ul className="space-y-1.5">
+                    {srv.interesados.map((i) => (
+                      <li key={i.id} className="flex items-center justify-between rounded-md bg-white px-2.5 py-1.5 text-sm">
+                        <span>
+                          {i.profesional.nombre} {i.profesional.apellidos}
+                          {i.mensaje && <span className="text-slate-400"> — "{i.mensaje}"</span>}
+                        </span>
+                        <button onClick={() => asignar(i.profesional.id)} className="rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800">
+                          Elegir
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                 <label className="text-slate-500">
-                  Profesional (Cantabria)
+                  Asignar directamente (Cantabria)
                   <select
                     key={srv.profesionalId ?? "sin-asignar"}
                     defaultValue={srv.profesionalId ?? ""}
