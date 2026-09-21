@@ -48,6 +48,44 @@ cd frontend
 npm run dev                 # http://localhost:5173 (proxy a /api -> :4000)
 ```
 
+## Cómo actualizar tras un cambio (pasos fijos, siempre en este orden)
+
+Sigue esto cada vez que se avise de una actualización de la web:
+
+1. **Parar los servidores** si están corriendo: en cada terminal (backend y
+   frontend), pulsa `Ctrl + C`.
+2. **Traer los cambios**, desde la raíz del proyecto:
+   ```bash
+   cd ~/ruta/a/CUIDA        # ajusta a tu carpeta real
+   git pull
+   ```
+3. **Instalar dependencias** (no hace nada si no cambió ninguna):
+   ```bash
+   npm install
+   ```
+4. **Aplicar cambios en la base de datos** (no hace nada si no hay
+   migraciones nuevas) y **recargar los datos de ejemplo**:
+   ```bash
+   cd backend
+   npx prisma migrate dev
+   npm run seed
+   ```
+5. **Arrancar el backend** (déjalo corriendo en esta terminal):
+   ```bash
+   npm run dev              # http://localhost:4000
+   ```
+6. **En otra terminal, arrancar el frontend**:
+   ```bash
+   cd ~/ruta/a/CUIDA/frontend
+   npm run dev               # http://localhost:5173
+   ```
+7. **En el navegador**: recarga forzando la caché (`Cmd + Shift + R` en
+   Mac) en `http://localhost:5173` para asegurarte de que no ves una
+   versión antigua guardada, y vuelve a entrar con un usuario de demo.
+
+Si el paso 4 (`npx prisma migrate dev`) da un error de permisos o de
+conexión, revisa que Postgres.app esté abierto antes de continuar.
+
 ### Usuarios de demo (tras `npm run seed`)
 
 Contraseña para todos: `cuida2026`
