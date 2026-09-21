@@ -142,6 +142,7 @@ model Persona {
   solicitudes Solicitud[]
   documentos  Documento[]
   facturas    Factura[]
+  mensajes    Mensaje[]
 
   @@map("personas")
 }
@@ -402,7 +403,6 @@ model Servicio {
   incidencias     Incidencia[]
   estadoHistorial EstadoHistorial[]
   documentos      Documento[]
-  mensajes        Mensaje[]
   interesados     ServicioInteres[]
 
   @@map("servicios")
@@ -461,25 +461,25 @@ model Factura {
   @@map("facturas")
 }
 
-// Chat entre la persona/familia y el profesional asignado a un servicio
-// (sección "la usuaria debe tener un chat con la profesional"). Se ancla al
-// Servicio: solo pueden participar la persona, su familiar autorizado, el
-// profesional asignado y los gestores de la organización.
+// Chat entre la persona/familia y un profesional (sección "el panel de
+// chat debe ser más intuitivo, no una caja por cada servicio... si es el
+// mismo profesional se debe poder visualizar todo junto"): la conversación
+// se ancla al par (persona, profesional), no a un servicio concreto — así
+// un profesional con varios servicios para la misma familia tiene un único
+// hilo, no uno repetido por cada uno.
 model Mensaje {
   id        String   @id @default(cuid())
   texto     String
   createdAt DateTime @default(now())
 
-  servicioId String
-  servicio   Servicio @relation(fields: [servicioId], references: [id])
+  personaId String
+  persona   Persona @relation(fields: [personaId], references: [id])
+
+  profesionalId String
+  profesional   Profesional @relation(fields: [profesionalId], references: [id])
 
   autorUsuarioId String
   autor          Usuario @relation(fields: [autorUsuarioId], references: [id])
-
-  // Denormalizado para no tener que unir con Profesional en cada lectura del
-  // chat (quién lo escribió, desde qué "lado").
-  profesionalId String?
-  profesional   Profesional? @relation(fields: [profesionalId], references: [id])
 
   @@map("mensajes")
 }

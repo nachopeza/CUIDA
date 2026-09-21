@@ -306,6 +306,29 @@ serviciosRouter.post("/:id/aceptar", requiereRol("PROFESIONAL"), async (req, res
     () => undefined,
   );
 
+  // "Se notifica al usuario la confirmación de su servicio": la persona
+  // atendida y sus familiares deben enterarse de que ya hay alguien
+  // confirmado, no solo coordinación.
+  const solicitudConPersona = await prisma.solicitud.findUnique({
+    where: { id: servicio.solicitudId },
+    include: { persona: { include: { usuario: true } } },
+  });
+  if (solicitudConPersona?.persona.usuario) {
+    await notificarUsuario(
+      solicitudConPersona.persona.usuario.id,
+      "servicio_confirmado",
+      `Tu servicio ${servicio.codigo} ya está confirmado. Vendrá el profesional asignado.`,
+      servicio.solicitudId,
+    );
+  }
+  const familiaresDePersona = await prisma.familiarRelacion.findMany({
+    where: { personaId: solicitudConPersona?.personaId ?? "__none__", revocadoAt: null },
+    select: { usuarioId: true },
+  });
+  for (const f of familiaresDePersona) {
+    await notificarUsuario(f.usuarioId, "servicio_confirmado", `El servicio ${servicio.codigo} ya está confirmado con un profesional.`, servicio.solicitudId);
+  }
+
   res.json(actualizado);
 });
 

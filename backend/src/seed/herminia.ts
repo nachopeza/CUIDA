@@ -53,7 +53,7 @@ async function limpiarOrganizacion(organizacionId: string) {
   await prisma.documento.deleteMany({
     where: { OR: [{ personaId: { in: personaIds } }, { servicioId: { in: servicioIds } }, { visitaId: { in: visitaIds } }] },
   });
-  await prisma.mensaje.deleteMany({ where: { servicioId: { in: servicioIds } } });
+  await prisma.mensaje.deleteMany({ where: { personaId: { in: personaIds } } });
   await prisma.servicioInteres.deleteMany({ where: { servicioId: { in: servicioIds } } });
   await prisma.visita.deleteMany({ where: { id: { in: visitaIds } } });
   await prisma.plan.deleteMany({ where: { solicitudId: { in: solicitudIds } } });
@@ -337,17 +337,18 @@ async function main() {
   });
 
   // 12b. Chat de ejemplo entre Herminia y Carmen (sección Usuario: "chat con
-  // la profesional... estilo WhatsApp").
+  // la profesional... estilo WhatsApp"), una única conversación por persona
+  // y profesional, no una por cada servicio.
   await prisma.mensaje.create({
-    data: { servicioId: servicio.id, autorUsuarioId: usuarioFamiliar.id, texto: "Hola Carmen, gracias por venir hoy. ¿Todo bien con mi madre?" },
+    data: { personaId: herminia.id, profesionalId: profesional.id, autorUsuarioId: usuarioFamiliar.id, texto: "Hola Carmen, gracias por venir hoy. ¿Todo bien con mi madre?" },
   });
   const usuarioCarmen = await prisma.usuario.findUnique({ where: { email: "carmen.profesional@cuida.demo" } });
   if (usuarioCarmen) {
     await prisma.mensaje.create({
       data: {
-        servicioId: servicio.id,
-        autorUsuarioId: usuarioCarmen.id,
+        personaId: herminia.id,
         profesionalId: profesional.id,
+        autorUsuarioId: usuarioCarmen.id,
         texto: "¡Hola! Sí, todo perfecto. Hemos hecho la compra y está comiendo tranquila.",
       },
     });

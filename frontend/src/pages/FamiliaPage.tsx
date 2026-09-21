@@ -5,7 +5,7 @@ import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
-import { ChatPanel } from "../components/ChatPanel.js";
+import { ConversacionesPanel } from "../components/ConversacionesPanel.js";
 import type { Necesidad, PersonaConFamiliares, Solicitud } from "../lib/types.js";
 
 const ICONOS: Record<string, string> = {
@@ -65,6 +65,8 @@ export function FamiliaPage() {
       <h2 className="mb-4 text-lg font-semibold">Seguimiento familiar</h2>
 
       {mensaje && <div className="mb-4 rounded-lg border border-brand-green-200 bg-brand-green-50 px-4 py-3 text-sm text-brand-green-700">{mensaje}</div>}
+
+      <ConversacionesPanel />
 
       {personas.map((p) => (
         <Card key={p.id} title={`${p.nombre} ${p.apellidos}`}>
@@ -159,15 +161,6 @@ export function FamiliaPage() {
                       Cancelar
                     </button>
                   )}
-                </div>
-              )}
-              {/* Chat visible siempre que haya profesional asignado (sección
-                  "eso solo en el perfil de usuario avanzado"): es la
-                  diferencia frente al perfil simple de la persona atendida,
-                  no un botón que haya que descubrir. */}
-              {s.servicio?.profesionalId && (
-                <div className="mt-2 pl-2">
-                  <ChatPanel servicioId={s.servicio.id} titulo={`Chat con ${s.servicio.profesional?.nombre ?? "el profesional"}`} />
                 </div>
               )}
             </li>

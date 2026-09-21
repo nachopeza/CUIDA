@@ -3,10 +3,12 @@ import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import type { Mensaje } from "../lib/types.js";
 
-// Chat servicio↔profesional (sección Usuario: "debe tener un chat con la
-// profesional para comunicarse... estilo WhatsApp"). Sondeo simple cada
-// pocos segundos: suficiente para fase 1, sin necesidad de websockets.
-export function ChatPanel({ servicioId, titulo }: { servicioId: string; titulo: string }) {
+// Chat persona↔profesional (sección Usuario: "debe tener un chat con la
+// profesional para comunicarse... estilo WhatsApp"; sección coordinación:
+// "si es el mismo profesional se debe poder visualizar todo junto"): un
+// único hilo por par persona-profesional, no uno por cada servicio. Sondeo
+// simple cada pocos segundos: suficiente para fase 1, sin websockets.
+export function ChatPanel({ profesionalId, personaId, compacto }: { profesionalId: string; personaId: string; compacto?: boolean }) {
   const { token, usuario } = useAuth();
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [texto, setTexto] = useState("");
@@ -14,7 +16,7 @@ export function ChatPanel({ servicioId, titulo }: { servicioId: string; titulo: 
   const finRef = useRef<HTMLDivElement>(null);
 
   async function cargar() {
-    const data = await api.get<Mensaje[]>(`/servicios/${servicioId}/mensajes`, token);
+    const data = await api.get<Mensaje[]>(`/conversaciones/${profesionalId}/${personaId}/mensajes`, token);
     setMensajes(data);
   }
 
@@ -23,7 +25,7 @@ export function ChatPanel({ servicioId, titulo }: { servicioId: string; titulo: 
     const intervalo = setInterval(cargar, 6000);
     return () => clearInterval(intervalo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [servicioId, token]);
+  }, [profesionalId, personaId, token]);
 
   useEffect(() => {
     finRef.current?.scrollIntoView({ block: "nearest" });
@@ -34,7 +36,7 @@ export function ChatPanel({ servicioId, titulo }: { servicioId: string; titulo: 
     if (!texto.trim()) return;
     setEnviando(true);
     try {
-      await api.post(`/servicios/${servicioId}/mensajes`, { texto: texto.trim() }, token);
+      await api.post(`/conversaciones/${profesionalId}/${personaId}/mensajes`, { texto: texto.trim() }, token);
       setTexto("");
       await cargar();
     } finally {
@@ -43,9 +45,8 @@ export function ChatPanel({ servicioId, titulo }: { servicioId: string; titulo: 
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white">
-      <div className="border-b border-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">💬 {titulo}</div>
-      <div className="max-h-72 space-y-2 overflow-y-auto p-3">
+    <div className={compacto ? "" : "rounded-lg border border-slate-200 bg-white"}>
+      <div className={`space-y-2 overflow-y-auto p-3 ${compacto ? "max-h-64" : "max-h-72"}`}>
         {mensajes.length === 0 && <p className="text-sm text-slate-400">Todavía no hay mensajes. Escribe el primero.</p>}
         {mensajes.map((m) => {
           const esMio = m.autorUsuarioId === usuario?.id;

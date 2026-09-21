@@ -48,6 +48,10 @@ solicitudesRouter.post("/", async (req, res) => {
   const persona = await prisma.persona.findUnique({ where: { id: personaId } });
   if (!persona) return res.status(404).json({ error: "Persona no encontrada" });
 
+  // La solicitud llega ya "enviada" (sección "llega la solicitud y queda
+  // pendiente de revisión"): BORRADOR era un estado vestigial que nunca se
+  // usaba de verdad — el formulario siempre envía todo de una vez, no hay
+  // un "guardar borrador" real en ningún sitio de la interfaz.
   const codigo = await generarCodigo("solicitud");
   const solicitud = await prisma.solicitud.create({
     data: {
@@ -57,15 +61,15 @@ solicitudesRouter.post("/", async (req, res) => {
       personaId,
       organizacionId: persona.organizacionId,
       creadaPorUsuarioId: req.usuario!.sub,
-      estado: "BORRADOR",
+      estado: "ENVIADA",
     },
   });
 
   await registrarHistorial({
     entidadTipo: "Solicitud",
-    estadoAnterior: "BORRADOR",
-    estadoNuevo: "BORRADOR",
-    motivo: "Creación",
+    estadoAnterior: "ENVIADA",
+    estadoNuevo: "ENVIADA",
+    motivo: "Creación — pendiente de revisión",
     solicitudId: solicitud.id,
   });
 
@@ -273,7 +277,7 @@ solicitudesRouter.post("/:id/estado", async (req, res) => {
   const parsed = estadoSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const solicitud = await prisma.solicitud.findUnique({ where: { id: req.params.id } });
+  const solicitud = await prisma.solicitud.findUnique({ where: { id: req.params.id }, include: { plan: true, servicio: true } });
   if (!solicitud) return res.status(404).json({ error: "No encontrada" });
 
   const permitido = await puedeAccederPersona(req.usuario!, solicitud.personaId);
@@ -284,6 +288,14 @@ solicitudesRouter.post("/:id/estado", async (req, res) => {
   } catch (err) {
     if (err instanceof TransicionInvalidaError) return res.status(409).json({ error: err.message });
     throw err;
+  }
+
+  // "Se acepta y entra a buscar un profesional": aceptar ya no es un paso
+  // suelto seguido de un botón aparte "crear servicio" — al aceptar, si hay
+  // días/horas guardados, el servicio se publica en el mismo movimiento.
+  if (parsed.data.estado === "ACEPTADA") {
+    if (!esGestorOrganizacion(req.usuario!)) return res.status(403).json({ error: "Sin permiso" });
+    if (!solicitud.plan) return res.status(409).json({ error: "Guarda los días/horas antes de aceptar la solicitud" });
   }
 
   const actualizada = await prisma.solicitud.update({
@@ -308,7 +320,29 @@ solicitudesRouter.post("/:id/estado", async (req, res) => {
     detalle: `${solicitud.estado} → ${parsed.data.estado}`,
   });
 
-  res.json(actualizada);
+  let servicioCreado = null;
+  if (parsed.data.estado === "ACEPTADA" && !solicitud.servicio) {
+    const codigoServicio = await generarCodigo("servicio");
+    servicioCreado = await prisma.servicio.create({
+      data: { codigo: codigoServicio, solicitudId: solicitud.id, organizacionId: solicitud.organizacionId, estado: "PENDIENTE" },
+    });
+    await registrarHistorial({
+      entidadTipo: "Servicio",
+      estadoAnterior: "PENDIENTE",
+      estadoNuevo: "PENDIENTE",
+      motivo: "Publicado al aceptar la solicitud",
+      servicioId: servicioCreado.id,
+    });
+    await registrarAuditoria({
+      usuarioId: req.usuario!.sub,
+      organizacionId: solicitud.organizacionId,
+      accion: "crear_servicio",
+      entidadTipo: "Servicio",
+      entidadId: servicioCreado.id,
+    });
+  }
+
+  res.json({ ...actualizada, servicio: servicioCreado });
 });
 
 // "Solicitud → Servicio": operación (sección 3). Requiere plan definido y

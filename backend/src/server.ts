@@ -13,7 +13,7 @@ import { notificacionesRouter } from "./routes/notificaciones.js";
 import { auditoriaRouter } from "./routes/auditoria.js";
 import { empresasColaboradorasRouter } from "./routes/empresasColaboradoras.js";
 import { agendaRouter } from "./routes/agenda.js";
-import { mensajesRouter } from "./routes/mensajes.js";
+import { conversacionesRouter } from "./routes/conversaciones.js";
 import { facturasRouter } from "./routes/facturas.js";
 
 const app = express();
@@ -35,7 +35,7 @@ app.use("/notificaciones", notificacionesRouter);
 app.use("/auditoria", auditoriaRouter);
 app.use("/empresas-colaboradoras", empresasColaboradorasRouter);
 app.use("/agenda", agendaRouter);
-app.use("/", mensajesRouter);
+app.use("/conversaciones", conversacionesRouter);
 app.use("/facturas", facturasRouter);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

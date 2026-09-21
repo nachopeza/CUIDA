@@ -166,8 +166,15 @@ export interface Mensaje {
   texto: string;
   createdAt: string;
   autorUsuarioId: string;
-  profesionalId?: string | null;
   autor: { id: string; rol: string; email: string };
+}
+
+export interface Conversacion {
+  profesionalId: string;
+  personaId: string;
+  persona: Persona | null;
+  profesional: Profesional | null;
+  ultimoMensaje: Mensaje | null;
 }
 
 export interface Notificacion {

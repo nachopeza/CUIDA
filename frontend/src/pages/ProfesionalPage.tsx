@@ -3,7 +3,7 @@ import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
-import { ChatPanel } from "../components/ChatPanel.js";
+import { ConversacionesPanel } from "../components/ConversacionesPanel.js";
 import { BuscarSolicitudesTab } from "./profesional/BuscarSolicitudesTab.js";
 import { MiPerfilTab } from "./profesional/MiPerfilTab.js";
 import type { Servicio, Visita } from "../lib/types.js";
@@ -18,7 +18,6 @@ export function ProfesionalPage() {
   const [propuestas, setPropuestas] = useState<Servicio[]>([]);
   const [observaciones, setObservaciones] = useState<Record<string, string>>({});
   const [perfilAbierto, setPerfilAbierto] = useState<string | null>(null);
-  const [chatAbierto, setChatAbierto] = useState<string | null>(null);
 
   async function cargar() {
     if (!usuario?.profesionalId) return;
@@ -75,6 +74,8 @@ export function ProfesionalPage() {
 
       {tab === "agenda" && (
         <>
+      <ConversacionesPanel verNombrePersona />
+
       {propuestas.length > 0 && (
         <Card title="Te han propuesto estos servicios">
           <ul className="space-y-2">
@@ -119,20 +120,6 @@ export function ProfesionalPage() {
                 >
                   {perfilAbierto === v.id ? "Ocultar perfil" : "Ver perfil completo"}
                 </button>
-                {v.servicio?.id && (
-                  <button
-                    onClick={() => setChatAbierto(chatAbierto === v.id ? null : v.id)}
-                    className="text-xs font-medium text-slate-500 underline decoration-dotted hover:text-slate-700"
-                  >
-                    {chatAbierto === v.id ? "Ocultar chat" : "💬 Chat"}
-                  </button>
-                )}
-              </div>
-            )}
-
-            {chatAbierto === v.id && v.servicio?.id && (
-              <div className="mb-3">
-                <ChatPanel servicioId={v.servicio.id} titulo={`Chat con ${persona?.nombre ?? "la familia"}`} />
               </div>
             )}
 

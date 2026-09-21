@@ -4,11 +4,17 @@ import { prisma } from "../lib/prisma.js";
 // cuándo, estado anterior, nuevo estado y motivo — aquí solo el qué/cuándo/
 // motivo vía EstadoHistorial; el "quién" lo registra el AuditLog del llamador.
 
+// "Se acepta y entra a buscar un profesional": aceptar es una única acción
+// desde ENVIADA, no una cadena de pasos intermedios que haya que ir
+// pulsando uno a uno — la búsqueda de profesional ocurre después, a nivel
+// de Servicio (PENDIENTE → interesados/asignar → ASIGNADO), no aquí.
+// EN_REVISION/BUSCANDO/PROPUESTA se conservan solo por compatibilidad con
+// historiales ya guardados en esos estados.
 export const TRANSICIONES_SOLICITUD: Record<string, string[]> = {
   BORRADOR: ["ENVIADA", "CANCELADA"],
-  ENVIADA: ["EN_REVISION", "CANCELADA"],
-  EN_REVISION: ["BUSCANDO", "CANCELADA"],
-  BUSCANDO: ["PROPUESTA", "CANCELADA"],
+  ENVIADA: ["ACEPTADA", "CANCELADA"],
+  EN_REVISION: ["ACEPTADA", "CANCELADA"],
+  BUSCANDO: ["ACEPTADA", "CANCELADA"],
   PROPUESTA: ["ACEPTADA", "CANCELADA"],
   ACEPTADA: ["CERRADA"],
   CANCELADA: [],

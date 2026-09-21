@@ -187,6 +187,12 @@ export function CoordinadorPage() {
     return conteo;
   }, [solicitudes]);
 
+  // El profesional ya terminó (Servicio FINALIZADO) pero coordinación
+  // todavía no lo ha verificado: dentro de "En proceso" es el único caso
+  // que requiere una acción de coordinación ahora mismo, así que se marca
+  // aparte en vez de perderse mezclado con "confirmado"/"en curso".
+  const porVerificarCount = useMemo(() => solicitudes.filter((s) => s.servicio?.estado === "FINALIZADO").length, [solicitudes]);
+
   const kpis: { label: string; valor: number; onClick: () => void }[] = [
     { label: "Solicitudes", valor: solicitudes.length, onClick: () => irA("solicitudes") },
     { label: "Gestión", valor: gruposCount.gestion, onClick: () => irA("solicitudes", "gestion") },
@@ -326,6 +332,19 @@ export function CoordinadorPage() {
                   {GRUPO_LABEL[g]} ({gruposCount[g]})
                 </button>
               ))}
+              {porVerificarCount > 0 && (
+                <button
+                  onClick={() => {
+                    setFiltro("en_proceso");
+                    setEstadoFiltro("FINALIZADO");
+                  }}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                    filtro === "en_proceso" && estadoFiltro === "FINALIZADO" ? "bg-amber-500 text-white" : "border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                  }`}
+                >
+                  🕐 Por verificar ({porVerificarCount})
+                </button>
+              )}
             </div>
 
             <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
@@ -385,6 +404,11 @@ export function CoordinadorPage() {
                             {grupoDeSolicitud(s) === "incidencias" && (
                               <span className="text-amber-600" title="Incidencia abierta">
                                 ⚠
+                              </span>
+                            )}
+                            {s.servicio?.estado === "FINALIZADO" && (
+                              <span className="text-amber-600" title="El profesional ha terminado — pendiente de verificar por coordinación">
+                                🕐 Por verificar
                               </span>
                             )}
                           </div>
