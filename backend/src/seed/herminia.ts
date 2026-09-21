@@ -54,6 +54,7 @@ async function limpiarOrganizacion(organizacionId: string) {
     where: { OR: [{ personaId: { in: personaIds } }, { servicioId: { in: servicioIds } }, { visitaId: { in: visitaIds } }] },
   });
   await prisma.mensaje.deleteMany({ where: { servicioId: { in: servicioIds } } });
+  await prisma.servicioInteres.deleteMany({ where: { servicioId: { in: servicioIds } } });
   await prisma.visita.deleteMany({ where: { id: { in: visitaIds } } });
   await prisma.plan.deleteMany({ where: { solicitudId: { in: solicitudIds } } });
   await prisma.factura.deleteMany({ where: { personaId: { in: personaIds } } });
@@ -352,6 +353,257 @@ async function main() {
     });
   }
 
+  // 14. Más solicitudes de ejemplo, cada una en un estado distinto, para que
+  // el panel de coordinación se pueda probar sin tener que ir creando cada
+  // caso a mano (sección "creas más solicitudes... una que esté por
+  // verificar, una que no tenga asociado a alguien, una a la espera de que
+  // llegue el día, una terminada, una con una incidencia, y otra con
+  // alguna otra función").
+  const necesidadTareas = await prisma.necesidadCatalogo.findUniqueOrThrow({ where: { codigo: "tareas_domesticas" } });
+  const necesidadPaseo = await prisma.necesidadCatalogo.findUniqueOrThrow({ where: { codigo: "paseo" } });
+  const necesidadCitas = await prisma.necesidadCatalogo.findUniqueOrThrow({ where: { codigo: "citas" } });
+  const necesidadRecados = await prisma.necesidadCatalogo.findUniqueOrThrow({ where: { codigo: "recados" } });
+  const necesidadAcompanamiento = await prisma.necesidadCatalogo.findUniqueOrThrow({ where: { codigo: "acompanamiento" } });
+
+  function fechaEn(dias: number): Date {
+    const f = new Date();
+    f.setDate(f.getDate() + dias);
+    return f;
+  }
+
+  // 14a. Sin profesional asignado todavía: publicada, visible en "Buscar
+  // solicitudes" para los profesionales y en el grupo "Gestión".
+  const solicitud2 = await prisma.solicitud.create({
+    data: {
+      codigo: await generarCodigo("solicitud"),
+      descripcionLibre: "Necesito que alguien limpie la casa el viernes por la tarde.",
+      necesidadId: necesidadTareas.id,
+      personaId: herminia.id,
+      organizacionId: organizacion.id,
+      creadaPorUsuarioId: usuarioHerminia.id,
+      estado: "ACEPTADA",
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Solicitud", estadoAnterior: "BORRADOR", estadoNuevo: "ACEPTADA", motivo: "Aceptada por coordinación (seed)", solicitudId: solicitud2.id });
+  await prisma.plan.create({
+    data: { solicitudId: solicitud2.id, fechaInicio: fechaEn(3), fechaFin: fechaEn(3), franjaHoraria: "Tarde" },
+  });
+  const servicio2 = await prisma.servicio.create({
+    data: { codigo: await generarCodigo("servicio"), solicitudId: solicitud2.id, organizacionId: organizacion.id, estado: "PENDIENTE", tipoServicio: "PUNTUAL" },
+  });
+  await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "PENDIENTE", motivo: "Publicado, buscando profesional (seed)", servicioId: servicio2.id });
+
+  // 14b. Confirmada y con profesional, esperando a que llegue el día.
+  const solicitud3 = await prisma.solicitud.create({
+    data: {
+      codigo: await generarCodigo("solicitud"),
+      descripcionLibre: "Necesito compañía para dar un paseo la semana que viene.",
+      necesidadId: necesidadPaseo.id,
+      personaId: herminia.id,
+      organizacionId: organizacion.id,
+      creadaPorUsuarioId: usuarioHerminia.id,
+      estado: "ACEPTADA",
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Solicitud", estadoAnterior: "BORRADOR", estadoNuevo: "ACEPTADA", motivo: "Aceptada por coordinación (seed)", solicitudId: solicitud3.id });
+  await prisma.plan.create({
+    data: { solicitudId: solicitud3.id, fechaInicio: fechaEn(5), fechaFin: fechaEn(5), franjaHoraria: "Tarde", horaInicio: "17:00", horaFin: "18:00" },
+  });
+  const servicio3 = await prisma.servicio.create({
+    data: {
+      codigo: await generarCodigo("servicio"),
+      solicitudId: solicitud3.id,
+      organizacionId: organizacion.id,
+      estado: "CONFIRMADO",
+      tipoServicio: "PUNTUAL",
+      profesionalId: profesional.id,
+      tarifaImporte: 15,
+      tarifaTipo: "PAGADO",
+      comisionImporte: 2.25,
+      importeProfesional: 12.75,
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "CONFIRMADO", motivo: `Asignado a ${profesional.codigo} y confirmado (seed)`, servicioId: servicio3.id });
+  await prisma.visita.create({
+    data: {
+      codigo: await generarCodigo("visita"),
+      fecha: fechaEn(5),
+      horaInicioProg: "17:00",
+      horaFinProg: "18:00",
+      servicioId: servicio3.id,
+      estado: "PROGRAMADA",
+      tareas: { create: [{ descripcion: "Paseo por el barrio" }] },
+    },
+  });
+
+  // 14c. Terminada de verdad (VALIDADO), con visita verificada y factura
+  // generada — para probar Facturación con datos ya cargados.
+  const solicitud4 = await prisma.solicitud.create({
+    data: {
+      codigo: await generarCodigo("solicitud"),
+      descripcionLibre: "Necesito acompañamiento a una cita médica.",
+      necesidadId: necesidadCitas.id,
+      personaId: herminia.id,
+      organizacionId: organizacion.id,
+      creadaPorUsuarioId: usuarioHerminia.id,
+      estado: "ACEPTADA",
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Solicitud", estadoAnterior: "BORRADOR", estadoNuevo: "ACEPTADA", motivo: "Aceptada por coordinación (seed)", solicitudId: solicitud4.id });
+  await prisma.plan.create({
+    data: { solicitudId: solicitud4.id, fechaInicio: fechaEn(-4), fechaFin: fechaEn(-4), franjaHoraria: "Mañana" },
+  });
+  const servicio4 = await prisma.servicio.create({
+    data: {
+      codigo: await generarCodigo("servicio"),
+      solicitudId: solicitud4.id,
+      organizacionId: organizacion.id,
+      estado: "VALIDADO",
+      tipoServicio: "PUNTUAL",
+      profesionalId: profesional.id,
+      tarifaImporte: 45,
+      tarifaTipo: "PAGADO",
+      comisionImporte: 6.75,
+      importeProfesional: 38.25,
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "EN_CURSO", motivo: "Asignado, confirmado y realizado (seed)", servicioId: servicio4.id });
+  const visita4 = await prisma.visita.create({
+    data: {
+      codigo: await generarCodigo("visita"),
+      fecha: fechaEn(-4),
+      horaInicioProg: "10:00",
+      horaFinProg: "12:00",
+      horaInicioReal: fechaEn(-4),
+      horaFinReal: fechaEn(-4),
+      servicioId: servicio4.id,
+      estado: "REVISADA",
+      tareas: { create: [{ descripcion: "Acompañar a la cita", completada: true }] },
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Visita", estadoAnterior: "FINALIZADA", estadoNuevo: "REVISADA", motivo: "Verificada con la familia (seed)", visitaId: visita4.id });
+  await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "EN_CURSO", estadoNuevo: "VALIDADO", motivo: "Todas las visitas verificadas con la familia (seed)", servicioId: servicio4.id });
+  const factura = await prisma.factura.create({
+    data: {
+      codigo: await generarCodigo("factura"),
+      mes: new Date().toISOString().slice(0, 7),
+      importeTotal: 45,
+      comisionTotal: 6.75,
+      importeProfesionales: 38.25,
+      organizacionId: organizacion.id,
+      personaId: herminia.id,
+      servicios: { connect: [{ id: servicio4.id }] },
+    },
+  });
+
+  // 14d. Con una incidencia abierta.
+  const solicitud5 = await prisma.solicitud.create({
+    data: {
+      codigo: await generarCodigo("solicitud"),
+      descripcionLibre: "Necesito ayuda con unos recados esta semana.",
+      necesidadId: necesidadRecados.id,
+      personaId: herminia.id,
+      organizacionId: organizacion.id,
+      creadaPorUsuarioId: usuarioHerminia.id,
+      estado: "ACEPTADA",
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Solicitud", estadoAnterior: "BORRADOR", estadoNuevo: "ACEPTADA", motivo: "Aceptada por coordinación (seed)", solicitudId: solicitud5.id });
+  await prisma.plan.create({ data: { solicitudId: solicitud5.id, fechaInicio: fechaEn(0), fechaFin: fechaEn(0), franjaHoraria: "Mañana" } });
+  const servicio5 = await prisma.servicio.create({
+    data: {
+      codigo: await generarCodigo("servicio"),
+      solicitudId: solicitud5.id,
+      organizacionId: organizacion.id,
+      estado: "EN_CURSO",
+      tipoServicio: "PUNTUAL",
+      profesionalId: profesional.id,
+      tarifaImporte: 10,
+      tarifaTipo: "PAGADO",
+      comisionImporte: 1.5,
+      importeProfesional: 8.5,
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "EN_CURSO", motivo: "Asignado, confirmado y en curso (seed)", servicioId: servicio5.id });
+  const incidencia5 = await prisma.incidencia.create({
+    data: {
+      codigo: await generarCodigo("incidencia"),
+      tipo: "GENERAL",
+      servicioId: servicio5.id,
+      descripcion: "La profesional no encuentra las llaves de repuesto para entrar.",
+      prioridad: "ALTA",
+      estado: "NUEVA",
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Incidencia", estadoAnterior: "NUEVA", estadoNuevo: "NUEVA", motivo: "Creación (seed)", incidenciaId: incidencia5.id });
+
+  // 14e. Servicio recurrente e indefinido, pedido por la hija para su madre
+  // (sección "si necesita a alguien para indefinido"): una visita ya
+  // verificada y otra programada — el servicio sigue EN_CURSO porque, al
+  // ser RECURRENTE, verificar una visita no lo cierra automáticamente.
+  const solicitud6 = await prisma.solicitud.create({
+    data: {
+      codigo: await generarCodigo("solicitud"),
+      descripcionLibre: "Necesito que todos los días de 9 a 13 venga una persona a acompañar a mi madre.",
+      necesidadId: necesidadAcompanamiento.id,
+      personaId: herminia.id,
+      organizacionId: organizacion.id,
+      creadaPorUsuarioId: usuarioFamiliar.id,
+      estado: "ACEPTADA",
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Solicitud", estadoAnterior: "BORRADOR", estadoNuevo: "ACEPTADA", motivo: "Aceptada por coordinación (seed)", solicitudId: solicitud6.id });
+  await prisma.plan.create({
+    data: {
+      solicitudId: solicitud6.id,
+      fechaInicio: fechaEn(-1),
+      fechaFin: null,
+      recurrencia: "Todos los días",
+      franjaHoraria: "Mañana",
+      horaInicio: "09:00",
+      horaFin: "13:00",
+      notas: "Indefinido, hasta nuevo aviso",
+    },
+  });
+  const servicio6 = await prisma.servicio.create({
+    data: {
+      codigo: await generarCodigo("servicio"),
+      solicitudId: solicitud6.id,
+      organizacionId: organizacion.id,
+      estado: "EN_CURSO",
+      tipoServicio: "RECURRENTE",
+      profesionalId: profesional.id,
+      tarifaImporte: 40,
+      tarifaTipo: "PAGADO",
+      comisionImporte: 6,
+      importeProfesional: 34,
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "EN_CURSO", motivo: "Contrato recurrente confirmado (seed)", servicioId: servicio6.id });
+  const visita6ayer = await prisma.visita.create({
+    data: {
+      codigo: await generarCodigo("visita"),
+      fecha: fechaEn(-1),
+      horaInicioProg: "09:00",
+      horaFinProg: "13:00",
+      servicioId: servicio6.id,
+      estado: "REVISADA",
+      tareas: { create: [{ descripcion: "Acompañamiento diario", completada: true }] },
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Visita", estadoAnterior: "FINALIZADA", estadoNuevo: "REVISADA", motivo: "Verificada con la familia (seed)", visitaId: visita6ayer.id });
+  await prisma.visita.create({
+    data: {
+      codigo: await generarCodigo("visita"),
+      fecha: fechaEn(0),
+      horaInicioProg: "09:00",
+      horaFinProg: "13:00",
+      servicioId: servicio6.id,
+      estado: "PROGRAMADA",
+      tareas: { create: [{ descripcion: "Acompañamiento diario" }] },
+    },
+  });
+
   // 13. Notificación de seguimiento para la familia (etapa 7)
   await prisma.notificacion.create({
     data: {
@@ -363,6 +615,13 @@ async function main() {
 
   console.log("\nSeed completado. Cadena PERSONA → NECESIDAD → SOLICITUD → SERVICIO → VISITA → ACTUACIÓN → SEGUIMIENTO creada.");
   console.log(`Organización: ${organizacion.codigo} · Persona: ${herminia.codigo} · Solicitud: ${solicitud.codigo} · Servicio: ${servicio.codigo} · Visita: ${visita.codigo}`);
+  console.log("\nSolicitudes adicionales de ejemplo (todos los estados del panel):");
+  console.log(`  ${solicitud.codigo}  Por verificar (EN_CURSO, visita finalizada sin revisar)`);
+  console.log(`  ${solicitud2.codigo}  Sin profesional (Gestión / disponible en el marketplace)`);
+  console.log(`  ${solicitud3.codigo}  En proceso, esperando el día (CONFIRMADO)`);
+  console.log(`  ${solicitud4.codigo}  Finalizada (VALIDADO) con factura ${factura.codigo} generada`);
+  console.log(`  ${solicitud5.codigo}  Con incidencia abierta (${incidencia5.codigo})`);
+  console.log(`  ${solicitud6.codigo}  Recurrente e indefinida (acompañamiento diario)`);
   console.log("\nUsuarios demo (contraseña para todos: cuida2026):");
   console.log(`  Coordinadora   coordinadora@cuida.demo`);
   console.log(`  Persona        herminia@cuida.demo`);

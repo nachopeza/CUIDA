@@ -5,7 +5,6 @@ import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
-import { ChatPanel } from "../components/ChatPanel.js";
 import { cuentaAtras } from "../lib/fechas.js";
 import type { Necesidad, Solicitud } from "../lib/types.js";
 
@@ -89,12 +88,6 @@ export function PersonaPage() {
             </button>
           )}
         </Card>
-      )}
-
-      {enCurso?.servicio?.profesionalId && (
-        <div className="mb-4">
-          <ChatPanel servicioId={enCurso.servicio.id} titulo={`Chat con ${enCurso.servicio.profesional?.nombre ?? "tu profesional"}`} />
-        </div>
       )}
 
       {mensaje && (

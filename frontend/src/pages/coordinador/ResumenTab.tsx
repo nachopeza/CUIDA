@@ -55,7 +55,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, kpis, onIrA }:
       valor: serviciosDisponibles,
       icon: IconBriefcase,
       tono: "amber" as const,
-      onClick: () => onIrA("solicitudes", "en_proceso"),
+      onClick: () => onIrA("solicitudes", "gestion"),
     },
     {
       label: "Visitas por verificar",

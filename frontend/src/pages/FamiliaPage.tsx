@@ -33,7 +33,6 @@ export function FamiliaPage() {
   const [necesidadModal, setNecesidadModal] = useState<Necesidad | null>(null);
   const [cancelando, setCancelando] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
-  const [chatAbierto, setChatAbierto] = useState<string | null>(null);
 
   async function cargar() {
     const [sols, necs] = await Promise.all([
@@ -155,14 +154,6 @@ export function FamiliaPage() {
                       {s.servicio.profesional.telefono && ` · ${s.servicio.profesional.telefono}`}
                     </span>
                   )}
-                  {s.servicio.profesionalId && (
-                    <button
-                      onClick={() => setChatAbierto(chatAbierto === s.servicio!.id ? null : s.servicio!.id)}
-                      className="rounded-md border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
-                    >
-                      💬 Chat
-                    </button>
-                  )}
                   {SERVICIO_CANCELABLE.includes(s.servicio.estado) && (
                     <button onClick={() => setCancelando(s.servicio!.id)} className="ml-auto rounded-md border border-rose-200 px-2 py-0.5 text-rose-600 hover:bg-rose-50">
                       Cancelar
@@ -170,7 +161,11 @@ export function FamiliaPage() {
                   )}
                 </div>
               )}
-              {s.servicio && chatAbierto === s.servicio.id && (
+              {/* Chat visible siempre que haya profesional asignado (sección
+                  "eso solo en el perfil de usuario avanzado"): es la
+                  diferencia frente al perfil simple de la persona atendida,
+                  no un botón que haya que descubrir. */}
+              {s.servicio?.profesionalId && (
                 <div className="mt-2 pl-2">
                   <ChatPanel servicioId={s.servicio.id} titulo={`Chat con ${s.servicio.profesional?.nombre ?? "el profesional"}`} />
                 </div>

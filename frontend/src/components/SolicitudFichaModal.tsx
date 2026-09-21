@@ -58,7 +58,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   const [profesionales, setProfesionales] = useState<Profesional[]>([]);
   const [empresas, setEmpresas] = useState<EmpresaColaboradora[]>([]);
 
-  const [plan, setPlan] = useState({ fechaInicio: "", fechaFin: "", horaInicio: "", horaFin: "", franjaHoraria: "Mañana", recurrencia: "" });
+  const [plan, setPlan] = useState({ fechaInicio: "", fechaFin: "", indefinido: false, horaInicio: "", horaFin: "", franjaHoraria: "Mañana", recurrencia: "" });
   const [tarifa, setTarifa] = useState({
     empresaColaboradoraId: "",
     tarifaImporte: "",
@@ -82,7 +82,8 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
     if (sol.plan) {
       setPlan({
         fechaInicio: sol.plan.fechaInicio.slice(0, 10),
-        fechaFin: sol.plan.fechaFin.slice(0, 10),
+        fechaFin: sol.plan.fechaFin ? sol.plan.fechaFin.slice(0, 10) : "",
+        indefinido: !sol.plan.fechaFin,
         horaInicio: sol.plan.horaInicio ?? "",
         horaFin: sol.plan.horaFin ?? "",
         franjaHoraria: sol.plan.franjaHoraria ?? "Mañana",
@@ -126,7 +127,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
       `/solicitudes/${solicitudId}/plan`,
       {
         fechaInicio: new Date(plan.fechaInicio).toISOString(),
-        fechaFin: new Date(plan.fechaFin).toISOString(),
+        fechaFin: plan.indefinido || !plan.fechaFin ? null : new Date(plan.fechaFin).toISOString(),
         horaInicio: plan.horaInicio || undefined,
         horaFin: plan.horaFin || undefined,
         franjaHoraria: plan.franjaHoraria || undefined,
@@ -304,7 +305,17 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             </label>
             <label className="text-xs text-slate-500">
               Hasta
-              <input type="date" value={plan.fechaFin} onChange={(e) => setPlan((p) => ({ ...p, fechaFin: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+              <input
+                type="date"
+                value={plan.fechaFin}
+                disabled={plan.indefinido}
+                onChange={(e) => setPlan((p) => ({ ...p, fechaFin: e.target.value }))}
+                className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400"
+              />
+              <span className="mt-1 flex items-center gap-1.5 font-normal normal-case text-slate-500">
+                <input type="checkbox" checked={plan.indefinido} onChange={(e) => setPlan((p) => ({ ...p, indefinido: e.target.checked }))} />
+                Indefinido
+              </span>
             </label>
             <label className="text-xs text-slate-500">
               Hora inicio

@@ -7,6 +7,17 @@ import type { Necesidad, Persona } from "../lib/types.js";
 
 const FRANJAS = ["Mañana", "Tarde", "Todo el día"];
 
+// Presets habituales (sección "si fuera que Herminia necesita una persona
+// durante 5 días, o dos meses ¿cómo lo selecciona?"): cubren el rango
+// típico con un toque; el número exacto siempre queda editable a mano.
+const DURACIONES = [
+  { label: "1 día", dias: 1 },
+  { label: "1 semana", dias: 7 },
+  { label: "2 semanas", dias: 14 },
+  { label: "1 mes", dias: 30 },
+  { label: "2 meses", dias: 60 },
+];
+
 interface Props {
   necesidad?: Necesidad;
   necesidades?: Necesidad[];
@@ -25,6 +36,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
   const [necesidadSel, setNecesidadSel] = useState(necesidad?.id ?? necesidades?.[0]?.id ?? "");
   const [fecha, setFecha] = useState(() => aISO(new Date()));
   const [dias, setDias] = useState(1);
+  const [indefinido, setIndefinido] = useState(false);
   const [franja, setFranja] = useState("Mañana");
   const [nota, setNota] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -44,7 +56,8 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
           necesidadId: necesidadSel,
           descripcionLibre: nota ? `Necesito ayuda: ${necesidadNombre}. ${nota}` : `Necesito ayuda: ${necesidadNombre}`,
           fechaInicio: new Date(fecha).toISOString(),
-          dias,
+          dias: indefinido ? undefined : dias,
+          indefinido: indefinido || undefined,
           franjaHoraria: franja,
         },
         token,
@@ -115,26 +128,43 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
         </div>
 
         <div>
-          <label className="mb-1 block text-base text-slate-700">¿Cuántos días?</label>
-          <div className="flex items-center justify-center gap-4">
-            <button
-              type="button"
-              onClick={() => setDias((d) => Math.max(1, d - 1))}
-              className="h-11 w-11 rounded-full border-2 border-slate-300 text-xl font-semibold text-slate-600 hover:bg-slate-100"
-              aria-label="Menos días"
-            >
-              −
-            </button>
-            <span className="w-12 text-center text-2xl font-semibold text-slate-800">{dias}</span>
-            <button
-              type="button"
-              onClick={() => setDias((d) => Math.min(90, d + 1))}
-              className="h-11 w-11 rounded-full border-2 border-slate-300 text-xl font-semibold text-slate-600 hover:bg-slate-100"
-              aria-label="Más días"
-            >
-              +
-            </button>
+          <label className="mb-1 block text-base text-slate-700">¿Cuánto tiempo lo necesita?</label>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {DURACIONES.map((d) => (
+              <button
+                key={d.label}
+                type="button"
+                onClick={() => {
+                  setIndefinido(false);
+                  setDias(d.dias);
+                }}
+                className={`rounded-lg border-2 px-2 py-2 text-center text-sm font-medium ${
+                  !indefinido && dias === d.dias ? "border-brand bg-brand text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {d.label}
+              </button>
+            ))}
           </div>
+
+          {!indefinido && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-sm text-slate-500">O un número exacto de días:</span>
+              <input
+                type="number"
+                min={1}
+                max={730}
+                value={dias}
+                onChange={(e) => setDias(Math.max(1, Math.min(730, Number(e.target.value) || 1)))}
+                className="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-center text-sm"
+              />
+            </div>
+          )}
+
+          <label className="mt-3 flex items-center gap-2 text-sm text-slate-600">
+            <input type="checkbox" checked={indefinido} onChange={(e) => setIndefinido(e.target.checked)} />
+            Indefinido — hasta nuevo aviso (por ejemplo, todos los días sin fecha de fin todavía)
+          </label>
         </div>
 
         <div>

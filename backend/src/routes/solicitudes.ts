@@ -17,8 +17,11 @@ const crearSolicitudSchema = z.object({
   descripcionLibre: z.string().min(1),
   // Ventana "¿cuándo? ¿cuántos días?": si se indican, el plan se crea en el
   // mismo paso, sin que la persona tenga que pasar por una pantalla aparte.
+  // `indefinido` cubre el caso "hasta nuevo aviso" (sin fecha de fin
+  // conocida): en ese caso `dias` no hace falta.
   fechaInicio: z.string().datetime().optional(),
-  dias: z.number().int().min(1).max(90).optional(),
+  dias: z.number().int().min(1).max(730).optional(),
+  indefinido: z.boolean().optional(),
   franjaHoraria: z.string().optional(),
 });
 
@@ -28,7 +31,7 @@ solicitudesRouter.post("/", async (req, res) => {
   const parsed = crearSolicitudSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { personaId, necesidadId, descripcionLibre, fechaInicio, dias, franjaHoraria } = parsed.data;
+  const { personaId, necesidadId, descripcionLibre, fechaInicio, dias, indefinido, franjaHoraria } = parsed.data;
 
   const permitido = await puedeAccederPersona(req.usuario!, personaId);
   if (!permitido) return res.status(403).json({ error: "Sin permiso para solicitar por esta persona" });
@@ -66,10 +69,13 @@ solicitudesRouter.post("/", async (req, res) => {
     solicitudId: solicitud.id,
   });
 
-  if (fechaInicio && dias) {
+  if (fechaInicio && (dias || indefinido)) {
     const inicio = new Date(fechaInicio);
-    const fin = new Date(inicio);
-    fin.setDate(fin.getDate() + dias);
+    let fin: Date | null = null;
+    if (dias) {
+      fin = new Date(inicio);
+      fin.setDate(fin.getDate() + dias);
+    }
     await prisma.plan.create({
       data: { solicitudId: solicitud.id, fechaInicio: inicio, fechaFin: fin, franjaHoraria },
     });
@@ -217,7 +223,8 @@ solicitudesRouter.get("/:id", async (req, res) => {
 
 const planSchema = z.object({
   fechaInicio: z.string().datetime(),
-  fechaFin: z.string().datetime(),
+  // Ausente/null = indefinido, hasta nuevo aviso.
+  fechaFin: z.string().datetime().nullable().optional(),
   recurrencia: z.string().optional(),
   franjaHoraria: z.string().optional(),
   horaInicio: z.string().optional(),
@@ -238,18 +245,19 @@ solicitudesRouter.post("/:id/plan", async (req, res) => {
     return res.status(403).json({ error: "Sin permiso" });
   }
 
+  const fechaFin = parsed.data.fechaFin ? new Date(parsed.data.fechaFin) : null;
   const plan = await prisma.plan.upsert({
     where: { solicitudId: solicitud.id },
     update: {
       ...parsed.data,
       fechaInicio: new Date(parsed.data.fechaInicio),
-      fechaFin: new Date(parsed.data.fechaFin),
+      fechaFin,
     },
     create: {
       solicitudId: solicitud.id,
       ...parsed.data,
       fechaInicio: new Date(parsed.data.fechaInicio),
-      fechaFin: new Date(parsed.data.fechaFin),
+      fechaFin,
     },
   });
 

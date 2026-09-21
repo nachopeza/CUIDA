@@ -306,7 +306,10 @@ model Plan {
   solicitudId    String    @unique
   solicitud      Solicitud @relation(fields: [solicitudId], references: [id])
   fechaInicio    DateTime
-  fechaFin       DateTime
+  // Nula = indefinido / hasta nuevo aviso (sección "si necesita a alguien
+  // para indefinido"): un servicio recurrente sin fecha de fin conocida
+  // todavía, en vez de forzar una fecha ficticia.
+  fechaFin       DateTime?
   recurrencia    String? // "diaria", "L-V", "puntual"...
   franjaHoraria  String? // "Mañana", "Tarde", "Todo el día"...
   horaInicio     String? // "09:00"

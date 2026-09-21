@@ -31,7 +31,7 @@ export interface Necesidad {
 export interface Plan {
   id: string;
   fechaInicio: string;
-  fechaFin: string;
+  fechaFin: string | null;
   recurrencia: string | null;
   franjaHoraria: string | null;
   horaInicio: string | null;

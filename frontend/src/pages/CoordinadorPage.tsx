@@ -55,7 +55,34 @@ const NAV: { key: Tab; label: string; icon: typeof IconHome }[] = [
   { key: "actividad", label: "Actividad", icon: IconActivity },
 ];
 
-type Filtro = null | "gestionadas" | "en_proceso" | "canceladas" | "finalizadas";
+// Agrupación única de la solicitud en un estado de negocio (sección "debe
+// ser solicitudes (en general), gestión, en proceso, incidencias,
+// canceladas y finalizadas"): una sola función de la que dependen los KPIs,
+// los chips de filtro y el aviso de incidencia en la tabla, para que nunca
+// se desincronicen entre sí (esa desincronización era la causa de que
+// "Finalizadas" pareciera no encontrar nunca nada).
+type Grupo = "gestion" | "en_proceso" | "incidencias" | "canceladas" | "finalizadas";
+
+function grupoDeSolicitud(s: Solicitud): Grupo {
+  const incidenciaAbierta = s.servicio?.incidencias?.some((i) => !["RESUELTA", "CERRADA"].includes(i.estado));
+  if (incidenciaAbierta) return "incidencias";
+  if (s.estado === "CANCELADA" || s.servicio?.estado === "CANCELADO") return "canceladas";
+  if (s.servicio && ["VALIDADO", "CERRADO"].includes(s.servicio.estado)) return "finalizadas";
+  if (s.servicio && ["CONFIRMADO", "EN_CURSO", "FINALIZADO"].includes(s.servicio.estado)) return "en_proceso";
+  // Sin servicio todavía, o servicio PENDIENTE/ASIGNADO: coordinación
+  // todavía está buscando o confirmando quién lo va a hacer.
+  return "gestion";
+}
+
+const GRUPO_LABEL: Record<Grupo, string> = {
+  gestion: "Gestión",
+  en_proceso: "En proceso",
+  incidencias: "Incidencias",
+  canceladas: "Canceladas",
+  finalizadas: "Finalizadas",
+};
+
+type Filtro = null | Grupo;
 
 export function CoordinadorPage() {
   const { token } = useAuth();
@@ -154,46 +181,29 @@ export function CoordinadorPage() {
     await cargar();
   }
 
+  const gruposCount = useMemo(() => {
+    const conteo: Record<Grupo, number> = { gestion: 0, en_proceso: 0, incidencias: 0, canceladas: 0, finalizadas: 0 };
+    for (const s of solicitudes) conteo[grupoDeSolicitud(s)]++;
+    return conteo;
+  }, [solicitudes]);
+
   const kpis: { label: string; valor: number; onClick: () => void }[] = [
     { label: "Solicitudes", valor: solicitudes.length, onClick: () => irA("solicitudes") },
-    {
-      label: "Gestionadas",
-      valor: solicitudes.filter((s) => s.estado === "ACEPTADA" || s.servicio).length,
-      onClick: () => irA("solicitudes", "gestionadas"),
-    },
-    {
-      label: "En proceso",
-      valor: servicios.filter((s) => s.estado === "EN_CURSO").length,
-      onClick: () => irA("solicitudes", "en_proceso"),
-    },
-    {
-      label: "Incidencias abiertas",
-      valor: incidencias.filter((i) => !["RESUELTA", "CERRADA"].includes(i.estado)).length,
-      onClick: () => irA("incidencias"),
-    },
-    {
-      label: "Canceladas",
-      valor: servicios.filter((s) => s.estado === "CANCELADO").length,
-      onClick: () => irA("solicitudes", "canceladas"),
-    },
-    {
-      label: "Finalizadas",
-      valor: servicios.filter((s) => ["VALIDADO", "CERRADO"].includes(s.estado)).length,
-      onClick: () => irA("solicitudes", "finalizadas"),
-    },
+    { label: "Gestión", valor: gruposCount.gestion, onClick: () => irA("solicitudes", "gestion") },
+    { label: "En proceso", valor: gruposCount.en_proceso, onClick: () => irA("solicitudes", "en_proceso") },
+    { label: "Incidencias", valor: gruposCount.incidencias, onClick: () => irA("solicitudes", "incidencias") },
+    { label: "Canceladas", valor: gruposCount.canceladas, onClick: () => irA("solicitudes", "canceladas") },
+    { label: "Finalizadas", valor: gruposCount.finalizadas, onClick: () => irA("solicitudes", "finalizadas") },
   ];
 
   const badges: Partial<Record<Tab, { valor: number; tono: "rose" | "amber" }>> = {
     incidencias: { valor: incidencias.filter((i) => !["RESUELTA", "CERRADA"].includes(i.estado)).length, tono: "rose" },
-    solicitudes: { valor: servicios.filter((s) => s.estado === "PENDIENTE" && !s.profesionalId).length, tono: "amber" },
+    solicitudes: { valor: gruposCount.gestion, tono: "amber" },
   };
 
   const solicitudesFiltradas = useMemo(() => {
     return solicitudes.filter((s) => {
-      if (filtro === "gestionadas" && !(s.estado === "ACEPTADA" || s.servicio)) return false;
-      if (filtro === "en_proceso" && s.servicio?.estado !== "EN_CURSO") return false;
-      if (filtro === "canceladas" && s.servicio?.estado !== "CANCELADO") return false;
-      if (filtro === "finalizadas" && !(s.servicio && ["VALIDADO", "CERRADO"].includes(s.servicio.estado))) return false;
+      if (filtro && grupoDeSolicitud(s) !== filtro) return false;
       if (estadoFiltro && (s.servicio ? s.servicio.estado : s.estado) !== estadoFiltro) return false;
       if (tipoFiltro && (s.servicio?.tipoServicio ?? "PUNTUAL") !== tipoFiltro) return false;
       return true;
@@ -300,6 +310,24 @@ export function CoordinadorPage() {
 
         {tab === "solicitudes" && (
           <div>
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              <button
+                onClick={() => setFiltro(null)}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium ${!filtro ? "bg-brand text-white" : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}
+              >
+                Todas ({solicitudes.length})
+              </button>
+              {(Object.keys(GRUPO_LABEL) as Grupo[]).map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setFiltro(g)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium ${filtro === g ? "bg-brand text-white" : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}
+                >
+                  {GRUPO_LABEL[g]} ({gruposCount[g]})
+                </button>
+              ))}
+            </div>
+
             <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
               <select value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-xs">
                 <option value="">Todos los estados</option>
@@ -354,7 +382,7 @@ export function CoordinadorPage() {
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-1.5">
                             <EstadoBadge estado={s.servicio ? s.servicio.estado : s.estado} />
-                            {s.servicio?.incidencias?.some((i) => !["RESUELTA", "CERRADA"].includes(i.estado)) && (
+                            {grupoDeSolicitud(s) === "incidencias" && (
                               <span className="text-amber-600" title="Incidencia abierta">
                                 ⚠
                               </span>
