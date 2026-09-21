@@ -2,10 +2,15 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api, ApiError } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
-import { EstadoBadge } from "../../components/EstadoBadge.js";
 import type { Factura, Persona } from "../../lib/types.js";
 
 const SIGUIENTE_FACTURA: Record<string, string> = { BORRADOR: "EMITIDA", EMITIDA: "PAGADA" };
+// "Se debe generar una nota de pago para luego emitir la factura": el
+// BORRADOR es esa nota de pago — un cálculo ya hecho pero todavía no
+// formalizado — así que se etiqueta distinto aunque el estado interno sea
+// el mismo.
+const ETIQUETA_ESTADO_FACTURA: Record<string, string> = { BORRADOR: "Nota de pago", EMITIDA: "Factura emitida", PAGADA: "Pagada" };
+const ETIQUETA_ACCION_FACTURA: Record<string, string> = { BORRADOR: "Emitir factura", EMITIDA: "Marcar pagada" };
 
 function mesActualISO() {
   return new Date().toISOString().slice(0, 7);
@@ -96,15 +101,29 @@ export function FacturacionTab() {
                     {f.codigo} · {f.servicios.length} servicio(s)
                   </p>
                 </div>
-                <EstadoBadge estado={f.estado} />
+                <span
+                  className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    f.estado === "BORRADOR" ? "bg-amber-100 text-amber-700" : f.estado === "EMITIDA" ? "bg-blue-100 text-blue-700" : "bg-brand-green-100 text-brand-green-700"
+                  }`}
+                >
+                  {ETIQUETA_ESTADO_FACTURA[f.estado] ?? f.estado}
+                </span>
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-3 pl-1 text-xs text-slate-600">
-                <span>Total cobrado: <strong>{Number(f.importeTotal).toFixed(2)} €</strong></span>
+                <span>
+                  Base imponible: <strong>{Number(f.importeTotal).toFixed(2)} €</strong>
+                </span>
+                <span>
+                  + IVA: <strong>{Number(f.ivaTotal ?? 0).toFixed(2)} €</strong>
+                </span>
+                <span>
+                  = Total: <strong>{Number(f.totalConIva ?? f.importeTotal).toFixed(2)} €</strong>
+                </span>
                 <span className="text-slate-400">Comisión CUIDA: {Number(f.comisionTotal).toFixed(2)} €</span>
                 <span className="text-slate-400">A profesionales/empresas: {Number(f.importeProfesionales).toFixed(2)} €</span>
                 {SIGUIENTE_FACTURA[f.estado] && (
                   <button onClick={() => avanzarEstado(f)} className="ml-auto rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-100">
-                    Marcar {SIGUIENTE_FACTURA[f.estado].toLowerCase()}
+                    {ETIQUETA_ACCION_FACTURA[f.estado]}
                   </button>
                 )}
               </div>

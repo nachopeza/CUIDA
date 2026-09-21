@@ -85,6 +85,13 @@ export const IconActivity = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+export const IconTag = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M3 11.5V5a1 1 0 0 1 1-1h6.5L21 12.5 12.5 21 3 11.5Z" />
+    <circle cx="7.5" cy="7.5" r="1.25" fill="currentColor" stroke="none" />
+  </Icon>
+);
+
 export const IconSearch = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <circle cx="10.5" cy="10.5" r="6.5" />

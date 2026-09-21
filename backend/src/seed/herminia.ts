@@ -70,6 +70,7 @@ async function limpiarOrganizacion(organizacionId: string) {
   await prisma.persona.deleteMany({ where: { id: { in: personaIds } } });
   await prisma.profesional.deleteMany({ where: { organizacionId } });
   await prisma.empresaColaboradora.deleteMany({ where: { organizacionId } });
+  await prisma.tipoServicioOfrecido.deleteMany({ where: { organizacionId } });
   await prisma.usuario.deleteMany({ where: { id: { in: usuarioIds } } });
   await prisma.organizacion.delete({ where: { id: organizacionId } });
 }
@@ -166,6 +167,45 @@ async function main() {
     },
   });
 
+  // 5b. Catálogo de servicios ofrecidos (ERP): lo que la organización vende,
+  // cada uno con su tipo de IVA (sección "aplicar el 4% o el 10% de IVA").
+  const tipoAyudaDomicilio = await prisma.tipoServicioOfrecido.upsert({
+    where: { codigo: "TSV-00001" },
+    update: {},
+    create: {
+      codigo: "TSV-00001",
+      nombre: "Ayuda a domicilio (plaza concertada)",
+      descripcion: "Servicio de ayuda a domicilio con prestación económica vinculada a la dependencia",
+      ivaPorcentaje: 4,
+      precioBase: 12.5,
+      organizacionId: organizacion.id,
+    },
+  });
+  const tipoAcompanamientoPrivado = await prisma.tipoServicioOfrecido.upsert({
+    where: { codigo: "TSV-00002" },
+    update: {},
+    create: {
+      codigo: "TSV-00002",
+      nombre: "Acompañamiento particular",
+      descripcion: "Contratado de forma particular, sin ayuda pública ni plaza concertada",
+      ivaPorcentaje: 10,
+      precioBase: 15,
+      organizacionId: organizacion.id,
+    },
+  });
+  await prisma.tipoServicioOfrecido.upsert({
+    where: { codigo: "TSV-00003" },
+    update: {},
+    create: {
+      codigo: "TSV-00003",
+      nombre: "Teleasistencia",
+      descripcion: "Servicio de teleasistencia 24h",
+      ivaPorcentaje: 4,
+      precioBase: 25,
+      organizacionId: organizacion.id,
+    },
+  });
+
   // 6. Profesional
   const codigoProfesional = await generarCodigo("profesional");
   const profesional = await prisma.profesional.upsert({
@@ -180,6 +220,9 @@ async function main() {
       dni: "12345678A",
       numeroCuenta: "ES00 1111 1111 1111 1111 1111",
       bizum: "600 555 666",
+      foto: "https://i.pravatar.cc/300?img=47",
+      biografia:
+        "Auxiliar de ayuda a domicilio con 8 años de experiencia en atención a personas mayores. Certificado profesional en Atención Sociosanitaria a Personas Dependientes en el Domicilio. Especializada en movilidad reducida y acompañamiento. Habla catalán, castellano e inglés básico. \"Me gusta que las personas a las que cuido se sientan como en familia.\"",
       estado: "ACTIVO",
       organizacionId: organizacion.id,
     },
@@ -294,6 +337,12 @@ async function main() {
       // cálculo que hace POST /servicios/:id/tarifa.
       comisionImporte: 1.88,
       importeProfesional: 10.62,
+      // IVA (mismo cálculo que hace POST /servicios/:id/tarifa): plaza
+      // concertada → 4% superreducido.
+      tipoServicioOfrecidoId: tipoAyudaDomicilio.id,
+      ivaPorcentaje: 4,
+      ivaImporte: 0.5,
+      totalConIva: 13.0,
     },
   });
 
@@ -466,6 +515,10 @@ async function main() {
       tarifaTipo: "PAGADO",
       comisionImporte: 6.75,
       importeProfesional: 38.25,
+      tipoServicioOfrecidoId: tipoAcompanamientoPrivado.id,
+      ivaPorcentaje: 10,
+      ivaImporte: 4.5,
+      totalConIva: 49.5,
     },
   });
   await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "EN_CURSO", motivo: "Asignado, confirmado y realizado (seed)", servicioId: servicio4.id });
@@ -489,6 +542,8 @@ async function main() {
       codigo: await generarCodigo("factura"),
       mes: new Date().toISOString().slice(0, 7),
       importeTotal: 45,
+      ivaTotal: 4.5,
+      totalConIva: 49.5,
       comisionTotal: 6.75,
       importeProfesionales: 38.25,
       organizacionId: organizacion.id,

@@ -3,7 +3,7 @@ import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { Modal } from "./Modal.js";
 import { EstadoBadge } from "./EstadoBadge.js";
-import type { EmpresaColaboradora, Necesidad, Profesional, Solicitud } from "../lib/types.js";
+import type { EmpresaColaboradora, Necesidad, Profesional, Solicitud, TipoServicioOfrecido } from "../lib/types.js";
 
 // Espejo de TRANSICIONES_SERVICIO del backend (backend/src/services/estados.ts):
 // un desplegable solo debe ofrecer estados a los que realmente se pueda pasar
@@ -60,6 +60,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   const [necesidades, setNecesidades] = useState<Necesidad[]>([]);
   const [profesionales, setProfesionales] = useState<Profesional[]>([]);
   const [empresas, setEmpresas] = useState<EmpresaColaboradora[]>([]);
+  const [tiposServicio, setTiposServicio] = useState<TipoServicioOfrecido[]>([]);
   const [datosAbiertos, setDatosAbiertos] = useState(false);
   const [tarifaAbierta, setTarifaAbierta] = useState(false);
   const [modoAsignacion, setModoAsignacion] = useState<"mercado" | "directo">("mercado");
@@ -71,20 +72,23 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
     tarifaTipo: "" as "" | "PAGADO" | "VOLUNTARIO",
     tarifaNotas: "",
     tipoServicio: "PUNTUAL" as "PUNTUAL" | "RECURRENTE",
+    tipoServicioOfrecidoId: "",
   });
   const [nuevaVisita, setNuevaVisita] = useState({ fecha: "", horaInicio: "", horaFin: "", tareas: "" });
 
   async function cargar() {
-    const [sol, necs, pros, emps] = await Promise.all([
+    const [sol, necs, pros, emps, tipos] = await Promise.all([
       api.get<Solicitud>(`/solicitudes/${solicitudId}`, token),
       api.get<Necesidad[]>("/necesidades", token),
       api.get<Profesional[]>("/profesionales", token),
       api.get<EmpresaColaboradora[]>("/empresas-colaboradoras", token),
+      api.get<TipoServicioOfrecido[]>("/catalogo-servicios", token),
     ]);
     setS(sol);
     setNecesidades(necs);
     setProfesionales(pros);
     setEmpresas(emps);
+    setTiposServicio(tipos);
     if (sol.plan) {
       setPlan({
         fechaInicio: sol.plan.fechaInicio.slice(0, 10),
@@ -103,6 +107,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
         tarifaTipo: sol.servicio.tarifaTipo ?? "",
         tarifaNotas: sol.servicio.tarifaNotas ?? "",
         tipoServicio: sol.servicio.tipoServicio ?? "PUNTUAL",
+        tipoServicioOfrecidoId: sol.servicio.tipoServicioOfrecidoId ?? "",
       });
     }
   }
@@ -164,6 +169,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
         tarifaTipo: tarifa.tarifaTipo || null,
         tarifaNotas: tarifa.tarifaNotas || undefined,
         tipoServicio: tarifa.tipoServicio,
+        tipoServicioOfrecidoId: tarifa.tipoServicioOfrecidoId || null,
       },
       token,
     );
@@ -549,10 +555,16 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             )}
 
             {["CONFIRMADO", "EN_CURSO", "FINALIZADO", "VALIDADO", "CERRADO"].includes(srv.estado) && srv.profesional && (
-              <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                {srv.profesional.nombre} {srv.profesional.apellidos}
-                {srv.profesional.telefono && ` · ${srv.profesional.telefono}`}
-                {srv.empresaColaboradora && <span className="text-slate-400"> · vía {srv.empresaColaboradora.nombre}</span>}
+              <div className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                {srv.profesional.foto && <img src={srv.profesional.foto} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />}
+                <div>
+                  <p>
+                    {srv.profesional.nombre} {srv.profesional.apellidos}
+                    {srv.profesional.telefono && ` · ${srv.profesional.telefono}`}
+                    {srv.empresaColaboradora && <span className="text-slate-400"> · vía {srv.empresaColaboradora.nombre}</span>}
+                  </p>
+                  {srv.profesional.biografia && <p className="mt-0.5 text-xs text-slate-500">{srv.profesional.biografia}</p>}
+                </div>
               </div>
             )}
 
@@ -636,6 +648,29 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
               {tarifaAbierta && (
                 <div className="space-y-3 border-t border-slate-100 px-3 pb-3 pt-3">
                   <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                    <label className="text-slate-500 sm:col-span-2">
+                      Tipo de servicio (catálogo) — define el IVA aplicable
+                      <select
+                        value={tarifa.tipoServicioOfrecidoId}
+                        onChange={(e) => {
+                          const id = e.target.value;
+                          const tipo = tiposServicio.find((ts) => ts.id === id);
+                          setTarifa((t) => ({
+                            ...t,
+                            tipoServicioOfrecidoId: id,
+                            tarifaImporte: t.tarifaImporte || (tipo?.precioBase != null ? String(tipo.precioBase) : t.tarifaImporte),
+                          }));
+                        }}
+                        className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                      >
+                        <option value="">Sin catálogo (IVA 4% por defecto)</option>
+                        {tiposServicio.map((ts) => (
+                          <option key={ts.id} value={ts.id}>
+                            {ts.nombre} · IVA {Number(ts.ivaPorcentaje)}%
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <label className="text-slate-500">
                       Empresa responsable
                       <select
@@ -682,6 +717,18 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                       className="rounded-md border border-slate-300 px-2 py-1.5 sm:col-span-2"
                     />
                   </div>
+
+                  {tarifa.tarifaImporte && (
+                    <p className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                      {(() => {
+                        const ivaPct = tiposServicio.find((ts) => ts.id === tarifa.tipoServicioOfrecidoId)?.ivaPorcentaje ?? 4;
+                        const importe = Number(tarifa.tarifaImporte) || 0;
+                        const iva = Math.round(importe * (Number(ivaPct) / 100) * 100) / 100;
+                        return `Base ${importe.toFixed(2)} € + IVA ${Number(ivaPct)}% (${iva.toFixed(2)} €) = ${(importe + iva).toFixed(2)} € total`;
+                      })()}
+                    </p>
+                  )}
+
                   <button onClick={guardarTarifa} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-100">
                     Guardar tarifa
                   </button>

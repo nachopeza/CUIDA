@@ -60,6 +60,8 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
   }
 
   const importeTotal = servicios.reduce((acc, s) => acc + Number(s.tarifaImporte ?? 0), 0);
+  const ivaTotal = servicios.reduce((acc, s) => acc + Number(s.ivaImporte ?? 0), 0);
+  const totalConIva = servicios.reduce((acc, s) => acc + Number(s.totalConIva ?? s.tarifaImporte ?? 0), 0);
   const comisionTotal = servicios.reduce((acc, s) => acc + Number(s.comisionImporte ?? 0), 0);
   const importeProfesionales = servicios.reduce((acc, s) => acc + Number(s.importeProfesional ?? 0), 0);
 
@@ -69,6 +71,8 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
       codigo,
       mes: parsed.data.mes,
       importeTotal,
+      ivaTotal,
+      totalConIva,
       comisionTotal,
       importeProfesionales,
       organizacionId: usuario.organizacionId!,

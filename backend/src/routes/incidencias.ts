@@ -18,7 +18,9 @@ const crearSchema = z.object({
 });
 
 // "Incidencia: Crear → clasificar → responsable → notificar → resolver/escalar
-// → cerrar" (sección 7).
+// → cerrar" (sección 7). Solo coordinación o el profesional dueño de la
+// visita/servicio puede abrir una — evita incidencias sueltas de terceros
+// sin relación con el caso.
 incidenciasRouter.post("/", async (req, res) => {
   const parsed = crearSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -26,15 +28,24 @@ incidenciasRouter.post("/", async (req, res) => {
     return res.status(400).json({ error: "Debe indicar visitaId o servicioId" });
   }
 
+  const usuario = req.usuario!;
   let organizacionId: string | undefined;
+  let profesionalIdDueño: string | null | undefined;
   if (parsed.data.visitaId) {
     const visita = await prisma.visita.findUnique({ where: { id: parsed.data.visitaId }, include: { servicio: true } });
     if (!visita) return res.status(404).json({ error: "Visita no encontrada" });
     organizacionId = visita.servicio.organizacionId;
+    profesionalIdDueño = visita.servicio.profesionalId;
   } else if (parsed.data.servicioId) {
     const servicio = await prisma.servicio.findUnique({ where: { id: parsed.data.servicioId } });
     if (!servicio) return res.status(404).json({ error: "Servicio no encontrado" });
     organizacionId = servicio.organizacionId;
+    profesionalIdDueño = servicio.profesionalId;
+  }
+
+  const esProfesionalDueño = usuario.rol === "PROFESIONAL" && usuario.profesionalId != null && usuario.profesionalId === profesionalIdDueño;
+  if (!esProfesionalDueño && !esGestorOrganizacion(usuario)) {
+    return res.status(403).json({ error: "Sin permiso" });
   }
 
   const codigo = await generarCodigo("incidencia");
@@ -94,7 +105,57 @@ incidenciasRouter.get("/", async (req, res) => {
     const sinTarifa = incidencias.map((i) => ({ ...i, servicio: ocultarTarifaSiProcede(i.servicio, false) }));
     return res.json(sinTarifa);
   }
+  // Familiar/persona (sección panel familiar: "menú con... incidencias"):
+  // solo las de las personas a las que tiene acceso, nunca la tarifa.
+  if (usuario.rol === "FAMILIAR" || usuario.rol === "PERSONA") {
+    const personaIds =
+      usuario.rol === "PERSONA"
+        ? [usuario.personaId ?? "__none__"]
+        : (
+            await prisma.familiarRelacion.findMany({
+              where: { usuarioId: usuario.sub, revocadoAt: null },
+              select: { personaId: true },
+            })
+          ).map((r) => r.personaId);
+
+    const incidencias = await prisma.incidencia.findMany({
+      where: {
+        OR: [{ servicio: { solicitud: { personaId: { in: personaIds } } } }, { visita: { servicio: { solicitud: { personaId: { in: personaIds } } } } }],
+      },
+      include: { visita: true, servicio: { include: { solicitud: { include: { persona: true, necesidad: true } } } } },
+      orderBy: { createdAt: "desc" },
+    });
+    const sinTarifa = incidencias.map((i) => ({ ...i, servicio: ocultarTarifaSiProcede(i.servicio, false) }));
+    return res.json(sinTarifa);
+  }
   res.json([]);
+});
+
+async function cargarIncidenciaConPermiso(id: string, usuario: NonNullable<Express.Request["usuario"]>) {
+  const incidencia = await prisma.incidencia.findUnique({
+    where: { id },
+    include: {
+      visita: { include: { servicio: true } },
+      servicio: { include: { solicitud: { include: { persona: true, necesidad: true } } } },
+      responsable: true,
+      estadoHistorial: { orderBy: { createdAt: "asc" } },
+    },
+  });
+  if (!incidencia) return { incidencia: null, permitido: false };
+
+  const profesionalIdDueño = incidencia.visita?.servicio.profesionalId ?? incidencia.servicio?.profesionalId;
+  const esProfesionalDueño = usuario.rol === "PROFESIONAL" && usuario.profesionalId != null && usuario.profesionalId === profesionalIdDueño;
+  return { incidencia, permitido: esProfesionalDueño || esGestorOrganizacion(usuario) };
+}
+
+// Ficha completa de la incidencia (sección "se debe poder abrir el panel,
+// escribir anotaciones o cambiar el estado más dinámicamente"): historial
+// incluido, para verlo todo en un único sitio en vez de una card plana.
+incidenciasRouter.get("/:id", async (req, res) => {
+  const { incidencia, permitido } = await cargarIncidenciaConPermiso(req.params.id, req.usuario!);
+  if (!incidencia) return res.status(404).json({ error: "No encontrada" });
+  if (!permitido) return res.status(403).json({ error: "Sin permiso" });
+  res.json({ ...incidencia, servicio: ocultarTarifaSiProcede(incidencia.servicio, esGestorOrganizacion(req.usuario!)) });
 });
 
 const estadoSchema = z.object({
@@ -144,4 +205,29 @@ incidenciasRouter.post("/:id/estado", async (req, res) => {
   });
 
   res.json(actualizada);
+});
+
+const notaSchema = z.object({ nota: z.string().min(1) });
+
+// Anotación sin cambiar de estado (sección "se debe poder... escribir
+// anotaciones"): reutiliza el propio EstadoHistorial como bitácora — misma
+// entrada estadoAnterior/estadoNuevo, para que quede en el mismo hilo
+// cronológico que los cambios de estado sin forzar una transición.
+incidenciasRouter.post("/:id/nota", async (req, res) => {
+  const { incidencia, permitido } = await cargarIncidenciaConPermiso(req.params.id, req.usuario!);
+  if (!incidencia) return res.status(404).json({ error: "No encontrada" });
+  if (!permitido) return res.status(403).json({ error: "Sin permiso" });
+
+  const parsed = notaSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  await registrarHistorial({
+    entidadTipo: "Incidencia",
+    estadoAnterior: incidencia.estado,
+    estadoNuevo: incidencia.estado,
+    motivo: parsed.data.nota,
+    incidenciaId: incidencia.id,
+  });
+
+  res.status(201).json({ ok: true });
 });

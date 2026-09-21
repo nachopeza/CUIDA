@@ -49,6 +49,7 @@ model Organizacion {
   solicitudes           Solicitud[]
   servicios             Servicio[]
   facturas              Factura[]
+  tiposServicioOfrecido TipoServicioOfrecido[]
   auditLogs             AuditLog[]
 
   @@map("organizaciones")
@@ -193,6 +194,12 @@ model Profesional {
   dni          String?
   numeroCuenta String?
   bizum        String?
+  // Perfil profundo (sección "el perfil de Carmen debe ser más profundo...
+  // biografía, tipo CV, para que los familiares también acepten y vean las
+  // cualidades de Carmen"): visible para coordinación y para la familia al
+  // valorar quién atiende a la persona, nunca solo un nombre en una lista.
+  foto       String?
+  biografia  String?
   estado    EstadoProfesional @default(PENDIENTE)
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
@@ -256,6 +263,33 @@ model NecesidadCatalogo {
   solicitudes Solicitud[]
 
   @@map("necesidades_catalogo")
+}
+
+// ---------------------------------------------------------------------------
+// Catálogo de servicios ofrecidos (ERP): lo que la organización vende,
+// tarificable y con su tipo de IVA — distinto de NecesidadCatalogo (cómo lo
+// pide la persona) y de Servicio (el encargo concreto ya asignado). Sección
+// "se debe de tener una opción para registrar los servicios que ofrecemos,
+// que se puedan tarificar... IVA del 4% (plazas concertadas/prestación
+// vinculada a dependencia) o del 10% (contratado de forma particular)".
+model TipoServicioOfrecido {
+  id            String  @id @default(cuid())
+  codigo        String  @unique // "TSV-00001"
+  nombre        String // "Ayuda a domicilio", "Teleasistencia", "Acompañamiento privado"...
+  descripcion   String?
+  // 4.00 = superreducido (concertado/prestación vinculada a dependencia),
+  // 10.00 = reducido (contratado de forma particular, sin ayuda pública).
+  ivaPorcentaje Decimal @default(4) @db.Decimal(5, 2)
+  precioBase    Decimal? @db.Decimal(10, 2)
+  activo        Boolean @default(true)
+  createdAt     DateTime @default(now())
+
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
+
+  servicios Servicio[]
+
+  @@map("tipos_servicio_ofrecido")
 }
 
 // ---------------------------------------------------------------------------
@@ -381,6 +415,16 @@ model Servicio {
   tarifaTipo    TipoTarifa?
   tarifaNotas   String?
 
+  // Clasificación ERP (sección "registrar los servicios que ofrecemos, que
+  // se puedan tarificar"): de qué tipo de servicio del catálogo es esto,
+  // para heredar su % de IVA. El % y el importe quedan congelados en el
+  // servicio igual que comisionImporte, aunque el catálogo cambie después.
+  tipoServicioOfrecidoId String?
+  tipoServicioOfrecido   TipoServicioOfrecido? @relation(fields: [tipoServicioOfrecidoId], references: [id])
+  ivaPorcentaje Decimal? @db.Decimal(5, 2)
+  ivaImporte    Decimal? @db.Decimal(10, 2)
+  totalConIva   Decimal? @db.Decimal(10, 2)
+
   // Compensación al profesional/empresa que presta el servicio — distinta
   // de la tarifa cobrada a la familia. Solo aplica si tarifaTipo = PAGADO.
   pagoProfesionalEstado EstadoPagoProfesional @default(PENDIENTE)
@@ -442,7 +486,12 @@ model Factura {
   id        String        @id @default(cuid())
   codigo    String        @unique // FAC-000012
   mes       String // "2026-09"
+  // importeTotal es la base imponible (suma de tarifas sin IVA); ivaTotal y
+  // totalConIva se añaden aparte para poder emitir una factura con IVA
+  // desglosado (sección "aplicar el 4% o el 10% de IVA").
   importeTotal        Decimal @db.Decimal(10, 2)
+  ivaTotal             Decimal @default(0) @db.Decimal(10, 2)
+  totalConIva          Decimal @default(0) @db.Decimal(10, 2)
   comisionTotal       Decimal @db.Decimal(10, 2)
   importeProfesionales Decimal @db.Decimal(10, 2)
   estado    EstadoFactura @default(BORRADOR)

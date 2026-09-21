@@ -4,7 +4,7 @@ import { api } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
 import type { Profesional } from "../../lib/types.js";
 
-const PERFIL_VACIO = { telefono: "", zona: "", dni: "", numeroCuenta: "", bizum: "" };
+const PERFIL_VACIO = { telefono: "", zona: "", dni: "", numeroCuenta: "", bizum: "", foto: "", biografia: "" };
 type Perfil = typeof PERFIL_VACIO;
 
 // "Otra [pestaña] donde pueda configurar su perfil y sus datos" (sección
@@ -26,6 +26,8 @@ export function MiPerfilTab() {
       dni: p.dni ?? "",
       numeroCuenta: p.numeroCuenta ?? "",
       bizum: p.bizum ?? "",
+      foto: p.foto ?? "",
+      biografia: p.biografia ?? "",
     });
   }
 
@@ -51,14 +53,52 @@ export function MiPerfilTab() {
   if (!profesional) return <p className="text-sm text-slate-500">Cargando…</p>;
 
   return (
-    <Card title={`${profesional.nombre} ${profesional.apellidos}`}>
-      <p className="mb-3 text-xs text-slate-400">
-        {profesional.codigo} · {profesional.empresaColaboradora ? `Trabaja para ${profesional.empresaColaboradora.nombre}` : "Independiente"}
-      </p>
+    <Card title="Mi perfil">
+      <div className="mb-4 flex items-center gap-3">
+        {form.foto ? (
+          <img src={form.foto} alt="" className="h-16 w-16 rounded-full object-cover" />
+        ) : (
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-xl font-semibold text-slate-500">
+            {profesional.nombre[0]}
+            {profesional.apellidos[0]}
+          </div>
+        )}
+        <div>
+          <p className="font-semibold text-slate-800">
+            {profesional.nombre} {profesional.apellidos}
+          </p>
+          <p className="text-xs text-slate-400">
+            {profesional.codigo} · {profesional.empresaColaboradora ? `Trabaja para ${profesional.empresaColaboradora.nombre}` : "Independiente"}
+          </p>
+        </div>
+      </div>
 
+      {/* Biografía tipo CV (sección "el perfil debe ser más profundo... para
+          que los familiares también acepten y vean las cualidades"):
+          visible para coordinación y familia al elegir o confirmar
+          profesional, no solo un nombre en una lista. */}
       {mensaje && <div className="mb-3 rounded-lg border border-brand-green-200 bg-brand-green-50 px-3 py-2 text-sm text-brand-green-700">{mensaje}</div>}
 
       <form onSubmit={guardar} className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+        <label className="text-xs text-slate-500 sm:col-span-2">
+          Foto (URL)
+          <input
+            value={form.foto}
+            onChange={(e) => setForm((f) => ({ ...f, foto: e.target.value }))}
+            placeholder="https://…"
+            className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </label>
+        <label className="text-xs text-slate-500 sm:col-span-2">
+          Biografía / experiencia (tipo CV)
+          <textarea
+            value={form.biografia}
+            onChange={(e) => setForm((f) => ({ ...f, biografia: e.target.value }))}
+            rows={4}
+            placeholder="Experiencia, formación, idiomas, especialidades…"
+            className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </label>
         <label className="text-xs text-slate-500">
           Teléfono
           <input value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2" />

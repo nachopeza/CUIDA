@@ -170,21 +170,45 @@ personasRouter.get("/:id", async (req, res) => {
   res.json(persona);
 });
 
+// Campos que un familiar autorizado puede tocar directamente (sección panel
+// familiar: "menú con... editar familiar"): datos de contacto/logística que
+// la propia familia conoce mejor y cambia con más frecuencia que
+// coordinación. Identidad (nombre/apellidos/fecha) y datos con matiz
+// asistencial (medicación, médico, recomendaciones) siguen siendo solo de
+// coordinación, que es quien los registra con criterio (sección 6).
+const CAMPOS_EDITABLES_FAMILIAR = ["telefono", "direccion", "contactos", "preferencias"] as const;
+
 // Editar el perfil completo (sección 6: ubicación, contactos, medicación,
-// médico, recomendaciones). Solo gestores: es información que registra la
-// organización, no la persona atendida directamente.
-personasRouter.patch("/:id", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+// médico, recomendaciones). Gestores editan cualquier campo; un familiar
+// autorizado (puedeSolicitar) solo el subconjunto de contacto/logística de
+// arriba.
+personasRouter.patch("/:id", async (req, res) => {
+  const usuario = req.usuario!;
+  const esGestor = ["COORDINADOR", "ORGANIZACION", "ADMIN"].includes(usuario.rol);
+  let esFamiliarAutorizado = false;
+  if (usuario.rol === "FAMILIAR") {
+    const relacion = await prisma.familiarRelacion.findFirst({
+      where: { personaId: req.params.id, usuarioId: usuario.sub, revocadoAt: null, puedeSolicitar: true },
+    });
+    esFamiliarAutorizado = relacion !== null;
+  }
+  if (!esGestor && !esFamiliarAutorizado) return res.status(403).json({ error: "Sin permiso" });
+
   const parsed = editarPersonaSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const permitido = await puedeAccederPersona(req.usuario!, req.params.id);
+  const permitido = await puedeAccederPersona(usuario, req.params.id);
   if (!permitido) return res.status(403).json({ error: "Sin permiso sobre esta persona" });
+
+  const datos = esGestor
+    ? parsed.data
+    : Object.fromEntries(Object.entries(parsed.data).filter(([campo]) => (CAMPOS_EDITABLES_FAMILIAR as readonly string[]).includes(campo)));
 
   const persona = await prisma.persona.update({
     where: { id: req.params.id },
     data: {
-      ...parsed.data,
-      fechaNacimiento: parsed.data.fechaNacimiento ? new Date(parsed.data.fechaNacimiento) : undefined,
+      ...datos,
+      fechaNacimiento: esGestor && parsed.data.fechaNacimiento ? new Date(parsed.data.fechaNacimiento) : undefined,
     },
   });
 

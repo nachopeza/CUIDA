@@ -15,6 +15,7 @@ const INCLUDE_SERVICIO = {
   solicitud: { include: { persona: true, necesidad: true, plan: true } },
   profesional: true,
   empresaColaboradora: true,
+  tipoServicioOfrecido: true,
 } as const;
 
 serviciosRouter.get("/", async (req, res) => {
@@ -140,6 +141,12 @@ const tarifaSchema = z.object({
   tarifaTipo: z.enum(["PAGADO", "VOLUNTARIO"]).nullable().optional(),
   tarifaNotas: z.string().optional(),
   tipoServicio: z.enum(["PUNTUAL", "RECURRENTE"]).optional(),
+  // ERP: de qué servicio del catálogo es esto (hereda su % de IVA, sección
+  // "aplicar el 4% o el 10% de IVA"). ivaPorcentaje permite forzarlo a mano
+  // si el caso concreto no coincide con el catálogo (ej. deja de estar
+  // concertado a mitad de contrato).
+  tipoServicioOfrecidoId: z.string().nullable().optional(),
+  ivaPorcentaje: z.number().min(0).max(21).nullable().optional(),
 });
 
 // Asignar empresa colaboradora y/o estimar tarifa. Solo gestores; nunca
@@ -159,6 +166,14 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
     }
   }
 
+  let tipoServicioOfrecido = null as Awaited<ReturnType<typeof prisma.tipoServicioOfrecido.findUnique>>;
+  if (parsed.data.tipoServicioOfrecidoId) {
+    tipoServicioOfrecido = await prisma.tipoServicioOfrecido.findUnique({ where: { id: parsed.data.tipoServicioOfrecidoId } });
+    if (!tipoServicioOfrecido || tipoServicioOfrecido.organizacionId !== servicio.organizacionId) {
+      return res.status(400).json({ error: "Servicio del catálogo no válido para esta organización" });
+    }
+  }
+
   // Comisión de gestión (sección "cobrar por gestión un pequeño
   // porcentaje"): se calcula al fijar/actualizar la tarifa, con el % vigente
   // de la organización, y queda congelada en el servicio.
@@ -171,6 +186,18 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
     importeProfesional = Math.round((parsed.data.tarifaImporte - comisionImporte) * 100) / 100;
   }
 
+  // IVA (sección "aplicar el 4% o el 10% de IVA"): igual que la comisión,
+  // se calcula al fijar la tarifa y queda congelado en el servicio, aunque
+  // el % del catálogo cambie después.
+  let ivaPorcentaje: number | null = null;
+  let ivaImporte: number | null = null;
+  let totalConIva: number | null = null;
+  if (parsed.data.tarifaImporte != null) {
+    ivaPorcentaje = parsed.data.ivaPorcentaje ?? (tipoServicioOfrecido ? Number(tipoServicioOfrecido.ivaPorcentaje) : 4);
+    ivaImporte = Math.round(parsed.data.tarifaImporte * (ivaPorcentaje / 100) * 100) / 100;
+    totalConIva = Math.round((parsed.data.tarifaImporte + ivaImporte) * 100) / 100;
+  }
+
   const actualizado = await prisma.servicio.update({
     where: { id: servicio.id },
     data: {
@@ -179,8 +206,12 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
       tarifaTipo: parsed.data.tarifaTipo,
       tarifaNotas: parsed.data.tarifaNotas,
       tipoServicio: parsed.data.tipoServicio,
+      tipoServicioOfrecidoId: parsed.data.tipoServicioOfrecidoId,
       comisionImporte,
       importeProfesional,
+      ivaPorcentaje,
+      ivaImporte,
+      totalConIva,
     },
     include: INCLUDE_SERVICIO,
   });
@@ -409,6 +440,13 @@ const crearVisitaSchema = z.object({
   tareas: z.array(z.string()).default([]),
 });
 
+function seSolapan(aInicio: string | null, aFin: string | null, bInicio: string | null, bFin: string | null): boolean {
+  // Si a cualquiera de las dos visitas le falta horario, no se puede
+  // garantizar que no choquen: se trata como el día entero ocupado.
+  if (!aInicio || !aFin || !bInicio || !bFin) return true;
+  return aInicio < bFin && bInicio < aFin;
+}
+
 // Agenda: crear visitas programadas para un servicio confirmado (sección 6/9).
 serviciosRouter.post("/:id/visitas", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
   const parsed = crearVisitaSchema.safeParse(req.body);
@@ -417,6 +455,26 @@ serviciosRouter.post("/:id/visitas", requiereRol("COORDINADOR", "ORGANIZACION", 
   const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id } });
   if (!servicio) return res.status(404).json({ error: "No encontrado" });
   if (servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+
+  // "Veo que Carmen tiene dos tareas el mismo día a la misma hora, eso no
+  // se debe poder": si el servicio ya tiene profesional, comprobamos su
+  // agenda completa (todos sus servicios, no solo este) para ese día antes
+  // de programar la visita.
+  if (servicio.profesionalId) {
+    const fechaNueva = new Date(parsed.data.fecha);
+    const inicioDia = new Date(Date.UTC(fechaNueva.getUTCFullYear(), fechaNueva.getUTCMonth(), fechaNueva.getUTCDate()));
+    const finDia = new Date(inicioDia.getTime() + 24 * 60 * 60 * 1000);
+    const visitasDelDia = await prisma.visita.findMany({
+      where: {
+        servicio: { profesionalId: servicio.profesionalId },
+        fecha: { gte: inicioDia, lt: finDia },
+      },
+    });
+    const conflicto = visitasDelDia.find((v) => seSolapan(v.horaInicioProg, v.horaFinProg, parsed.data.horaInicioProg ?? null, parsed.data.horaFinProg ?? null));
+    if (conflicto) {
+      return res.status(409).json({ error: `El profesional ya tiene la visita ${conflicto.codigo} ese día a esa hora` });
+    }
+  }
 
   const codigo = await generarCodigo("visita");
   const visita = await prisma.visita.create({

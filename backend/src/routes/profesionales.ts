@@ -18,6 +18,8 @@ const crearProfesionalSchema = z.object({
   dni: z.string().optional(),
   numeroCuenta: z.string().optional(),
   bizum: z.string().optional(),
+  foto: z.string().optional(),
+  biografia: z.string().optional(),
   empresaColaboradoraId: z.string().optional(),
   email: z.string().email().optional(),
   password: z.string().min(6).optional(),
@@ -31,6 +33,8 @@ const editarProfesionalSchema = z.object({
   dni: z.string().optional(),
   numeroCuenta: z.string().optional(),
   bizum: z.string().optional(),
+  foto: z.string().optional(),
+  biografia: z.string().optional(),
   empresaColaboradoraId: z.string().nullable().optional(),
 });
 
@@ -55,6 +59,8 @@ profesionalesRouter.post("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"
       dni: parsed.data.dni,
       numeroCuenta: parsed.data.numeroCuenta,
       bizum: parsed.data.bizum,
+      foto: parsed.data.foto,
+      biografia: parsed.data.biografia,
       empresaColaboradoraId: parsed.data.empresaColaboradoraId,
       estado: "ACTIVO",
       organizacionId: req.usuario!.organizacionId,
@@ -165,6 +171,8 @@ profesionalesRouter.get("/:id/agenda", async (req, res) => {
     include: {
       servicio: { include: { solicitud: { include: { persona: true, necesidad: true } } } },
       tareas: true,
+      actuaciones: true,
+      incidencias: true,
     },
     orderBy: { fecha: "asc" },
   });

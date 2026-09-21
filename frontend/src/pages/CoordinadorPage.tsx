@@ -16,6 +16,7 @@ import {
   IconMenu,
   IconPlus,
   IconReceipt,
+  IconTag,
   IconUsers,
   IconX,
 } from "../components/icons.js";
@@ -29,23 +30,18 @@ import { EmpresasTab } from "./coordinador/EmpresasTab.js";
 import { CalendarioTab } from "./coordinador/CalendarioTab.js";
 import { ActividadTab } from "./coordinador/ActividadTab.js";
 import { FacturacionTab } from "./coordinador/FacturacionTab.js";
+import { ServiciosTab } from "./coordinador/ServiciosTab.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
 import { SolicitudFichaModal } from "../components/SolicitudFichaModal.js";
+import { IncidenciaFichaModal } from "./coordinador/IncidenciaFichaModal.js";
 import type { EmpresaColaboradora, Incidencia, Necesidad, Persona, Profesional, Servicio, Solicitud } from "../lib/types.js";
 
-const SIGUIENTE_INCIDENCIA: Record<string, string> = {
-  NUEVA: "EN_REVISION",
-  EN_REVISION: "ASIGNADA",
-  ASIGNADA: "EN_RESOLUCION",
-  EN_RESOLUCION: "RESUELTA",
-  RESUELTA: "CERRADA",
-};
-
-type Tab = "resumen" | "solicitudes" | "incidencias" | "personas" | "profesionales" | "empresas" | "calendario" | "facturacion" | "actividad";
+type Tab = "resumen" | "solicitudes" | "servicios" | "incidencias" | "personas" | "profesionales" | "empresas" | "calendario" | "facturacion" | "actividad";
 
 const NAV: { key: Tab; label: string; icon: typeof IconHome }[] = [
   { key: "resumen", label: "Resumen", icon: IconHome },
   { key: "solicitudes", label: "Solicitudes", icon: IconClipboard },
+  { key: "servicios", label: "Servicios", icon: IconTag },
   { key: "incidencias", label: "Incidencias", icon: IconAlert },
   { key: "personas", label: "Usuarios", icon: IconUsers },
   { key: "profesionales", label: "Profesionales", icon: IconBriefcase },
@@ -100,6 +96,7 @@ export function CoordinadorPage() {
   const [nuevaSolicitud, setNuevaSolicitud] = useState(false);
   const [nuevoUsuario, setNuevoUsuario] = useState(false);
   const [fichaAbierta, setFichaAbierta] = useState<string | null>(null);
+  const [incidenciaFichaAbierta, setIncidenciaFichaAbierta] = useState<string | null>(null);
   const [personaAbierta, setPersonaAbierta] = useState<string | null>(null);
   const [personasRefreshKey, setPersonasRefreshKey] = useState(0);
 
@@ -139,13 +136,6 @@ export function CoordinadorPage() {
       searchParams.delete("solicitud");
       setSearchParams(searchParams, { replace: true });
     }
-  }
-
-  async function avanzarIncidencia(i: Incidencia) {
-    const siguiente = SIGUIENTE_INCIDENCIA[i.estado];
-    if (!siguiente) return;
-    await api.post(`/incidencias/${i.id}/estado`, { estado: siguiente }, token);
-    await cargar();
   }
 
   async function confirmarCancelacion(servicioId: string) {
@@ -427,6 +417,8 @@ export function CoordinadorPage() {
           </div>
         )}
 
+        {tab === "servicios" && <ServiciosTab />}
+
         {tab === "incidencias" && (
           <div>
             {incidencias.length === 0 && <p className="text-sm text-slate-500">Sin incidencias abiertas.</p>}
@@ -436,7 +428,7 @@ export function CoordinadorPage() {
               return (
                 <Card key={i.id}>
                   <div className="mb-2 flex items-center justify-between">
-                    <div>
+                    <button onClick={() => setIncidenciaFichaAbierta(i.id)} className="text-left hover:underline">
                       <p className="font-medium">
                         {esCancelacion && "🚫 "}
                         {i.descripcion}
@@ -445,32 +437,31 @@ export function CoordinadorPage() {
                         {i.codigo} · prioridad {i.prioridad}
                         {i.servicio?.solicitud && ` · ${i.servicio.solicitud.persona.nombre} · ${i.servicio.solicitud.necesidad.nombre}`}
                       </p>
-                    </div>
+                    </button>
                     <EstadoBadge estado={i.estado} />
                   </div>
 
-                  {esCancelacion && pendiente ? (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => i.servicioId && confirmarCancelacion(i.servicioId)}
-                        className="rounded-md bg-rose-600 px-3 py-1 text-xs font-medium text-white hover:bg-rose-700"
-                      >
-                        Confirmar cancelación
-                      </button>
-                      <button
-                        onClick={() => i.servicioId && rechazarCancelacion(i.servicioId)}
-                        className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100"
-                      >
-                        Seguir con el servicio
-                      </button>
-                    </div>
-                  ) : (
-                    SIGUIENTE_INCIDENCIA[i.estado] && (
-                      <button onClick={() => avanzarIncidencia(i)} className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100">
-                        Avanzar a {SIGUIENTE_INCIDENCIA[i.estado].replace(/_/g, " ")}
-                      </button>
-                    )
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {esCancelacion && pendiente && (
+                      <>
+                        <button
+                          onClick={() => i.servicioId && confirmarCancelacion(i.servicioId)}
+                          className="rounded-md bg-rose-600 px-3 py-1 text-xs font-medium text-white hover:bg-rose-700"
+                        >
+                          Confirmar cancelación
+                        </button>
+                        <button
+                          onClick={() => i.servicioId && rechazarCancelacion(i.servicioId)}
+                          className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100"
+                        >
+                          Seguir con el servicio
+                        </button>
+                      </>
+                    )}
+                    <button onClick={() => setIncidenciaFichaAbierta(i.id)} className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100">
+                      Abrir ficha
+                    </button>
+                  </div>
                 </Card>
               );
             })}
@@ -509,6 +500,9 @@ export function CoordinadorPage() {
         )}
 
         {fichaAbierta && <SolicitudFichaModal solicitudId={fichaAbierta} onClose={cerrarFicha} onChanged={cargar} />}
+        {incidenciaFichaAbierta && (
+          <IncidenciaFichaModal incidenciaId={incidenciaFichaAbierta} onClose={() => setIncidenciaFichaAbierta(null)} onChanged={cargar} />
+        )}
       </div>
     </div>
   );

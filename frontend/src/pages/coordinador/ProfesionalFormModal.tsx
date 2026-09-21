@@ -14,6 +14,8 @@ const CAMPOS_VACIOS = {
   dni: "",
   numeroCuenta: "",
   bizum: "",
+  foto: "",
+  biografia: "",
   empresaColaboradoraId: "",
 };
 
@@ -44,6 +46,8 @@ export function ProfesionalFormModal({
           dni: profesional.dni ?? "",
           numeroCuenta: profesional.numeroCuenta ?? "",
           bizum: profesional.bizum ?? "",
+          foto: profesional.foto ?? "",
+          biografia: profesional.biografia ?? "",
           empresaColaboradoraId: profesional.empresaColaboradoraId ?? "",
         }
       : CAMPOS_VACIOS,
@@ -86,6 +90,14 @@ export function ProfesionalFormModal({
         <input placeholder="DNI / carné" value={form.dni} onChange={(e) => setForm((f) => ({ ...f, dni: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
         <input placeholder="Número de cuenta (IBAN)" value={form.numeroCuenta} onChange={(e) => setForm((f) => ({ ...f, numeroCuenta: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
         <input placeholder="Bizum" value={form.bizum} onChange={(e) => setForm((f) => ({ ...f, bizum: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        <input placeholder="Foto (URL)" value={form.foto} onChange={(e) => setForm((f) => ({ ...f, foto: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2" />
+        <textarea
+          placeholder="Biografía / experiencia (tipo CV) — la ven coordinación y la familia al elegir profesional"
+          value={form.biografia}
+          onChange={(e) => setForm((f) => ({ ...f, biografia: e.target.value }))}
+          rows={3}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
+        />
         <select
           value={form.empresaColaboradoraId}
           onChange={(e) => setForm((f) => ({ ...f, empresaColaboradoraId: e.target.value }))}

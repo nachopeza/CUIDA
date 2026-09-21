@@ -56,6 +56,16 @@ export interface ServicioInteres {
   profesional: Profesional;
 }
 
+export interface TipoServicioOfrecido {
+  id: string;
+  codigo: string;
+  nombre: string;
+  descripcion: string | null;
+  ivaPorcentaje: string | number;
+  precioBase: string | number | null;
+  activo: boolean;
+}
+
 export interface Servicio {
   id: string;
   codigo: string;
@@ -71,6 +81,11 @@ export interface Servicio {
   pagoProfesionalEstado?: "PENDIENTE" | "PAGADO";
   comisionImporte?: string | number | null;
   importeProfesional?: string | number | null;
+  tipoServicioOfrecidoId?: string | null;
+  tipoServicioOfrecido?: TipoServicioOfrecido | null;
+  ivaPorcentaje?: string | number | null;
+  ivaImporte?: string | number | null;
+  totalConIva?: string | number | null;
   solicitud?: Solicitud;
   visitas?: Visita[];
   incidencias?: Incidencia[];
@@ -116,8 +131,11 @@ export interface Incidencia {
   descripcion: string;
   prioridad: string;
   estado: string;
+  visitaId?: string | null;
   servicioId?: string | null;
   servicio?: { codigo: string; solicitud?: { persona: Persona; necesidad: Necesidad } } | null;
+  responsable?: { email: string; nombre?: string | null } | null;
+  estadoHistorial?: EstadoHistorialEntry[];
 }
 
 export interface Visita {
@@ -143,6 +161,8 @@ export interface Profesional {
   dni?: string | null;
   numeroCuenta?: string | null;
   bizum?: string | null;
+  foto?: string | null;
+  biografia?: string | null;
   estado: string;
   empresaColaboradoraId?: string | null;
   empresaColaboradora?: EmpresaColaboradora | null;
@@ -153,6 +173,8 @@ export interface Factura {
   codigo: string;
   mes: string;
   importeTotal: string | number;
+  ivaTotal: string | number;
+  totalConIva: string | number;
   comisionTotal: string | number;
   importeProfesionales: string | number;
   estado: "BORRADOR" | "EMITIDA" | "PAGADA";

@@ -135,6 +135,12 @@ visitasRouter.patch("/:id/tareas", async (req, res) => {
   const { visita, permitido } = await cargarVisitaConPermiso(req);
   if (!visita) return res.status(404).json({ error: "No encontrada" });
   if (!permitido) return res.status(403).json({ error: "Sin permiso" });
+  // Bug conocido: una vez finalizada la visita se podían seguir marcando
+  // tareas, como si siguiera en curso. Una vez FINALIZADA o REVISADA queda
+  // cerrada: ya no se modifica.
+  if (["FINALIZADA", "REVISADA"].includes(visita.estado)) {
+    return res.status(409).json({ error: "La visita ya está finalizada; no se puede modificar" });
+  }
 
   const parsed = tareaSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -153,6 +159,9 @@ visitasRouter.post("/:id/actuaciones", async (req, res) => {
   const { visita, permitido } = await cargarVisitaConPermiso(req);
   if (!visita) return res.status(404).json({ error: "No encontrada" });
   if (!permitido) return res.status(403).json({ error: "Sin permiso" });
+  if (["FINALIZADA", "REVISADA"].includes(visita.estado)) {
+    return res.status(409).json({ error: "La visita ya está finalizada; no se puede añadir más notas" });
+  }
 
   const parsed = actuacionSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
