@@ -4,6 +4,7 @@ import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
+import { Pagination, usePaginacion } from "../components/Pagination.js";
 import {
   IconActivity,
   IconAlert,
@@ -199,6 +200,8 @@ export function CoordinadorPage() {
     });
   }, [solicitudes, filtro, estadoFiltro, tipoFiltro]);
 
+  const { items: solicitudesPagina, pagina: solicitudesPaginaActual, totalPaginas: solicitudesTotalPaginas, setPagina: setSolicitudesPagina } = usePaginacion(solicitudesFiltradas);
+
   const estadosPresentes = useMemo(() => {
     const set = new Set(solicitudes.map((s) => (s.servicio ? s.servicio.estado : s.estado)));
     return Array.from(set).sort();
@@ -323,7 +326,6 @@ export function CoordinadorPage() {
                   Quitar filtros
                 </button>
               )}
-              <span className="ml-auto text-xs text-slate-400">{solicitudesFiltradas.length} resultado(s)</span>
             </div>
 
             {solicitudesFiltradas.length === 0 ? (
@@ -342,7 +344,7 @@ export function CoordinadorPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {solicitudesFiltradas.map((s) => (
+                    {solicitudesPagina.map((s) => (
                       <tr key={s.id} onClick={() => setFichaAbierta(s.id)} className="cursor-pointer hover:bg-slate-50">
                         <td className="px-4 py-2.5 font-medium text-slate-800">
                           {s.persona.nombre} {s.persona.apellidos}
@@ -367,6 +369,7 @@ export function CoordinadorPage() {
                     ))}
                   </tbody>
                 </table>
+                <Pagination pagina={solicitudesPaginaActual} totalPaginas={solicitudesTotalPaginas} onChange={setSolicitudesPagina} total={solicitudesFiltradas.length} />
               </div>
             )}
           </div>
