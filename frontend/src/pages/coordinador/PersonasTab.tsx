@@ -2,34 +2,25 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
-import { NuevoUsuarioModal } from "./NuevoUsuarioModal.js";
-import { PersonaDetalleModal } from "./PersonaDetalleModal.js";
 import type { Persona } from "../../lib/types.js";
 
 // Portal de usuarios (sección "el portal de usuarios es muy importante.
-// Buscar usuarios, saber qué servicios han solicitado"): buscador + alta en
-// un único botón dinámico + ficha unificada por usuario en vez de
-// formularios sueltos de alta/edición/vinculación repartidos por la pantalla.
-export function PersonasTab({ onCambiado }: { onCambiado: () => void }) {
+// Buscar usuarios, saber qué servicios han solicitado"): buscador + ficha
+// unificada por usuario en vez de formularios sueltos de alta/edición
+// repartidos por la pantalla. El alta ("+ Nuevo usuario") y la ficha
+// (PersonaDetalleModal) las controla el panel de coordinación, para que
+// también funcionen desde la búsqueda global sin depender de esta pestaña;
+// `refreshKey` cambia cuando se crea un usuario desde ahí, para recargar
+// esta lista aunque el alta no haya pasado por este componente.
+export function PersonasTab({ onAbrirFicha, refreshKey }: { onAbrirFicha: (id: string) => void; refreshKey: number }) {
   const { token } = useAuth();
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [busqueda, setBusqueda] = useState("");
-  const [nuevoAbierto, setNuevoAbierto] = useState(false);
-  const [detalleId, setDetalleId] = useState<string | null>(null);
-
-  async function cargar() {
-    setPersonas(await api.get<Persona[]>("/personas", token));
-  }
 
   useEffect(() => {
-    cargar();
+    api.get<Persona[]>("/personas", token).then(setPersonas);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function refrescarTodo() {
-    await cargar();
-    onCambiado();
-  }
+  }, [refreshKey]);
 
   const filtradas = personas.filter((p) => {
     const q = busqueda.trim().toLowerCase();
@@ -39,16 +30,13 @@ export function PersonasTab({ onCambiado }: { onCambiado: () => void }) {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-4">
         <input
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           placeholder="Buscar por nombre o código…"
-          className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm sm:max-w-xs"
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:max-w-xs"
         />
-        <button onClick={() => setNuevoAbierto(true)} className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800">
-          + Nuevo usuario
-        </button>
       </div>
 
       <Card>
@@ -56,7 +44,7 @@ export function PersonasTab({ onCambiado }: { onCambiado: () => void }) {
         <ul className="divide-y divide-slate-100">
           {filtradas.map((p) => (
             <li key={p.id}>
-              <button onClick={() => setDetalleId(p.id)} className="flex w-full items-center justify-between py-3 text-left text-sm hover:bg-slate-50">
+              <button onClick={() => onAbrirFicha(p.id)} className="flex w-full items-center justify-between py-3 text-left text-sm hover:bg-slate-50">
                 <div>
                   <p className="font-medium text-slate-800">
                     {p.nombre} {p.apellidos}
@@ -71,15 +59,6 @@ export function PersonasTab({ onCambiado }: { onCambiado: () => void }) {
           ))}
         </ul>
       </Card>
-
-      {nuevoAbierto && (
-        <NuevoUsuarioModal
-          onClose={() => setNuevoAbierto(false)}
-          onCreated={refrescarTodo}
-        />
-      )}
-
-      {detalleId && <PersonaDetalleModal personaId={detalleId} onClose={() => setDetalleId(null)} onCambiado={refrescarTodo} />}
     </div>
   );
 }

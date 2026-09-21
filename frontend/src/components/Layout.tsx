@@ -31,7 +31,7 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <img src={logoCuida} alt="CUIDA" className="h-9 w-auto sm:h-10" />
             {usuario && <span className="text-sm font-medium text-slate-500">{AREA_LABEL[usuario.rol] ?? ""}</span>}
@@ -49,7 +49,7 @@ export function Layout({ children }: { children: ReactNode }) {
           )}
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
     </div>
   );
 }

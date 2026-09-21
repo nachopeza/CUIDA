@@ -1,10 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
+import {
+  IconActivity,
+  IconAlert,
+  IconBriefcase,
+  IconBuilding,
+  IconCalendar,
+  IconClipboard,
+  IconHome,
+  IconMenu,
+  IconPlus,
+  IconReceipt,
+  IconUsers,
+  IconX,
+} from "../components/icons.js";
+import { ResumenTab } from "./coordinador/ResumenTab.js";
+import { GlobalSearch } from "./coordinador/GlobalSearch.js";
 import { PersonasTab } from "./coordinador/PersonasTab.js";
+import { NuevoUsuarioModal } from "./coordinador/NuevoUsuarioModal.js";
+import { PersonaDetalleModal } from "./coordinador/PersonaDetalleModal.js";
 import { ProfesionalesTab } from "./coordinador/ProfesionalesTab.js";
 import { EmpresasTab } from "./coordinador/EmpresasTab.js";
 import { CalendarioTab } from "./coordinador/CalendarioTab.js";
@@ -22,33 +40,40 @@ const SIGUIENTE_INCIDENCIA: Record<string, string> = {
   RESUELTA: "CERRADA",
 };
 
-type Tab = "solicitudes" | "incidencias" | "personas" | "profesionales" | "empresas" | "calendario" | "facturacion" | "actividad";
+type Tab = "resumen" | "solicitudes" | "incidencias" | "personas" | "profesionales" | "empresas" | "calendario" | "facturacion" | "actividad";
 
-const TAB_LABEL: Record<Tab, string> = {
-  solicitudes: "Solicitudes",
-  incidencias: "Incidencias",
-  personas: "Usuarios",
-  profesionales: "Profesionales",
-  empresas: "Empresas colaboradoras",
-  calendario: "Calendario",
-  facturacion: "Facturación",
-  actividad: "Actividad",
-};
+const NAV: { key: Tab; label: string; icon: typeof IconHome }[] = [
+  { key: "resumen", label: "Resumen", icon: IconHome },
+  { key: "solicitudes", label: "Solicitudes", icon: IconClipboard },
+  { key: "incidencias", label: "Incidencias", icon: IconAlert },
+  { key: "personas", label: "Usuarios", icon: IconUsers },
+  { key: "profesionales", label: "Profesionales", icon: IconBriefcase },
+  { key: "empresas", label: "Empresas colaboradoras", icon: IconBuilding },
+  { key: "calendario", label: "Calendario", icon: IconCalendar },
+  { key: "facturacion", label: "Facturación", icon: IconReceipt },
+  { key: "actividad", label: "Actividad", icon: IconActivity },
+];
 
 type Filtro = null | "gestionadas" | "en_proceso" | "canceladas" | "finalizadas";
 
 export function CoordinadorPage() {
   const { token } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [tab, setTab] = useState<Tab>("solicitudes");
+  const [tab, setTab] = useState<Tab>("resumen");
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
   const [filtro, setFiltro] = useState<Filtro>(null);
+  const [estadoFiltro, setEstadoFiltro] = useState("");
+  const [tipoFiltro, setTipoFiltro] = useState("");
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [necesidades, setNecesidades] = useState<Necesidad[]>([]);
   const [nuevaSolicitud, setNuevaSolicitud] = useState(false);
+  const [nuevoUsuario, setNuevoUsuario] = useState(false);
   const [fichaAbierta, setFichaAbierta] = useState<string | null>(null);
+  const [personaAbierta, setPersonaAbierta] = useState<string | null>(null);
+  const [personasRefreshKey, setPersonasRefreshKey] = useState(0);
 
   async function cargar() {
     const [sols, servs, incs, pers, necs] = await Promise.all([
@@ -105,9 +130,27 @@ export function CoordinadorPage() {
     await cargar();
   }
 
-  function irA(t: Tab, f: Filtro = null) {
-    setTab(t);
-    setFiltro(f);
+  function irA(t: string, f?: string) {
+    setTab(t as Tab);
+    setFiltro((f ?? null) as Filtro);
+    setMenuMovilAbierto(false);
+  }
+
+  async function abrirNuevaSolicitud() {
+    // Refrescamos antes de abrir para que un usuario recién creado en la
+    // pestaña "Usuarios" aparezca siempre en el selector (bug: "si creo un
+    // perfil no te sale para añadirle un servicio").
+    await cargar();
+    setNuevaSolicitud(true);
+  }
+
+  function abrirPersona(id: string) {
+    setPersonaAbierta(id);
+  }
+
+  async function alCrearUsuario() {
+    setPersonasRefreshKey((k) => k + 1);
+    await cargar();
   }
 
   const kpis: { label: string; valor: number; onClick: () => void }[] = [
@@ -139,164 +182,279 @@ export function CoordinadorPage() {
     },
   ];
 
-  const solicitudesFiltradas = solicitudes.filter((s) => {
-    if (!filtro) return true;
-    if (filtro === "gestionadas") return s.estado === "ACEPTADA" || s.servicio;
-    if (filtro === "en_proceso") return s.servicio?.estado === "EN_CURSO";
-    if (filtro === "canceladas") return s.servicio?.estado === "CANCELADO";
-    if (filtro === "finalizadas") return s.servicio && ["VALIDADO", "CERRADO"].includes(s.servicio.estado);
-    return true;
-  });
+  const badges: Partial<Record<Tab, { valor: number; tono: "rose" | "amber" }>> = {
+    incidencias: { valor: incidencias.filter((i) => !["RESUELTA", "CERRADA"].includes(i.estado)).length, tono: "rose" },
+    solicitudes: { valor: servicios.filter((s) => s.estado === "PENDIENTE" && !s.profesionalId).length, tono: "amber" },
+  };
+
+  const solicitudesFiltradas = useMemo(() => {
+    return solicitudes.filter((s) => {
+      if (filtro === "gestionadas" && !(s.estado === "ACEPTADA" || s.servicio)) return false;
+      if (filtro === "en_proceso" && s.servicio?.estado !== "EN_CURSO") return false;
+      if (filtro === "canceladas" && s.servicio?.estado !== "CANCELADO") return false;
+      if (filtro === "finalizadas" && !(s.servicio && ["VALIDADO", "CERRADO"].includes(s.servicio.estado))) return false;
+      if (estadoFiltro && (s.servicio ? s.servicio.estado : s.estado) !== estadoFiltro) return false;
+      if (tipoFiltro && (s.servicio?.tipoServicio ?? "PUNTUAL") !== tipoFiltro) return false;
+      return true;
+    });
+  }, [solicitudes, filtro, estadoFiltro, tipoFiltro]);
+
+  const estadosPresentes = useMemo(() => {
+    const set = new Set(solicitudes.map((s) => (s.servicio ? s.servicio.estado : s.estado)));
+    return Array.from(set).sort();
+  }, [solicitudes]);
+
+  const tituloTab = NAV.find((n) => n.key === tab)?.label ?? "";
 
   return (
-    <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Panel de coordinación</h2>
-        <button
-          onClick={async () => {
-            // Refrescamos antes de abrir para que un usuario recién creado en
-            // la pestaña "Usuarios" aparezca siempre en el selector, aunque
-            // esta lista lleve un rato cargada (bug: "si creo un perfil no
-            // te sale para añadirle un servicio").
-            await cargar();
-            setNuevaSolicitud(true);
-          }}
-          className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800"
-        >
-          + Nueva solicitud
+    <div className="flex flex-col gap-4 md:flex-row">
+      {/* Barra lateral (desktop) */}
+      <aside className="hidden shrink-0 md:block md:w-56">
+        <nav className="sticky top-6 space-y-0.5">
+          {NAV.map((n) => {
+            const badge = badges[n.key];
+            return (
+              <button
+                key={n.key}
+                onClick={() => irA(n.key)}
+                className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition ${
+                  tab === n.key ? "bg-brand text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <span className="flex items-center gap-2.5">
+                  <n.icon className="h-4 w-4 shrink-0" />
+                  {n.label}
+                </span>
+                {badge && badge.valor > 0 && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                      tab === n.key ? "bg-white/25 text-white" : badge.tono === "rose" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {badge.valor}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+
+      {/* Navegación móvil */}
+      <div className="flex items-center justify-between md:hidden">
+        <button onClick={() => setMenuMovilAbierto((v) => !v)} className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700">
+          {menuMovilAbierto ? <IconX className="h-4 w-4" /> : <IconMenu className="h-4 w-4" />}
+          {tituloTab}
         </button>
       </div>
-
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        {kpis.map((k) => (
-          <button
-            key={k.label}
-            onClick={k.onClick}
-            className="rounded-lg border border-slate-200 bg-white p-3 text-center transition hover:border-slate-400 hover:bg-slate-50"
-          >
-            <p className="text-2xl font-semibold text-slate-800">{k.valor}</p>
-            <p className="text-xs text-slate-500">{k.label}</p>
-          </button>
-        ))}
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-2 text-sm">
-        {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => {
-              setTab(t);
-              if (t !== "solicitudes") setFiltro(null);
-            }}
-            className={`rounded-md px-3 py-1.5 font-medium ${tab === t ? "bg-brand text-white" : "border border-slate-300 bg-white text-slate-600"}`}
-          >
-            {TAB_LABEL[t]}
-          </button>
-        ))}
-      </div>
-
-      {tab === "solicitudes" && (
-        <div>
-          {filtro && (
-            <button onClick={() => setFiltro(null)} className="mb-3 text-xs text-slate-500 underline decoration-dotted hover:text-slate-700">
-              Quitar filtro
-            </button>
-          )}
-          {solicitudesFiltradas.length === 0 && <p className="text-sm text-slate-500">Sin solicitudes que mostrar.</p>}
-          {solicitudesFiltradas.map((s) => (
-            <button key={s.id} onClick={() => setFichaAbierta(s.id)} className="block w-full text-left">
-              <Card>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">
-                      {s.persona.nombre} {s.persona.apellidos} · {s.necesidad.nombre}
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      {s.codigo} · {s.descripcionLibre}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <EstadoBadge estado={s.servicio ? s.servicio.estado : s.estado} />
-                    {s.servicio?.incidencias?.some((i) => !["RESUELTA", "CERRADA"].includes(i.estado)) && (
-                      <span className="text-xs text-amber-600" title="Incidencia abierta">
-                        ⚠
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </Card>
+      {menuMovilAbierto && (
+        <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-slate-200 bg-white p-2 md:hidden">
+          {NAV.map((n) => (
+            <button
+              key={n.key}
+              onClick={() => irA(n.key)}
+              className={`flex items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium ${tab === n.key ? "bg-brand text-white" : "text-slate-600 hover:bg-slate-100"}`}
+            >
+              <n.icon className="h-4 w-4 shrink-0" />
+              {n.label}
             </button>
           ))}
         </div>
       )}
 
-      {tab === "incidencias" && (
-        <div>
-          {incidencias.length === 0 && <p className="text-sm text-slate-500">Sin incidencias abiertas.</p>}
-          {incidencias.map((i) => {
-            const esCancelacion = i.tipo === "SOLICITUD_CANCELACION";
-            const pendiente = !["RESUELTA", "CERRADA"].includes(i.estado);
-            return (
-              <Card key={i.id}>
-                <div className="mb-2 flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">
-                      {esCancelacion && "🚫 "}
-                      {i.descripcion}
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      {i.codigo} · prioridad {i.prioridad}
-                      {i.servicio?.solicitud && ` · ${i.servicio.solicitud.persona.nombre} · ${i.servicio.solicitud.necesidad.nombre}`}
-                    </p>
-                  </div>
-                  <EstadoBadge estado={i.estado} />
-                </div>
-
-                {esCancelacion && pendiente ? (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => i.servicioId && confirmarCancelacion(i.servicioId)}
-                      className="rounded-md bg-rose-600 px-3 py-1 text-xs font-medium text-white hover:bg-rose-700"
-                    >
-                      Confirmar cancelación
-                    </button>
-                    <button
-                      onClick={() => i.servicioId && rechazarCancelacion(i.servicioId)}
-                      className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100"
-                    >
-                      Seguir con el servicio
-                    </button>
-                  </div>
-                ) : (
-                  SIGUIENTE_INCIDENCIA[i.estado] && (
-                    <button onClick={() => avanzarIncidencia(i)} className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100">
-                      Avanzar a {SIGUIENTE_INCIDENCIA[i.estado].replace(/_/g, " ")}
-                    </button>
-                  )
-                )}
-              </Card>
-            );
-          })}
+      {/* Contenido principal */}
+      <div className="min-w-0 flex-1">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800">{tab === "resumen" ? "Panel de coordinación" : tituloTab}</h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <GlobalSearch
+              personas={personas}
+              solicitudes={solicitudes}
+              onAbrirPersona={abrirPersona}
+              onAbrirSolicitud={(id) => {
+                setTab("solicitudes");
+                setFichaAbierta(id);
+              }}
+            />
+            <button
+              onClick={() => setNuevoUsuario(true)}
+              className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <IconPlus className="h-4 w-4" /> Usuario
+            </button>
+            <button
+              onClick={abrirNuevaSolicitud}
+              className="flex items-center gap-1 rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800"
+            >
+              <IconPlus className="h-4 w-4" /> Solicitud
+            </button>
+          </div>
         </div>
-      )}
 
-      {tab === "personas" && <PersonasTab onCambiado={cargar} />}
-      {tab === "profesionales" && <ProfesionalesTab />}
-      {tab === "empresas" && <EmpresasTab />}
-      {tab === "calendario" && <CalendarioTab />}
-      {tab === "facturacion" && <FacturacionTab />}
-      {tab === "actividad" && <ActividadTab />}
+        {tab === "resumen" && <ResumenTab solicitudes={solicitudes} servicios={servicios} incidencias={incidencias} kpis={kpis} onIrA={irA} />}
 
-      {nuevaSolicitud && (
-        <SolicitudModal
-          personas={personas}
-          necesidades={necesidades}
-          onClose={() => setNuevaSolicitud(false)}
-          onCreated={cargar}
-        />
-      )}
+        {tab === "solicitudes" && (
+          <div>
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+              <select value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+                <option value="">Todos los estados</option>
+                {estadosPresentes.map((e) => (
+                  <option key={e} value={e}>
+                    {e.replace(/_/g, " ")}
+                  </option>
+                ))}
+              </select>
+              <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+                <option value="">Puntual y recurrente</option>
+                <option value="PUNTUAL">Puntual</option>
+                <option value="RECURRENTE">Recurrente</option>
+              </select>
+              {(filtro || estadoFiltro || tipoFiltro) && (
+                <button
+                  onClick={() => {
+                    setFiltro(null);
+                    setEstadoFiltro("");
+                    setTipoFiltro("");
+                  }}
+                  className="text-xs text-slate-500 underline decoration-dotted hover:text-slate-700"
+                >
+                  Quitar filtros
+                </button>
+              )}
+              <span className="ml-auto text-xs text-slate-400">{solicitudesFiltradas.length} resultado(s)</span>
+            </div>
 
-      {fichaAbierta && <SolicitudFichaModal solicitudId={fichaAbierta} onClose={cerrarFicha} onChanged={cargar} />}
+            {solicitudesFiltradas.length === 0 ? (
+              <p className="text-sm text-slate-500">Sin solicitudes que mostrar.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                <table className="min-w-full divide-y divide-slate-100 text-sm">
+                  <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-2.5">Persona</th>
+                      <th className="px-4 py-2.5">Necesidad</th>
+                      <th className="px-4 py-2.5">Tipo</th>
+                      <th className="px-4 py-2.5">Estado</th>
+                      <th className="px-4 py-2.5">Profesional</th>
+                      <th className="px-4 py-2.5">Código</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {solicitudesFiltradas.map((s) => (
+                      <tr key={s.id} onClick={() => setFichaAbierta(s.id)} className="cursor-pointer hover:bg-slate-50">
+                        <td className="px-4 py-2.5 font-medium text-slate-800">
+                          {s.persona.nombre} {s.persona.apellidos}
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-500">{s.necesidad.nombre}</td>
+                        <td className="px-4 py-2.5 text-slate-500">{s.servicio?.tipoServicio === "RECURRENTE" ? "Recurrente" : "Puntual"}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <EstadoBadge estado={s.servicio ? s.servicio.estado : s.estado} />
+                            {s.servicio?.incidencias?.some((i) => !["RESUELTA", "CERRADA"].includes(i.estado)) && (
+                              <span className="text-amber-600" title="Incidencia abierta">
+                                ⚠
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-500">
+                          {s.servicio?.profesional ? `${s.servicio.profesional.nombre} ${s.servicio.profesional.apellidos}` : "—"}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-slate-400">{s.codigo}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "incidencias" && (
+          <div>
+            {incidencias.length === 0 && <p className="text-sm text-slate-500">Sin incidencias abiertas.</p>}
+            {incidencias.map((i) => {
+              const esCancelacion = i.tipo === "SOLICITUD_CANCELACION";
+              const pendiente = !["RESUELTA", "CERRADA"].includes(i.estado);
+              return (
+                <Card key={i.id}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">
+                        {esCancelacion && "🚫 "}
+                        {i.descripcion}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {i.codigo} · prioridad {i.prioridad}
+                        {i.servicio?.solicitud && ` · ${i.servicio.solicitud.persona.nombre} · ${i.servicio.solicitud.necesidad.nombre}`}
+                      </p>
+                    </div>
+                    <EstadoBadge estado={i.estado} />
+                  </div>
+
+                  {esCancelacion && pendiente ? (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => i.servicioId && confirmarCancelacion(i.servicioId)}
+                        className="rounded-md bg-rose-600 px-3 py-1 text-xs font-medium text-white hover:bg-rose-700"
+                      >
+                        Confirmar cancelación
+                      </button>
+                      <button
+                        onClick={() => i.servicioId && rechazarCancelacion(i.servicioId)}
+                        className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100"
+                      >
+                        Seguir con el servicio
+                      </button>
+                    </div>
+                  ) : (
+                    SIGUIENTE_INCIDENCIA[i.estado] && (
+                      <button onClick={() => avanzarIncidencia(i)} className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100">
+                        Avanzar a {SIGUIENTE_INCIDENCIA[i.estado].replace(/_/g, " ")}
+                      </button>
+                    )
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {tab === "personas" && <PersonasTab onAbrirFicha={abrirPersona} refreshKey={personasRefreshKey} />}
+        {tab === "profesionales" && <ProfesionalesTab />}
+        {tab === "empresas" && <EmpresasTab />}
+        {tab === "calendario" && <CalendarioTab />}
+        {tab === "facturacion" && <FacturacionTab />}
+        {tab === "actividad" && <ActividadTab />}
+
+        {nuevaSolicitud && (
+          <SolicitudModal
+            personas={personas}
+            necesidades={necesidades}
+            onClose={() => setNuevaSolicitud(false)}
+            onCreated={cargar}
+          />
+        )}
+
+        {nuevoUsuario && (
+          <NuevoUsuarioModal
+            onClose={() => setNuevoUsuario(false)}
+            onCreated={alCrearUsuario}
+          />
+        )}
+
+        {personaAbierta && (
+          <PersonaDetalleModal
+            personaId={personaAbierta}
+            onClose={() => setPersonaAbierta(null)}
+            onCambiado={alCrearUsuario}
+          />
+        )}
+
+        {fichaAbierta && <SolicitudFichaModal solicitudId={fichaAbierta} onClose={cerrarFicha} onChanged={cargar} />}
+      </div>
     </div>
   );
 }
