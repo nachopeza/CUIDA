@@ -159,6 +159,67 @@ profesionalesRouter.patch("/:id", async (req, res) => {
   res.json(actualizado);
 });
 
+// Documentos del profesional (sección "ver toda su información...
+// documentación. Un perfil completamente avanzado"): DNI, certificados,
+// seguros, etc. — el propio profesional o un gestor de su organización.
+profesionalesRouter.get("/:id/documentos", async (req, res) => {
+  const usuario = req.usuario!;
+  const esPropio = usuario.rol === "PROFESIONAL" && usuario.profesionalId === req.params.id;
+  const esGestor = ["COORDINADOR", "ORGANIZACION", "ADMIN"].includes(usuario.rol);
+  if (!esPropio && !esGestor) return res.status(403).json({ error: "Sin permiso" });
+
+  const documentos = await prisma.documento.findMany({
+    where: { profesionalId: req.params.id },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(documentos);
+});
+
+const crearDocumentoSchema = z.object({
+  nombre: z.string().min(1),
+  url: z.string().min(1),
+});
+
+profesionalesRouter.post("/:id/documentos", async (req, res) => {
+  const usuario = req.usuario!;
+  const esPropio = usuario.rol === "PROFESIONAL" && usuario.profesionalId === req.params.id;
+  const esGestor = ["COORDINADOR", "ORGANIZACION", "ADMIN"].includes(usuario.rol);
+  if (!esPropio && !esGestor) return res.status(403).json({ error: "Sin permiso" });
+
+  const parsed = crearDocumentoSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const profesional = await prisma.profesional.findUnique({ where: { id: req.params.id } });
+  if (!profesional || profesional.organizacionId !== usuario.organizacionId) return res.status(404).json({ error: "No encontrado" });
+
+  const documento = await prisma.documento.create({
+    data: { nombre: parsed.data.nombre, url: parsed.data.url, profesionalId: profesional.id },
+  });
+
+  await registrarAuditoria({
+    usuarioId: usuario.sub,
+    organizacionId: profesional.organizacionId,
+    accion: "añadir_documento_profesional",
+    entidadTipo: "Profesional",
+    entidadId: profesional.id,
+  });
+
+  res.status(201).json(documento);
+});
+
+profesionalesRouter.delete("/:id/documentos/:documentoId", async (req, res) => {
+  const usuario = req.usuario!;
+  const esPropio = usuario.rol === "PROFESIONAL" && usuario.profesionalId === req.params.id;
+  const esGestor = ["COORDINADOR", "ORGANIZACION", "ADMIN"].includes(usuario.rol);
+  if (!esPropio && !esGestor) return res.status(403).json({ error: "Sin permiso" });
+
+  const documento = await prisma.documento.findUnique({ where: { id: req.params.documentoId } });
+  if (!documento || documento.profesionalId !== req.params.id) return res.status(404).json({ error: "No encontrado" });
+
+  await prisma.documento.delete({ where: { id: documento.id } });
+  res.status(204).send();
+});
+
 // Agenda del día/periodo del profesional (interfaz CUIDA PROFESIONAL, sección 9).
 profesionalesRouter.get("/:id/agenda", async (req, res) => {
   const usuario = req.usuario!;

@@ -113,7 +113,7 @@ facturasRouter.get("/", async (req, res) => {
 
   const facturas = await prisma.factura.findMany({
     where,
-    include: { persona: true, servicios: { include: { solicitud: { include: { necesidad: true } } } } },
+    include: { persona: true, servicios: { include: { solicitud: { include: { necesidad: true } }, profesional: true } } },
     orderBy: [{ mes: "desc" }, { createdAt: "desc" }],
   });
   res.json(facturas);

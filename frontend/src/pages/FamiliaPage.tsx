@@ -6,19 +6,8 @@ import { EstadoBadge } from "../components/EstadoBadge.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
 import { ConversacionesPanel } from "../components/ConversacionesPanel.js";
+import { ICONOS_NECESIDAD as ICONOS } from "../lib/necesidadIconos.js";
 import type { Factura, Incidencia, Necesidad, PersonaConFamiliares, Solicitud } from "../lib/types.js";
-
-const ICONOS: Record<string, string> = {
-  compra: "🛒",
-  acompanamiento: "🚶",
-  compania: "💬",
-  tareas_domesticas: "🧹",
-  comida: "🍲",
-  recados: "📦",
-  paseo: "🌳",
-  citas: "🩺",
-  apoyo_puntual: "🤝",
-};
 
 const SERVICIO_CANCELABLE = ["PENDIENTE", "ASIGNADO", "CONFIRMADO", "EN_CURSO"];
 const CAMPOS_EDITABLES = ["telefono", "direccion", "contactos", "preferencias"] as const;

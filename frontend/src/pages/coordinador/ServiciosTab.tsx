@@ -1,32 +1,29 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
-import { EstadoBadge } from "../../components/EstadoBadge.js";
-import { Pagination, usePaginacion } from "../../components/Pagination.js";
-import { CatalogoServiciosModal } from "./CatalogoServiciosModal.js";
-import type { Servicio } from "../../lib/types.js";
+import { ICONOS_NECESIDAD } from "../../lib/necesidadIconos.js";
+import { useSeleccion } from "../../lib/useSeleccion.js";
+import { exportarCSV } from "../../lib/csv.js";
+import { ExportarBarra } from "../../components/ExportarBarra.js";
+import type { Necesidad } from "../../lib/types.js";
 
-function num(v: string | number | null | undefined): number {
-  return v == null ? 0 : Number(v);
-}
+const VACIO = { nombre: "", descripcion: "", ivaPorcentaje: "4", precioBase: "" };
 
-// Pestaña Servicios (ERP): "se ha perdido la opción de servicios... se debe
-// poder gestionar los servicios y saber qué cantidad le corresponde a cada
-// profesional por el servicio" — un listado plano de todos los Servicio con
-// su tarifa/IVA/reparto, en vez de solo verlos enterrados dentro de cada
-// ficha de solicitud. Dos servicios distintos de la misma persona (ej.
-// Carmen limpieza+paseo, Elena aseo por las mañanas) aparecen como dos
-// filas independientes, cada una con su propio importeProfesional — se
-// facturan juntos a la familia (misma Factura mensual) pero se liquidan
-// aparte.
+// Pestaña Servicios: el catálogo único de lo que la organización ofrece
+// (sección "unifiquemos: Servicios son lo que ofrecemos — acompañamiento,
+// comidas, limpieza etc. — Solicitudes son las que nos hacen los
+// usuarios"). Todo editable en línea desde coordinación, sin submodal.
 export function ServiciosTab() {
   const { token } = useAuth();
-  const [servicios, setServicios] = useState<Servicio[]>([]);
-  const [busqueda, setBusqueda] = useState("");
-  const [catalogoAbierto, setCatalogoAbierto] = useState(false);
+  const [servicios, setServicios] = useState<Necesidad[]>([]);
+  const [form, setForm] = useState(VACIO);
+  const [creando, setCreando] = useState(false);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [edicion, setEdicion] = useState(VACIO);
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
 
   async function cargar() {
-    setServicios(await api.get<Servicio[]>("/servicios", token));
+    setServicios(await api.get<Necesidad[]>("/necesidades/todas", token));
   }
 
   useEffect(() => {
@@ -34,90 +31,216 @@ export function ServiciosTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filtrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    if (!q) return servicios;
-    return servicios.filter((s) =>
-      `${s.codigo} ${s.solicitud?.persona.nombre ?? ""} ${s.solicitud?.persona.apellidos ?? ""} ${s.profesional?.nombre ?? ""} ${s.profesional?.apellidos ?? ""} ${s.tipoServicioOfrecido?.nombre ?? ""}`
-        .toLowerCase()
-        .includes(q),
+  async function crear() {
+    if (!form.nombre.trim()) return;
+    setCreando(true);
+    try {
+      await api.post(
+        "/necesidades",
+        {
+          nombre: form.nombre,
+          descripcion: form.descripcion || undefined,
+          ivaPorcentaje: Number(form.ivaPorcentaje) || 4,
+          precioBase: form.precioBase ? Number(form.precioBase) : undefined,
+        },
+        token,
+      );
+      setForm(VACIO);
+      await cargar();
+    } finally {
+      setCreando(false);
+    }
+  }
+
+  function abrirEdicion(s: Necesidad) {
+    setEditandoId(s.id);
+    setEdicion({
+      nombre: s.nombre,
+      descripcion: s.descripcion ?? "",
+      ivaPorcentaje: String(Number(s.ivaPorcentaje)),
+      precioBase: s.precioBase != null ? String(s.precioBase) : "",
+    });
+  }
+
+  async function guardarEdicion(id: string) {
+    await api.patch(
+      `/necesidades/${id}`,
+      {
+        nombre: edicion.nombre,
+        descripcion: edicion.descripcion || undefined,
+        ivaPorcentaje: Number(edicion.ivaPorcentaje) || 4,
+        precioBase: edicion.precioBase ? Number(edicion.precioBase) : undefined,
+      },
+      token,
     );
-  }, [servicios, busqueda]);
+    setEditandoId(null);
+    await cargar();
+  }
 
-  const totalFacturable = filtrados.reduce((acc, s) => acc + num(s.totalConIva ?? s.tarifaImporte), 0);
-  const totalProfesionales = filtrados.reduce((acc, s) => acc + num(s.importeProfesional), 0);
+  async function toggleActivo(s: Necesidad) {
+    await api.patch(`/necesidades/${s.id}`, { activo: !s.activo }, token);
+    await cargar();
+  }
 
-  const { items: pagina, pagina: paginaActual, totalPaginas, setPagina } = usePaginacion(filtrados);
+  const visibles = servicios.filter((s) => mostrarInactivos || s.activo !== false);
+  const seleccion = useSeleccion(visibles);
+
+  function exportar() {
+    const filas = seleccion.seleccionadas.length > 0 ? seleccion.seleccionadas : visibles;
+    exportarCSV(
+      filas,
+      [
+        { encabezado: "Código", valor: (s) => s.codigo },
+        { encabezado: "Nombre", valor: (s) => s.nombre },
+        { encabezado: "Descripción", valor: (s) => s.descripcion },
+        { encabezado: "IVA %", valor: (s) => Number(s.ivaPorcentaje) },
+        { encabezado: "Precio base", valor: (s) => (s.precioBase != null ? Number(s.precioBase) : "") },
+        { encabezado: "Activo", valor: (s) => (s.activo === false ? "No" : "Sí") },
+      ],
+      "servicios",
+    );
+  }
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <p className="mb-3 text-xs text-slate-500">
+        Lo que la organización ofrece: acompañamiento, comidas, limpieza... Cada servicio lleva su propio % de IVA (4% superreducido para plazas concertadas o con prestación
+        vinculada a dependencia; 10% reducido para contratación particular sin ayuda pública), que hereda cada solicitud al fijar su tarifa.
+      </p>
+
+      <div className="mb-4 grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm sm:grid-cols-5">
         <input
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por persona, profesional, código o tipo…"
-          className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm sm:max-w-sm"
+          placeholder="Nombre del servicio"
+          value={form.nombre}
+          onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+          className="rounded-md border border-slate-300 px-2 py-1.5 sm:col-span-2"
         />
-        <button onClick={() => setCatalogoAbierto(true)} className="ml-auto rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-          🏷️ Catálogo de servicios
+        <select value={form.ivaPorcentaje} onChange={(e) => setForm((f) => ({ ...f, ivaPorcentaje: e.target.value }))} className="rounded-md border border-slate-300 px-2 py-1.5">
+          <option value="4">IVA 4% (concertado)</option>
+          <option value="10">IVA 10% (particular)</option>
+          <option value="21">IVA 21% (general)</option>
+        </select>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Precio base €"
+          value={form.precioBase}
+          onChange={(e) => setForm((f) => ({ ...f, precioBase: e.target.value }))}
+          className="rounded-md border border-slate-300 px-2 py-1.5"
+        />
+        <button onClick={crear} disabled={creando || !form.nombre.trim()} className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50">
+          Añadir servicio
         </button>
+        <input
+          placeholder="Descripción (opcional)"
+          value={form.descripcion}
+          onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
+          className="rounded-md border border-slate-300 px-2 py-1.5 sm:col-span-5"
+        />
       </div>
 
-      <div className="mb-3 flex flex-wrap gap-3 text-xs text-slate-500">
-        <span className="rounded-full bg-slate-100 px-3 py-1">
-          {filtrados.length} servicios · <strong className="text-slate-700">{totalFacturable.toFixed(2)} €</strong> facturable (con IVA)
-        </span>
-        <span className="rounded-full bg-slate-100 px-3 py-1">
-          A repartir entre profesionales: <strong className="text-slate-700">{totalProfesionales.toFixed(2)} €</strong>
-        </span>
-      </div>
+      <label className="mb-2 flex items-center gap-1.5 text-xs text-slate-500">
+        <input type="checkbox" checked={mostrarInactivos} onChange={(e) => setMostrarInactivos(e.target.checked)} />
+        Mostrar también los desactivados
+      </label>
 
-      {filtrados.length === 0 ? (
-        <p className="text-sm text-slate-500">Sin servicios que mostrar.</p>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-          <table className="min-w-full divide-y divide-slate-100 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-4 py-2.5">Persona</th>
-                <th className="px-4 py-2.5">Profesional</th>
-                <th className="px-4 py-2.5">Tipo (catálogo)</th>
-                <th className="px-4 py-2.5">Tarifa</th>
-                <th className="px-4 py-2.5">IVA</th>
-                <th className="px-4 py-2.5">Total</th>
-                <th className="px-4 py-2.5">Para el profesional</th>
-                <th className="px-4 py-2.5">Estado</th>
-                <th className="px-4 py-2.5">Pago</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {pagina.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-2.5 font-medium text-slate-800">
-                    {s.solicitud?.persona.nombre} {s.solicitud?.persona.apellidos}
-                    <div className="text-xs font-normal text-slate-400">{s.codigo}</div>
+      <ExportarBarra total={visibles.length} seleccionadas={seleccion.seleccionadas.length} onExportar={exportar} />
+
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <table className="min-w-full divide-y divide-slate-100 text-sm">
+          <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="w-8 px-4 py-2.5">
+                <input type="checkbox" checked={seleccion.todasMarcadas} onChange={seleccion.toggleTodos} />
+              </th>
+              <th className="px-4 py-2.5">Servicio</th>
+              <th className="px-4 py-2.5">IVA</th>
+              <th className="px-4 py-2.5">Precio base</th>
+              <th className="px-4 py-2.5">Código</th>
+              <th className="px-4 py-2.5"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {visibles.map((s) =>
+              editandoId === s.id ? (
+                <tr key={s.id} className="bg-brand-50">
+                  <td className="px-4 py-2">
+                    <input type="checkbox" checked={seleccion.ids.has(s.id)} onChange={() => seleccion.toggle(s.id)} />
                   </td>
-                  <td className="px-4 py-2.5 text-slate-600">{s.profesional ? `${s.profesional.nombre} ${s.profesional.apellidos}` : "—"}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{s.tipoServicioOfrecido?.nombre ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-slate-600">
-                    {s.tarifaImporte != null ? `${num(s.tarifaImporte).toFixed(2)} €` : s.tarifaTipo === "VOLUNTARIO" ? "Voluntario" : "—"}
+                  <td className="px-4 py-2 sm:min-w-[220px]">
+                    <input
+                      value={edicion.nombre}
+                      onChange={(e) => setEdicion((v) => ({ ...v, nombre: e.target.value }))}
+                      className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                    />
+                    <input
+                      value={edicion.descripcion}
+                      onChange={(e) => setEdicion((v) => ({ ...v, descripcion: e.target.value }))}
+                      placeholder="Descripción"
+                      className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1 text-xs"
+                    />
                   </td>
-                  <td className="px-4 py-2.5 text-slate-500">{s.ivaPorcentaje != null ? `${num(s.ivaPorcentaje)}% (${num(s.ivaImporte).toFixed(2)} €)` : "—"}</td>
-                  <td className="px-4 py-2.5 font-medium text-slate-800">{s.totalConIva != null ? `${num(s.totalConIva).toFixed(2)} €` : "—"}</td>
-                  <td className="px-4 py-2.5 text-slate-600">{s.importeProfesional != null ? `${num(s.importeProfesional).toFixed(2)} €` : "—"}</td>
-                  <td className="px-4 py-2.5">
-                    <EstadoBadge estado={s.estado} />
+                  <td className="px-4 py-2">
+                    <select
+                      value={edicion.ivaPorcentaje}
+                      onChange={(e) => setEdicion((v) => ({ ...v, ivaPorcentaje: e.target.value }))}
+                      className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                    >
+                      <option value="4">4%</option>
+                      <option value="10">10%</option>
+                      <option value="21">21%</option>
+                    </select>
                   </td>
-                  <td className="px-4 py-2.5">{s.tarifaTipo === "PAGADO" ? <EstadoBadge estado={s.pagoProfesionalEstado ?? "PENDIENTE"} /> : "—"}</td>
+                  <td className="px-4 py-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={edicion.precioBase}
+                      onChange={(e) => setEdicion((v) => ({ ...v, precioBase: e.target.value }))}
+                      className="w-24 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                    />
+                  </td>
+                  <td className="px-4 py-2 text-xs text-slate-400">{s.codigo}</td>
+                  <td className="px-4 py-2 text-right">
+                    <button onClick={() => guardarEdicion(s.id)} className="rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800">
+                      Guardar
+                    </button>
+                    <button onClick={() => setEditandoId(null)} className="ml-1.5 rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-100">
+                      Cancelar
+                    </button>
+                  </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <Pagination pagina={paginaActual} totalPaginas={totalPaginas} onChange={setPagina} total={filtrados.length} />
-        </div>
-      )}
-
-      {catalogoAbierto && <CatalogoServiciosModal onClose={() => setCatalogoAbierto(false)} />}
+              ) : (
+                <tr key={s.id} className={s.activo === false ? "opacity-50" : ""}>
+                  <td className="px-4 py-2.5">
+                    <input type="checkbox" checked={seleccion.ids.has(s.id)} onChange={() => seleccion.toggle(s.id)} />
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className="mr-1.5">{ICONOS_NECESIDAD[s.codigo] ?? "❓"}</span>
+                    <span className="font-medium text-slate-800">{s.nombre}</span>
+                    {s.descripcion && <span className="ml-1.5 text-xs text-slate-400">— {s.descripcion}</span>}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{Number(s.ivaPorcentaje)}%</span>
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-600">{s.precioBase != null ? `${Number(s.precioBase).toFixed(2)} €` : "—"}</td>
+                  <td className="px-4 py-2.5 text-xs text-slate-400">{s.codigo}</td>
+                  <td className="px-4 py-2.5 text-right text-xs">
+                    <button onClick={() => abrirEdicion(s)} className="rounded-md border border-slate-300 px-2.5 py-1 hover:bg-slate-100">
+                      Editar
+                    </button>
+                    <button onClick={() => toggleActivo(s)} className="ml-1.5 rounded-md border border-slate-300 px-2.5 py-1 hover:bg-slate-100">
+                      {s.activo === false ? "Reactivar" : "Desactivar"}
+                    </button>
+                  </td>
+                </tr>
+              ),
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

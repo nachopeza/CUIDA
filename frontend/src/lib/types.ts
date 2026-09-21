@@ -21,11 +21,17 @@ export interface Persona {
   usuario?: CuentaResumen | null;
 }
 
+// Catálogo de servicios (sección "Servicios son lo que ofrecemos... IVA del
+// 4% o el 10%"): un único catálogo — antes había uno aparte solo para
+// facturación, ahora cada necesidad/servicio ya lleva su propio IVA.
 export interface Necesidad {
   id: string;
   codigo: string;
   nombre: string;
   descripcion: string | null;
+  ivaPorcentaje: string | number;
+  precioBase: string | number | null;
+  activo?: boolean;
 }
 
 export interface Plan {
@@ -56,16 +62,6 @@ export interface ServicioInteres {
   profesional: Profesional;
 }
 
-export interface TipoServicioOfrecido {
-  id: string;
-  codigo: string;
-  nombre: string;
-  descripcion: string | null;
-  ivaPorcentaje: string | number;
-  precioBase: string | number | null;
-  activo: boolean;
-}
-
 export interface Servicio {
   id: string;
   codigo: string;
@@ -81,8 +77,6 @@ export interface Servicio {
   pagoProfesionalEstado?: "PENDIENTE" | "PAGADO";
   comisionImporte?: string | number | null;
   importeProfesional?: string | number | null;
-  tipoServicioOfrecidoId?: string | null;
-  tipoServicioOfrecido?: TipoServicioOfrecido | null;
   ivaPorcentaje?: string | number | null;
   ivaImporte?: string | number | null;
   totalConIva?: string | number | null;
@@ -166,6 +160,13 @@ export interface Profesional {
   estado: string;
   empresaColaboradoraId?: string | null;
   empresaColaboradora?: EmpresaColaboradora | null;
+}
+
+export interface Documento {
+  id: string;
+  nombre: string;
+  url: string;
+  createdAt: string;
 }
 
 export interface Factura {

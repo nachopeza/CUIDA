@@ -2,6 +2,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api, ApiError } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
+import { ExportarBarra } from "../../components/ExportarBarra.js";
+import { useSeleccion } from "../../lib/useSeleccion.js";
+import { exportarCSV } from "../../lib/csv.js";
 import type { Factura, Persona } from "../../lib/types.js";
 
 const SIGUIENTE_FACTURA: Record<string, string> = { BORRADOR: "EMITIDA", EMITIDA: "PAGADA" };
@@ -28,6 +31,7 @@ export function FacturacionTab() {
   const [mes, setMes] = useState(mesActualISO());
   const [error, setError] = useState<string | null>(null);
   const [generando, setGenerando] = useState(false);
+  const [detalleAbierto, setDetalleAbierto] = useState<string | null>(null);
 
   async function cargar() {
     const [pers, facs] = await Promise.all([
@@ -65,6 +69,27 @@ export function FacturacionTab() {
     await cargar();
   }
 
+  const seleccionFacturas = useSeleccion(facturas);
+
+  function exportarFacturas() {
+    const filas = seleccionFacturas.seleccionadas.length > 0 ? seleccionFacturas.seleccionadas : facturas;
+    exportarCSV(
+      filas,
+      [
+        { encabezado: "Código", valor: (f) => f.codigo },
+        { encabezado: "Persona", valor: (f) => `${f.persona.nombre} ${f.persona.apellidos}` },
+        { encabezado: "Mes", valor: (f) => f.mes },
+        { encabezado: "Base imponible", valor: (f) => Number(f.importeTotal) },
+        { encabezado: "IVA", valor: (f) => Number(f.ivaTotal ?? 0) },
+        { encabezado: "Total", valor: (f) => Number(f.totalConIva ?? f.importeTotal) },
+        { encabezado: "Comisión CUIDA", valor: (f) => Number(f.comisionTotal) },
+        { encabezado: "A profesionales", valor: (f) => Number(f.importeProfesionales) },
+        { encabezado: "Estado", valor: (f) => f.estado },
+      ],
+      "facturas",
+    );
+  }
+
   return (
     <div>
       <Card title="Generar factura mensual">
@@ -89,17 +114,26 @@ export function FacturacionTab() {
 
       <Card title="Facturas">
         {facturas.length === 0 && <p className="text-sm text-slate-500">Todavía no se ha generado ninguna factura.</p>}
+        {facturas.length > 0 && <ExportarBarra total={facturas.length} seleccionadas={seleccionFacturas.seleccionadas.length} onExportar={exportarFacturas} />}
         <ul className="divide-y divide-slate-100">
           {facturas.map((f) => (
             <li key={f.id} className="py-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="font-medium">
-                    {f.persona.nombre} {f.persona.apellidos} · {f.mes}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    {f.codigo} · {f.servicios.length} servicio(s)
-                  </p>
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={seleccionFacturas.ids.has(f.id)}
+                    onChange={() => seleccionFacturas.toggle(f.id)}
+                    className="mt-1"
+                  />
+                  <div>
+                    <p className="font-medium">
+                      {f.persona.nombre} {f.persona.apellidos} · {f.mes}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {f.codigo} · {f.servicios.length} servicio(s)
+                    </p>
+                  </div>
                 </div>
                 <span
                   className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -121,12 +155,63 @@ export function FacturacionTab() {
                 </span>
                 <span className="text-slate-400">Comisión CUIDA: {Number(f.comisionTotal).toFixed(2)} €</span>
                 <span className="text-slate-400">A profesionales/empresas: {Number(f.importeProfesionales).toFixed(2)} €</span>
+                <button
+                  onClick={() => setDetalleAbierto(detalleAbierto === f.id ? null : f.id)}
+                  className="rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-100"
+                >
+                  {detalleAbierto === f.id ? "Ocultar detalle" : "Ver detalle"}
+                </button>
                 {SIGUIENTE_FACTURA[f.estado] && (
                   <button onClick={() => avanzarEstado(f)} className="ml-auto rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-100">
                     {ETIQUETA_ACCION_FACTURA[f.estado]}
                   </button>
                 )}
               </div>
+
+              {/* Factura itemizada por línea de servicio (sección "acceder
+                  a la factura y ver la información completa... por ítems
+                  datos servicios coste etc."): un desglose legible, no solo
+                  el total agregado. */}
+              {detalleAbierto === f.id && (
+                <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                  <table className="min-w-full divide-y divide-slate-100 text-xs">
+                    <thead className="bg-slate-50 text-left font-semibold uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2">Concepto</th>
+                        <th className="px-3 py-2">Profesional</th>
+                        <th className="px-3 py-2">Base</th>
+                        <th className="px-3 py-2">IVA</th>
+                        <th className="px-3 py-2">Total línea</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {f.servicios.map((s) => (
+                        <tr key={s.id}>
+                          <td className="px-3 py-2">
+                            {s.solicitud?.necesidad.nombre ?? "—"} <span className="text-slate-400">· {s.codigo}</span>
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">{s.profesional ? `${s.profesional.nombre} ${s.profesional.apellidos}` : "—"}</td>
+                          <td className="px-3 py-2 text-slate-600">{s.tarifaImporte != null ? `${Number(s.tarifaImporte).toFixed(2)} €` : "—"}</td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {s.ivaPorcentaje != null ? `${Number(s.ivaPorcentaje)}% (${Number(s.ivaImporte ?? 0).toFixed(2)} €)` : "—"}
+                          </td>
+                          <td className="px-3 py-2 font-medium text-slate-800">{s.totalConIva != null ? `${Number(s.totalConIva).toFixed(2)} €` : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="border-t border-slate-200 bg-slate-50 font-medium text-slate-700">
+                      <tr>
+                        <td className="px-3 py-2" colSpan={2}>
+                          Totales
+                        </td>
+                        <td className="px-3 py-2">{Number(f.importeTotal).toFixed(2)} €</td>
+                        <td className="px-3 py-2">{Number(f.ivaTotal ?? 0).toFixed(2)} €</td>
+                        <td className="px-3 py-2">{Number(f.totalConIva ?? f.importeTotal).toFixed(2)} €</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
             </li>
           ))}
         </ul>

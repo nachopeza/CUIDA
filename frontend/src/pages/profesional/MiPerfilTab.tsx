@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
+import { DocumentosProfesional } from "../../components/DocumentosProfesional.js";
 import type { Profesional } from "../../lib/types.js";
 
 const PERFIL_VACIO = { telefono: "", zona: "", dni: "", numeroCuenta: "", bizum: "", foto: "", biografia: "" };
@@ -123,6 +124,11 @@ export function MiPerfilTab() {
           {guardando ? "Guardando…" : "Guardar cambios"}
         </button>
       </form>
+
+      <div className="mt-5 border-t border-slate-100 pt-4">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Mis documentos</p>
+        <DocumentosProfesional profesionalId={profesional.id} />
+      </div>
     </Card>
   );
 }

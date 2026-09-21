@@ -5,6 +5,9 @@ import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { Pagination, usePaginacion } from "../components/Pagination.js";
+import { ExportarBarra } from "../components/ExportarBarra.js";
+import { useSeleccion } from "../lib/useSeleccion.js";
+import { exportarCSV } from "../lib/csv.js";
 import {
   IconActivity,
   IconAlert,
@@ -207,6 +210,23 @@ export function CoordinadorPage() {
   }, [solicitudes, filtro, estadoFiltro, tipoFiltro]);
 
   const { items: solicitudesPagina, pagina: solicitudesPaginaActual, totalPaginas: solicitudesTotalPaginas, setPagina: setSolicitudesPagina } = usePaginacion(solicitudesFiltradas);
+  const seleccionSolicitudes = useSeleccion(solicitudesFiltradas);
+
+  function exportarSolicitudes() {
+    const filas = seleccionSolicitudes.seleccionadas.length > 0 ? seleccionSolicitudes.seleccionadas : solicitudesFiltradas;
+    exportarCSV(
+      filas,
+      [
+        { encabezado: "Código", valor: (s) => s.codigo },
+        { encabezado: "Persona", valor: (s) => `${s.persona.nombre} ${s.persona.apellidos}` },
+        { encabezado: "Necesidad", valor: (s) => s.necesidad.nombre },
+        { encabezado: "Tipo", valor: (s) => (s.servicio?.tipoServicio === "RECURRENTE" ? "Recurrente" : "Puntual") },
+        { encabezado: "Estado", valor: (s) => (s.servicio ? s.servicio.estado : s.estado) },
+        { encabezado: "Profesional", valor: (s) => (s.servicio?.profesional ? `${s.servicio.profesional.nombre} ${s.servicio.profesional.apellidos}` : "") },
+      ],
+      "solicitudes",
+    );
+  }
 
   const estadosPresentes = useMemo(() => {
     const set = new Set(solicitudes.map((s) => (s.servicio ? s.servicio.estado : s.estado)));
@@ -337,6 +357,28 @@ export function CoordinadorPage() {
               )}
             </div>
 
+            {/* Leyenda de color (sección "se debe ver de alguna forma
+                visual que son los estados de cada solicitud. Simple
+                minimalista"): qué significa cada color del badge de
+                Estado, sin listar los ~15 valores posibles uno a uno. */}
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+              <span className="flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-blue-400" /> En revisión
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-amber-400" /> Buscando / esperando confirmación
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-brand-green-500" /> Confirmado, en curso o realizado
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-slate-400" /> Cerrado
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-rose-400" /> Cancelado / incidencia
+              </span>
+            </div>
+
             <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
               <select value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-xs">
                 <option value="">Todos los estados</option>
@@ -368,10 +410,15 @@ export function CoordinadorPage() {
             {solicitudesFiltradas.length === 0 ? (
               <p className="text-sm text-slate-500">Sin solicitudes que mostrar.</p>
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+              <div>
+                <ExportarBarra total={solicitudesFiltradas.length} seleccionadas={seleccionSolicitudes.seleccionadas.length} onExportar={exportarSolicitudes} />
+                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
                 <table className="min-w-full divide-y divide-slate-100 text-sm">
                   <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     <tr>
+                      <th className="w-8 px-4 py-2.5">
+                        <input type="checkbox" checked={seleccionSolicitudes.todasMarcadas} onChange={seleccionSolicitudes.toggleTodos} />
+                      </th>
                       <th className="px-4 py-2.5">Persona</th>
                       <th className="px-4 py-2.5">Necesidad</th>
                       <th className="px-4 py-2.5">Tipo</th>
@@ -383,6 +430,9 @@ export function CoordinadorPage() {
                   <tbody className="divide-y divide-slate-100">
                     {solicitudesPagina.map((s) => (
                       <tr key={s.id} onClick={() => setFichaAbierta(s.id)} className="cursor-pointer hover:bg-slate-50">
+                        <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                          <input type="checkbox" checked={seleccionSolicitudes.ids.has(s.id)} onChange={() => seleccionSolicitudes.toggle(s.id)} />
+                        </td>
                         <td className="px-4 py-2.5 font-medium text-slate-800">
                           {s.persona.nombre} {s.persona.apellidos}
                         </td>
@@ -412,6 +462,7 @@ export function CoordinadorPage() {
                   </tbody>
                 </table>
                 <Pagination pagina={solicitudesPaginaActual} totalPaginas={solicitudesTotalPaginas} onChange={setSolicitudesPagina} total={solicitudesFiltradas.length} />
+                </div>
               </div>
             )}
           </div>
@@ -421,6 +472,25 @@ export function CoordinadorPage() {
 
         {tab === "incidencias" && (
           <div>
+            {incidencias.length > 0 && (
+              <ExportarBarra
+                total={incidencias.length}
+                seleccionadas={0}
+                onExportar={() =>
+                  exportarCSV(
+                    incidencias,
+                    [
+                      { encabezado: "Código", valor: (i) => i.codigo },
+                      { encabezado: "Descripción", valor: (i) => i.descripcion },
+                      { encabezado: "Prioridad", valor: (i) => i.prioridad },
+                      { encabezado: "Estado", valor: (i) => i.estado },
+                      { encabezado: "Persona", valor: (i) => i.servicio?.solicitud?.persona.nombre },
+                    ],
+                    "incidencias",
+                  )
+                }
+              />
+            )}
             {incidencias.length === 0 && <p className="text-sm text-slate-500">Sin incidencias abiertas.</p>}
             {incidencias.map((i) => {
               const esCancelacion = i.tipo === "SOLICITUD_CANCELACION";

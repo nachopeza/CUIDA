@@ -63,8 +63,6 @@ const CAMPOS_TARIFA = [
   "comisionImporte",
   "importeProfesional",
   "facturaId",
-  "tipoServicioOfrecidoId",
-  "tipoServicioOfrecido",
   "ivaPorcentaje",
   "ivaImporte",
   "totalConIva",

@@ -31,16 +31,16 @@ enum EstadoOrganizacion {
 }
 
 model Organizacion {
-  id        String             @id @default(cuid())
-  codigo    String             @unique // ORG-00017
-  nombre    String
-  estado    EstadoOrganizacion @default(PRUEBA)
+  id                 String             @id @default(cuid())
+  codigo             String             @unique // ORG-00017
+  nombre             String
+  estado             EstadoOrganizacion @default(PRUEBA)
   // Modelo de negocio (sección "función es cobrar por gestión un pequeño
   // porcentaje"): comisión que se retiene de la tarifa cobrada a la familia
   // antes de liquidar al profesional/empresa colaboradora.
-  comisionPorcentaje Decimal  @default(15) @db.Decimal(5, 2)
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  comisionPorcentaje Decimal            @default(15) @db.Decimal(5, 2)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   usuarios              Usuario[]
   personas              Persona[]
@@ -49,7 +49,6 @@ model Organizacion {
   solicitudes           Solicitud[]
   servicios             Servicio[]
   facturas              Factura[]
-  tiposServicioOfrecido TipoServicioOfrecido[]
   auditLogs             AuditLog[]
 
   @@map("organizaciones")
@@ -94,12 +93,12 @@ model Usuario {
   profesionalId String?      @unique
   profesional   Profesional? @relation(fields: [profesionalId], references: [id])
 
-  familiarDe        FamiliarRelacion[] @relation("UsuarioFamiliar")
-  solicitudesCreadas Solicitud[]       @relation("SolicitudCreadaPor")
-  incidenciasAsignadas Incidencia[]    @relation("IncidenciaResponsable")
-  notificaciones    Notificacion[]
-  mensajes          Mensaje[]
-  auditLogs         AuditLog[]
+  familiarDe           FamiliarRelacion[] @relation("UsuarioFamiliar")
+  solicitudesCreadas   Solicitud[]        @relation("SolicitudCreadaPor")
+  incidenciasAsignadas Incidencia[]       @relation("IncidenciaResponsable")
+  notificaciones       Notificacion[]
+  mensajes             Mensaje[]
+  auditLogs            AuditLog[]
 
   @@map("usuarios")
 }
@@ -116,24 +115,24 @@ enum EstadoPersona {
 }
 
 model Persona {
-  id               String        @id @default(cuid())
-  codigo           String        @unique // CUI-000184 (identificador permanente)
-  nombre           String
-  apellidos        String
-  fechaNacimiento  DateTime?
-  telefono         String?
-  direccion        String?
-  preferencias     String?
+  id              String        @id @default(cuid())
+  codigo          String        @unique // CUI-000184 (identificador permanente)
+  nombre          String
+  apellidos       String
+  fechaNacimiento DateTime?
+  telefono        String?
+  direccion       String?
+  preferencias    String?
   // Perfil completo (sección "Usuarios" del coordinador): información
   // operativa que necesita quien presta el servicio, nunca una historia
   // clínica (sección 14 — ayuda cotidiana ≠ diagnóstico sanitario).
-  contactos        String? // contactos de emergencia, en texto libre
-  medicacion       String?
-  medico           String? // médico/centro de referencia
-  recomendaciones  String?
-  estado           EstadoPersona @default(PENDIENTE)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  contactos       String? // contactos de emergencia, en texto libre
+  medicacion      String?
+  medico          String? // médico/centro de referencia
+  recomendaciones String?
+  estado          EstadoPersona @default(PENDIENTE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   organizacionId String
   organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
@@ -152,20 +151,20 @@ model Persona {
 // El acceso del familiar se limita a los permisos concedidos aquí, nunca al
 // rol por sí solo (principio de minimización, AEPD).
 model FamiliarRelacion {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   personaId         String
-  persona           Persona  @relation(fields: [personaId], references: [id])
+  persona           Persona   @relation(fields: [personaId], references: [id])
   usuarioId         String
-  usuario           Usuario  @relation("UsuarioFamiliar", fields: [usuarioId], references: [id])
+  usuario           Usuario   @relation("UsuarioFamiliar", fields: [usuarioId], references: [id])
   parentesco        String // "Hija", "Hijo", "Cónyuge"...
-  esRepresentante   Boolean  @default(false)
-  puedeSolicitar    Boolean  @default(true)
-  puedeVerHistorial Boolean  @default(true)
+  esRepresentante   Boolean   @default(false)
+  puedeSolicitar    Boolean   @default(true)
+  puedeVerHistorial Boolean   @default(true)
   // Ver importes/tarifas es un permiso propio, distinto de ver el historial:
   // una persona atendida (rol PERSONA) nunca ve tarifas; un familiar
   // autorizado las ve solo si se le concede explícitamente este permiso.
-  puedeVerImportes  Boolean  @default(true)
-  createdAt         DateTime @default(now())
+  puedeVerImportes  Boolean   @default(true)
+  createdAt         DateTime  @default(now())
   revocadoAt        DateTime?
 
   @@unique([personaId, usuarioId])
@@ -181,12 +180,12 @@ enum EstadoProfesional {
 }
 
 model Profesional {
-  id        String            @id @default(cuid())
-  codigo    String            @unique // PRO-00031
-  nombre    String
-  apellidos String
-  telefono  String?
-  zona      String?
+  id           String            @id @default(cuid())
+  codigo       String            @unique // PRO-00031
+  nombre       String
+  apellidos    String
+  telefono     String?
+  zona         String?
   // Datos personales y de cobro (sección "los perfiles de profesionales se
   // deben poder editar e incluir información número de cuenta, Bizum, carné,
   // datos personales..."). Información sensible: solo la ve el propio
@@ -198,11 +197,11 @@ model Profesional {
   // biografía, tipo CV, para que los familiares también acepten y vean las
   // cualidades de Carmen"): visible para coordinación y para la familia al
   // valorar quién atiende a la persona, nunca solo un nombre en una lista.
-  foto       String?
-  biografia  String?
-  estado    EstadoProfesional @default(PENDIENTE)
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  foto         String?
+  biografia    String?
+  estado       EstadoProfesional @default(PENDIENTE)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   organizacionId String
   organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
@@ -212,10 +211,11 @@ model Profesional {
   empresaColaboradoraId String?
   empresaColaboradora   EmpresaColaboradora? @relation(fields: [empresaColaboradoraId], references: [id])
 
-  usuario   Usuario?
-  servicios Servicio[]
-  mensajes  Mensaje[]
-  interesEn ServicioInteres[]
+  usuario    Usuario?
+  servicios  Servicio[]
+  mensajes   Mensaje[]
+  interesEn  ServicioInteres[]
+  documentos Documento[]
 
   @@map("profesionales")
 }
@@ -228,17 +228,17 @@ enum EstadoEmpresaColaboradora {
 // Empresa externa a la que la organización puede subcontratar un servicio,
 // en vez de (o además de) asignarlo a un profesional interno.
 model EmpresaColaboradora {
-  id        String                    @id @default(cuid())
-  codigo    String                    @unique // EXT-00001
-  nombre    String
-  contacto  String?
+  id           String                    @id @default(cuid())
+  codigo       String                    @unique // EXT-00001
+  nombre       String
+  contacto     String?
   // Datos administrativos/de cobro, editables desde coordinación (igual que
   // en el perfil de profesional independiente).
   cif          String?
   direccion    String?
   numeroCuenta String?
-  estado    EstadoEmpresaColaboradora @default(ACTIVA)
-  createdAt DateTime                  @default(now())
+  estado       EstadoEmpresaColaboradora @default(ACTIVA)
+  createdAt    DateTime                  @default(now())
 
   organizacionId String
   organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
@@ -250,46 +250,27 @@ model EmpresaColaboradora {
 }
 
 // ---------------------------------------------------------------------------
-// Catálogo de necesidades (lenguaje humano → dato estructurado)
-// ---------------------------------------------------------------------------
-
+// Catálogo de servicios (lenguaje humano → dato estructurado, y también lo
+// que la organización factura). Antes había dos catálogos parecidos —
+// "necesidades" (cómo lo pide la persona: compra, acompañamiento...) y un
+// catálogo aparte solo para el IVA de facturación — que eran la misma idea
+// contada dos veces (sección "unifiquemos: Servicios son lo que ofrecemos,
+// Solicitudes son las que nos hacen los usuarios"). Ahora es uno solo: cada
+// Servicio del catálogo ya lleva su % de IVA (4% superreducido para plazas
+// concertadas/prestación vinculada a dependencia, 10% reducido para
+// contratación particular), y una Solicitud simplemente elige uno.
 model NecesidadCatalogo {
-  id          String @id @default(cuid())
-  codigo      String @unique // "compra", "acompanamiento", "compania"...
-  nombre      String
-  descripcion String?
-  activo      Boolean @default(true)
+  id            String   @id @default(cuid())
+  codigo        String   @unique // "compra", "acompanamiento", "compania"...
+  nombre        String
+  descripcion   String?
+  ivaPorcentaje Decimal  @default(4) @db.Decimal(5, 2)
+  precioBase    Decimal? @db.Decimal(10, 2)
+  activo        Boolean  @default(true)
 
   solicitudes Solicitud[]
 
   @@map("necesidades_catalogo")
-}
-
-// ---------------------------------------------------------------------------
-// Catálogo de servicios ofrecidos (ERP): lo que la organización vende,
-// tarificable y con su tipo de IVA — distinto de NecesidadCatalogo (cómo lo
-// pide la persona) y de Servicio (el encargo concreto ya asignado). Sección
-// "se debe de tener una opción para registrar los servicios que ofrecemos,
-// que se puedan tarificar... IVA del 4% (plazas concertadas/prestación
-// vinculada a dependencia) o del 10% (contratado de forma particular)".
-model TipoServicioOfrecido {
-  id            String  @id @default(cuid())
-  codigo        String  @unique // "TSV-00001"
-  nombre        String // "Ayuda a domicilio", "Teleasistencia", "Acompañamiento privado"...
-  descripcion   String?
-  // 4.00 = superreducido (concertado/prestación vinculada a dependencia),
-  // 10.00 = reducido (contratado de forma particular, sin ayuda pública).
-  ivaPorcentaje Decimal @default(4) @db.Decimal(5, 2)
-  precioBase    Decimal? @db.Decimal(10, 2)
-  activo        Boolean @default(true)
-  createdAt     DateTime @default(now())
-
-  organizacionId String
-  organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
-
-  servicios Servicio[]
-
-  @@map("tipos_servicio_ofrecido")
 }
 
 // ---------------------------------------------------------------------------
@@ -309,12 +290,12 @@ enum EstadoSolicitud {
 }
 
 model Solicitud {
-  id              String          @id @default(cuid())
-  codigo          String          @unique // SOL-000582
-  descripcionLibre String         // texto tal cual lo pide la persona/familiar
-  estado          EstadoSolicitud @default(BORRADOR)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id               String          @id @default(cuid())
+  codigo           String          @unique // SOL-000582
+  descripcionLibre String // texto tal cual lo pide la persona/familiar
+  estado           EstadoSolicitud @default(BORRADOR)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   organizacionId String
   organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
@@ -337,21 +318,21 @@ model Solicitud {
 }
 
 model Plan {
-  id             String    @id @default(cuid())
-  solicitudId    String    @unique
-  solicitud      Solicitud @relation(fields: [solicitudId], references: [id])
-  fechaInicio    DateTime
+  id              String    @id @default(cuid())
+  solicitudId     String    @unique
+  solicitud       Solicitud @relation(fields: [solicitudId], references: [id])
+  fechaInicio     DateTime
   // Nula = indefinido / hasta nuevo aviso (sección "si necesita a alguien
   // para indefinido"): un servicio recurrente sin fecha de fin conocida
   // todavía, en vez de forzar una fecha ficticia.
-  fechaFin       DateTime?
-  recurrencia    String? // "diaria", "L-V", "puntual"...
-  franjaHoraria  String? // "Mañana", "Tarde", "Todo el día"...
-  horaInicio     String? // "09:00"
-  horaFin        String? // "12:00"
+  fechaFin        DateTime?
+  recurrencia     String? // "diaria", "L-V", "puntual"...
+  franjaHoraria   String? // "Mañana", "Tarde", "Todo el día"...
+  horaInicio      String? // "09:00"
+  horaFin         String? // "12:00"
   tareasPrevistas String? // lista libre inicial de tareas esperadas
-  notas          String?
-  createdAt      DateTime  @default(now())
+  notas           String?
+  createdAt       DateTime  @default(now())
 
   @@map("planes")
 }
@@ -387,12 +368,12 @@ enum TipoServicio {
 }
 
 model Servicio {
-  id        String         @id @default(cuid())
-  codigo    String         @unique // SRV-000721
-  estado    EstadoServicio @default(PENDIENTE)
-  tipoServicio TipoServicio @default(PUNTUAL)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id           String         @id @default(cuid())
+  codigo       String         @unique // SRV-000721
+  estado       EstadoServicio @default(PENDIENTE)
+  tipoServicio TipoServicio   @default(PUNTUAL)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   organizacionId String
   organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
@@ -415,12 +396,10 @@ model Servicio {
   tarifaTipo    TipoTarifa?
   tarifaNotas   String?
 
-  // Clasificación ERP (sección "registrar los servicios que ofrecemos, que
-  // se puedan tarificar"): de qué tipo de servicio del catálogo es esto,
-  // para heredar su % de IVA. El % y el importe quedan congelados en el
-  // servicio igual que comisionImporte, aunque el catálogo cambie después.
-  tipoServicioOfrecidoId String?
-  tipoServicioOfrecido   TipoServicioOfrecido? @relation(fields: [tipoServicioOfrecidoId], references: [id])
+  // IVA heredado de la necesidad/servicio del catálogo elegido en la
+  // solicitud (sección "aplicar el 4% o el 10% de IVA"): igual que
+  // comisionImporte, se calcula al fijar la tarifa y queda congelado en el
+  // servicio aunque el % del catálogo cambie después.
   ivaPorcentaje Decimal? @db.Decimal(5, 2)
   ivaImporte    Decimal? @db.Decimal(10, 2)
   totalConIva   Decimal? @db.Decimal(10, 2)
@@ -435,8 +414,8 @@ model Servicio {
   // que se liquida al profesional/empresa; comisionImporte es el margen de
   // CUIDA. Ambos quedan congelados en el servicio aunque cambie luego el %
   // de la organización, para no alterar liquidaciones ya calculadas.
-  comisionImporte     Decimal? @db.Decimal(10, 2)
-  importeProfesional  Decimal? @db.Decimal(10, 2)
+  comisionImporte    Decimal? @db.Decimal(10, 2)
+  importeProfesional Decimal? @db.Decimal(10, 2)
 
   // Servicio facturado: se enlaza a la factura mensual de la persona cuando
   // se genera (sección "cuenta mensual... al final de mes se le cobrará").
@@ -483,20 +462,20 @@ enum EstadoFactura {
 // agrupa los servicios PAGADO de una persona en un mes natural, calcula el
 // total cobrado, la comisión retenida y el neto a liquidar a profesionales.
 model Factura {
-  id        String        @id @default(cuid())
-  codigo    String        @unique // FAC-000012
-  mes       String // "2026-09"
+  id                   String        @id @default(cuid())
+  codigo               String        @unique // FAC-000012
+  mes                  String // "2026-09"
   // importeTotal es la base imponible (suma de tarifas sin IVA); ivaTotal y
   // totalConIva se añaden aparte para poder emitir una factura con IVA
   // desglosado (sección "aplicar el 4% o el 10% de IVA").
-  importeTotal        Decimal @db.Decimal(10, 2)
-  ivaTotal             Decimal @default(0) @db.Decimal(10, 2)
-  totalConIva          Decimal @default(0) @db.Decimal(10, 2)
-  comisionTotal       Decimal @db.Decimal(10, 2)
-  importeProfesionales Decimal @db.Decimal(10, 2)
-  estado    EstadoFactura @default(BORRADOR)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  importeTotal         Decimal       @db.Decimal(10, 2)
+  ivaTotal             Decimal       @default(0) @db.Decimal(10, 2)
+  totalConIva          Decimal       @default(0) @db.Decimal(10, 2)
+  comisionTotal        Decimal       @db.Decimal(10, 2)
+  importeProfesionales Decimal       @db.Decimal(10, 2)
+  estado               EstadoFactura @default(BORRADOR)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   organizacionId String
   organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
@@ -543,16 +522,16 @@ enum EstadoVisita {
 }
 
 model Visita {
-  id            String       @id @default(cuid())
-  codigo        String       @unique // VIS-001923
-  fecha         DateTime
+  id             String       @id @default(cuid())
+  codigo         String       @unique // VIS-001923
+  fecha          DateTime
   horaInicioProg String?
   horaFinProg    String?
   horaInicioReal DateTime?
   horaFinReal    DateTime?
-  estado        EstadoVisita @default(PROGRAMADA)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  estado         EstadoVisita @default(PROGRAMADA)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   servicioId String
   servicio   Servicio @relation(fields: [servicioId], references: [id])
@@ -626,7 +605,7 @@ model Incidencia {
   servicio   Servicio? @relation(fields: [servicioId], references: [id])
 
   responsableUsuarioId String?
-  responsable           Usuario? @relation("IncidenciaResponsable", fields: [responsableUsuarioId], references: [id])
+  responsable          Usuario? @relation("IncidenciaResponsable", fields: [responsableUsuarioId], references: [id])
 
   estadoHistorial EstadoHistorial[]
 
@@ -651,6 +630,12 @@ model Documento {
 
   visitaId String?
   visita   Visita? @relation(fields: [visitaId], references: [id])
+
+  // Documentos del propio profesional (sección "ver toda su información,
+  // documentación... un perfil completamente avanzado"): DNI, certificados,
+  // etc. — no atados a un servicio ni a una persona atendida.
+  profesionalId String?
+  profesional   Profesional? @relation(fields: [profesionalId], references: [id])
 
   @@map("documentos")
 }

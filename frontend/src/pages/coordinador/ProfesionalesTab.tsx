@@ -4,6 +4,9 @@ import { api } from "../../lib/api.js";
 import { Pagination, usePaginacion } from "../../components/Pagination.js";
 import { IconPlus } from "../../components/icons.js";
 import { ProfesionalFormModal } from "./ProfesionalFormModal.js";
+import { ExportarBarra } from "../../components/ExportarBarra.js";
+import { useSeleccion } from "../../lib/useSeleccion.js";
+import { exportarCSV } from "../../lib/csv.js";
 import type { EmpresaColaboradora, Profesional } from "../../lib/types.js";
 
 const ZONA_POR_DEFECTO = "Cantabria";
@@ -42,6 +45,23 @@ export function ProfesionalesTab() {
   }, [profesionales, busqueda, empresaFiltro]);
 
   const { items: pagina, pagina: paginaActual, totalPaginas, setPagina } = usePaginacion(filtrados);
+  const seleccion = useSeleccion(filtrados);
+
+  function exportar() {
+    const filas = seleccion.seleccionadas.length > 0 ? seleccion.seleccionadas : filtrados;
+    exportarCSV(
+      filas,
+      [
+        { encabezado: "Código", valor: (p) => p.codigo },
+        { encabezado: "Nombre", valor: (p) => `${p.nombre} ${p.apellidos}` },
+        { encabezado: "Zona", valor: (p) => p.zona ?? ZONA_POR_DEFECTO },
+        { encabezado: "Empresa", valor: (p) => p.empresaColaboradora?.nombre ?? "Independiente" },
+        { encabezado: "Teléfono", valor: (p) => p.telefono },
+        { encabezado: "Estado", valor: (p) => p.estado },
+      ],
+      "profesionales",
+    );
+  }
 
   return (
     <div>
@@ -69,32 +89,51 @@ export function ProfesionalesTab() {
       {filtrados.length === 0 ? (
         <p className="text-sm text-slate-500">Sin profesionales que mostrar.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-          <table className="min-w-full divide-y divide-slate-100 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-4 py-2.5">Nombre</th>
-                <th className="px-4 py-2.5">Zona</th>
-                <th className="px-4 py-2.5">Empresa</th>
-                <th className="px-4 py-2.5">Teléfono</th>
-                <th className="px-4 py-2.5">Código</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {pagina.map((p) => (
-                <tr key={p.id} onClick={() => setEditando(p)} className="cursor-pointer hover:bg-slate-50">
-                  <td className="px-4 py-2.5 font-medium text-slate-800">
-                    {p.nombre} {p.apellidos}
-                  </td>
-                  <td className="px-4 py-2.5 text-slate-500">{p.zona ?? ZONA_POR_DEFECTO}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{p.empresaColaboradora ? p.empresaColaboradora.nombre : "Independiente"}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{p.telefono ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-xs text-slate-400">{p.codigo}</td>
+        <div>
+          <ExportarBarra total={filtrados.length} seleccionadas={seleccion.seleccionadas.length} onExportar={exportar} />
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <table className="min-w-full divide-y divide-slate-100 text-sm">
+              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="w-8 px-4 py-2.5">
+                    <input type="checkbox" checked={seleccion.todasMarcadas} onChange={seleccion.toggleTodos} />
+                  </th>
+                  <th className="px-4 py-2.5">Nombre</th>
+                  <th className="px-4 py-2.5">Zona</th>
+                  <th className="px-4 py-2.5">Empresa</th>
+                  <th className="px-4 py-2.5">Teléfono</th>
+                  <th className="px-4 py-2.5">Código</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <Pagination pagina={paginaActual} totalPaginas={totalPaginas} onChange={setPagina} total={filtrados.length} />
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pagina.map((p) => (
+                  <tr key={p.id} onClick={() => setEditando(p)} className="cursor-pointer hover:bg-slate-50">
+                    <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" checked={seleccion.ids.has(p.id)} onChange={() => seleccion.toggle(p.id)} />
+                    </td>
+                    <td className="px-4 py-2.5 font-medium text-slate-800">
+                      <div className="flex items-center gap-2">
+                        {p.foto ? (
+                          <img src={p.foto} alt="" className="h-7 w-7 rounded-full object-cover" />
+                        ) : (
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-500">
+                            {p.nombre[0]}
+                            {p.apellidos[0]}
+                          </div>
+                        )}
+                        {p.nombre} {p.apellidos}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-500">{p.zona ?? ZONA_POR_DEFECTO}</td>
+                    <td className="px-4 py-2.5 text-slate-500">{p.empresaColaboradora ? p.empresaColaboradora.nombre : "Independiente"}</td>
+                    <td className="px-4 py-2.5 text-slate-500">{p.telefono ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-400">{p.codigo}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <Pagination pagina={paginaActual} totalPaginas={totalPaginas} onChange={setPagina} total={filtrados.length} />
+          </div>
         </div>
       )}
 

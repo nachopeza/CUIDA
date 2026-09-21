@@ -1,8 +1,10 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Modal } from "../../components/Modal.js";
-import type { EmpresaColaboradora, Profesional } from "../../lib/types.js";
+import { EstadoBadge } from "../../components/EstadoBadge.js";
+import { DocumentosProfesional } from "../../components/DocumentosProfesional.js";
+import type { EmpresaColaboradora, Profesional, Servicio } from "../../lib/types.js";
 
 const ZONA_POR_DEFECTO = "Cantabria";
 
@@ -56,6 +58,13 @@ export function ProfesionalFormModal({
   const [password, setPassword] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [historial, setHistorial] = useState<Servicio[]>([]);
+
+  useEffect(() => {
+    if (!profesional) return;
+    api.get<Servicio[]>("/servicios", token).then((servicios) => setHistorial(servicios.filter((s) => s.profesionalId === profesional.id)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profesional?.id]);
 
   function limpiar(p: Campos) {
     return Object.fromEntries(Object.entries(p).map(([k, v]) => [k, v || undefined]));
@@ -137,6 +146,33 @@ export function ProfesionalFormModal({
           {guardando ? "Guardando…" : profesional ? "Guardar cambios" : "Crear profesional"}
         </button>
       </form>
+
+      {profesional && (
+        <div className="mt-5 space-y-4 border-t border-slate-100 pt-4">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Documentos</p>
+            <DocumentosProfesional profesionalId={profesional.id} />
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Historial de servicios</p>
+            {historial.length === 0 ? (
+              <p className="text-xs text-slate-400">Todavía no ha realizado ningún servicio.</p>
+            ) : (
+              <ul className="space-y-1">
+                {historial.map((s) => (
+                  <li key={s.id} className="flex items-center justify-between rounded-md bg-slate-50 px-2.5 py-1.5 text-xs">
+                    <span>
+                      {s.codigo} · {s.solicitud?.persona.nombre} {s.solicitud?.persona.apellidos} · {s.solicitud?.necesidad.nombre}
+                    </span>
+                    <EstadoBadge estado={s.estado} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }

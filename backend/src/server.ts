@@ -15,7 +15,6 @@ import { empresasColaboradorasRouter } from "./routes/empresasColaboradoras.js";
 import { agendaRouter } from "./routes/agenda.js";
 import { conversacionesRouter } from "./routes/conversaciones.js";
 import { facturasRouter } from "./routes/facturas.js";
-import { catalogoServiciosRouter } from "./routes/catalogoServicios.js";
 
 const app = express();
 
@@ -38,7 +37,6 @@ app.use("/empresas-colaboradoras", empresasColaboradorasRouter);
 app.use("/agenda", agendaRouter);
 app.use("/conversaciones", conversacionesRouter);
 app.use("/facturas", facturasRouter);
-app.use("/catalogo-servicios", catalogoServiciosRouter);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

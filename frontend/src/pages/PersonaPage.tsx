@@ -6,19 +6,8 @@ import { EstadoBadge } from "../components/EstadoBadge.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
 import { cuentaAtras } from "../lib/fechas.js";
+import { ICONOS_NECESIDAD as ICONOS } from "../lib/necesidadIconos.js";
 import type { Necesidad, Solicitud } from "../lib/types.js";
-
-const ICONOS: Record<string, string> = {
-  compra: "🛒",
-  acompanamiento: "🚶",
-  compania: "💬",
-  tareas_domesticas: "🧹",
-  comida: "🍲",
-  recados: "📦",
-  paseo: "🌳",
-  citas: "🩺",
-  apoyo_puntual: "🤝",
-};
 
 const SERVICIO_CANCELABLE = ["PENDIENTE", "ASIGNADO", "CONFIRMADO", "EN_CURSO"];
 

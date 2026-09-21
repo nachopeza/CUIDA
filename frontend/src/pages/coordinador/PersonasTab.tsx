@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
+import { ExportarBarra } from "../../components/ExportarBarra.js";
+import { useSeleccion } from "../../lib/useSeleccion.js";
+import { exportarCSV } from "../../lib/csv.js";
 import type { Persona } from "../../lib/types.js";
 
 // Portal de usuarios (sección "el portal de usuarios es muy importante.
@@ -28,6 +31,23 @@ export function PersonasTab({ onAbrirFicha, refreshKey }: { onAbrirFicha: (id: s
     return `${p.nombre} ${p.apellidos} ${p.codigo}`.toLowerCase().includes(q);
   });
 
+  const seleccion = useSeleccion(filtradas);
+
+  function exportar() {
+    const filas = seleccion.seleccionadas.length > 0 ? seleccion.seleccionadas : filtradas;
+    exportarCSV(
+      filas,
+      [
+        { encabezado: "Código", valor: (p) => p.codigo },
+        { encabezado: "Nombre", valor: (p) => `${p.nombre} ${p.apellidos}` },
+        { encabezado: "Email", valor: (p) => p.usuario?.email },
+        { encabezado: "Teléfono", valor: (p) => p.telefono },
+        { encabezado: "Estado", valor: (p) => p.estado },
+      ],
+      "usuarios",
+    );
+  }
+
   return (
     <div>
       <div className="mb-4">
@@ -39,12 +59,15 @@ export function PersonasTab({ onAbrirFicha, refreshKey }: { onAbrirFicha: (id: s
         />
       </div>
 
+      <ExportarBarra total={filtradas.length} seleccionadas={seleccion.seleccionadas.length} onExportar={exportar} />
+
       <Card>
         {filtradas.length === 0 && <p className="text-sm text-slate-500">Sin usuarios que mostrar.</p>}
         <ul className="divide-y divide-slate-100">
           {filtradas.map((p) => (
-            <li key={p.id}>
-              <button onClick={() => onAbrirFicha(p.id)} className="flex w-full items-center justify-between py-3 text-left text-sm hover:bg-slate-50">
+            <li key={p.id} className="flex items-center gap-2 py-1">
+              <input type="checkbox" checked={seleccion.ids.has(p.id)} onChange={() => seleccion.toggle(p.id)} />
+              <button onClick={() => onAbrirFicha(p.id)} className="flex flex-1 items-center justify-between py-2 text-left text-sm hover:bg-slate-50">
                 <div>
                   <p className="font-medium text-slate-800">
                     {p.nombre} {p.apellidos}

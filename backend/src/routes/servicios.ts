@@ -15,7 +15,6 @@ const INCLUDE_SERVICIO = {
   solicitud: { include: { persona: true, necesidad: true, plan: true } },
   profesional: true,
   empresaColaboradora: true,
-  tipoServicioOfrecido: true,
 } as const;
 
 serviciosRouter.get("/", async (req, res) => {
@@ -141,11 +140,10 @@ const tarifaSchema = z.object({
   tarifaTipo: z.enum(["PAGADO", "VOLUNTARIO"]).nullable().optional(),
   tarifaNotas: z.string().optional(),
   tipoServicio: z.enum(["PUNTUAL", "RECURRENTE"]).optional(),
-  // ERP: de qué servicio del catálogo es esto (hereda su % de IVA, sección
-  // "aplicar el 4% o el 10% de IVA"). ivaPorcentaje permite forzarlo a mano
+  // El % de IVA se hereda del servicio del catálogo elegido en la solicitud
+  // (sección "aplicar el 4% o el 10% de IVA"); esto permite forzarlo a mano
   // si el caso concreto no coincide con el catálogo (ej. deja de estar
   // concertado a mitad de contrato).
-  tipoServicioOfrecidoId: z.string().nullable().optional(),
   ivaPorcentaje: z.number().min(0).max(21).nullable().optional(),
 });
 
@@ -155,7 +153,10 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
   const parsed = tarifaSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id } });
+  const servicio = await prisma.servicio.findUnique({
+    where: { id: req.params.id },
+    include: { solicitud: { include: { necesidad: true } } },
+  });
   if (!servicio) return res.status(404).json({ error: "No encontrado" });
   if (servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
 
@@ -163,14 +164,6 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
     const empresa = await prisma.empresaColaboradora.findUnique({ where: { id: parsed.data.empresaColaboradoraId } });
     if (!empresa || empresa.organizacionId !== servicio.organizacionId) {
       return res.status(400).json({ error: "Empresa colaboradora no válida para esta organización" });
-    }
-  }
-
-  let tipoServicioOfrecido = null as Awaited<ReturnType<typeof prisma.tipoServicioOfrecido.findUnique>>;
-  if (parsed.data.tipoServicioOfrecidoId) {
-    tipoServicioOfrecido = await prisma.tipoServicioOfrecido.findUnique({ where: { id: parsed.data.tipoServicioOfrecidoId } });
-    if (!tipoServicioOfrecido || tipoServicioOfrecido.organizacionId !== servicio.organizacionId) {
-      return res.status(400).json({ error: "Servicio del catálogo no válido para esta organización" });
     }
   }
 
@@ -186,14 +179,15 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
     importeProfesional = Math.round((parsed.data.tarifaImporte - comisionImporte) * 100) / 100;
   }
 
-  // IVA (sección "aplicar el 4% o el 10% de IVA"): igual que la comisión,
-  // se calcula al fijar la tarifa y queda congelado en el servicio, aunque
-  // el % del catálogo cambie después.
+  // IVA (sección "aplicar el 4% o el 10% de IVA"): heredado por defecto del
+  // servicio del catálogo elegido en la solicitud (necesidad); igual que la
+  // comisión, se calcula al fijar la tarifa y queda congelado en el
+  // servicio aunque el % del catálogo cambie después.
   let ivaPorcentaje: number | null = null;
   let ivaImporte: number | null = null;
   let totalConIva: number | null = null;
   if (parsed.data.tarifaImporte != null) {
-    ivaPorcentaje = parsed.data.ivaPorcentaje ?? (tipoServicioOfrecido ? Number(tipoServicioOfrecido.ivaPorcentaje) : 4);
+    ivaPorcentaje = parsed.data.ivaPorcentaje ?? Number(servicio.solicitud.necesidad.ivaPorcentaje);
     ivaImporte = Math.round(parsed.data.tarifaImporte * (ivaPorcentaje / 100) * 100) / 100;
     totalConIva = Math.round((parsed.data.tarifaImporte + ivaImporte) * 100) / 100;
   }
@@ -206,7 +200,6 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
       tarifaTipo: parsed.data.tarifaTipo,
       tarifaNotas: parsed.data.tarifaNotas,
       tipoServicio: parsed.data.tipoServicio,
-      tipoServicioOfrecidoId: parsed.data.tipoServicioOfrecidoId,
       comisionImporte,
       importeProfesional,
       ivaPorcentaje,

@@ -40,6 +40,7 @@ async function limpiarOrganizacion(organizacionId: string) {
   const servicioIds = (await prisma.servicio.findMany({ where: { organizacionId }, select: { id: true } })).map((s) => s.id);
   const solicitudIds = (await prisma.solicitud.findMany({ where: { organizacionId }, select: { id: true } })).map((s) => s.id);
   const personaIds = (await prisma.persona.findMany({ where: { organizacionId }, select: { id: true } })).map((p) => p.id);
+  const profesionalIds = (await prisma.profesional.findMany({ where: { organizacionId }, select: { id: true } })).map((p) => p.id);
   const usuarioIds = (await prisma.usuario.findMany({ where: { organizacionId }, select: { id: true } })).map((u) => u.id);
 
   await prisma.auditLog.deleteMany({ where: { organizacionId } });
@@ -51,7 +52,7 @@ async function limpiarOrganizacion(organizacionId: string) {
   await prisma.tarea.deleteMany({ where: { visitaId: { in: visitaIds } } });
   await prisma.incidencia.deleteMany({ where: { OR: [{ visitaId: { in: visitaIds } }, { servicioId: { in: servicioIds } }] } });
   await prisma.documento.deleteMany({
-    where: { OR: [{ personaId: { in: personaIds } }, { servicioId: { in: servicioIds } }, { visitaId: { in: visitaIds } }] },
+    where: { OR: [{ personaId: { in: personaIds } }, { servicioId: { in: servicioIds } }, { visitaId: { in: visitaIds } }, { profesionalId: { in: profesionalIds } }] },
   });
   await prisma.mensaje.deleteMany({ where: { personaId: { in: personaIds } } });
   await prisma.servicioInteres.deleteMany({ where: { servicioId: { in: servicioIds } } });
@@ -70,7 +71,6 @@ async function limpiarOrganizacion(organizacionId: string) {
   await prisma.persona.deleteMany({ where: { id: { in: personaIds } } });
   await prisma.profesional.deleteMany({ where: { organizacionId } });
   await prisma.empresaColaboradora.deleteMany({ where: { organizacionId } });
-  await prisma.tipoServicioOfrecido.deleteMany({ where: { organizacionId } });
   await prisma.usuario.deleteMany({ where: { id: { in: usuarioIds } } });
   await prisma.organizacion.delete({ where: { id: organizacionId } });
 }
@@ -86,20 +86,25 @@ async function main() {
     data: { codigo: orgCodigo, nombre: NOMBRE_ORG_DEMO, estado: "ACTIVA" },
   });
 
-  // 2. Catálogo de necesidades (sección 6)
+  // 2. Catálogo de servicios (sección "Servicios son lo que ofrecemos:
+  // acompañamiento, comidas, limpieza etc."): antes repartido entre
+  // "necesidades" (cómo lo pide la persona) y un catálogo aparte solo para
+  // el IVA de facturación — ahora es uno solo, cada uno con su % de IVA
+  // (4% superreducido por defecto; 10% cuando es contratación particular
+  // sin ayuda pública ni plaza concertada).
   const catalogo = [
-    { codigo: "compra", nombre: "Ayuda con la compra", descripcion: "Realizar o acompañar la compra semanal" },
-    { codigo: "acompanamiento", nombre: "Acompañamiento", descripcion: "Acompañar a citas, paseos o gestiones" },
-    { codigo: "compania", nombre: "Compañía", descripcion: "Compañía y apoyo cotidiano en el domicilio" },
-    { codigo: "tareas_domesticas", nombre: "Tareas domésticas", descripcion: "Apoyo en tareas del hogar" },
-    { codigo: "comida", nombre: "Comida", descripcion: "Preparación o apoyo con la comida" },
-    { codigo: "recados", nombre: "Recados", descripcion: "Gestión de recados puntuales" },
-    { codigo: "paseo", nombre: "Paseo", descripcion: "Paseo y actividad física acompañada" },
-    { codigo: "citas", nombre: "Citas médicas", descripcion: "Acompañamiento a citas médicas" },
-    { codigo: "apoyo_puntual", nombre: "Apoyo puntual", descripcion: "Apoyo puntual no recurrente" },
+    { codigo: "compra", nombre: "Ayuda con la compra", descripcion: "Realizar o acompañar la compra semanal", ivaPorcentaje: 4, precioBase: 12 },
+    { codigo: "acompanamiento", nombre: "Acompañamiento", descripcion: "Acompañar a citas, paseos o gestiones", ivaPorcentaje: 10, precioBase: 15 },
+    { codigo: "compania", nombre: "Compañía", descripcion: "Compañía y apoyo cotidiano en el domicilio", ivaPorcentaje: 4, precioBase: 10 },
+    { codigo: "tareas_domesticas", nombre: "Tareas domésticas", descripcion: "Apoyo en tareas del hogar", ivaPorcentaje: 4, precioBase: 12 },
+    { codigo: "comida", nombre: "Comida", descripcion: "Preparación o apoyo con la comida", ivaPorcentaje: 4, precioBase: 10 },
+    { codigo: "recados", nombre: "Recados", descripcion: "Gestión de recados puntuales", ivaPorcentaje: 4, precioBase: 8 },
+    { codigo: "paseo", nombre: "Paseo", descripcion: "Paseo y actividad física acompañada", ivaPorcentaje: 4, precioBase: 10 },
+    { codigo: "citas", nombre: "Citas médicas", descripcion: "Acompañamiento a citas médicas", ivaPorcentaje: 4, precioBase: 12 },
+    { codigo: "apoyo_puntual", nombre: "Apoyo puntual", descripcion: "Apoyo puntual no recurrente", ivaPorcentaje: 10, precioBase: 15 },
   ];
   for (const n of catalogo) {
-    await prisma.necesidadCatalogo.upsert({ where: { codigo: n.codigo }, update: {}, create: n });
+    await prisma.necesidadCatalogo.upsert({ where: { codigo: n.codigo }, update: { ivaPorcentaje: n.ivaPorcentaje, precioBase: n.precioBase }, create: n });
   }
   const necesidadCompra = await prisma.necesidadCatalogo.findUniqueOrThrow({ where: { codigo: "compra" } });
 
@@ -163,45 +168,6 @@ async function main() {
       direccion: "Calle Mayor 12, Sant Fruitós",
       numeroCuenta: "ES00 0000 0000 0000 0000 0000",
       estado: "ACTIVA",
-      organizacionId: organizacion.id,
-    },
-  });
-
-  // 5b. Catálogo de servicios ofrecidos (ERP): lo que la organización vende,
-  // cada uno con su tipo de IVA (sección "aplicar el 4% o el 10% de IVA").
-  const tipoAyudaDomicilio = await prisma.tipoServicioOfrecido.upsert({
-    where: { codigo: "TSV-00001" },
-    update: {},
-    create: {
-      codigo: "TSV-00001",
-      nombre: "Ayuda a domicilio (plaza concertada)",
-      descripcion: "Servicio de ayuda a domicilio con prestación económica vinculada a la dependencia",
-      ivaPorcentaje: 4,
-      precioBase: 12.5,
-      organizacionId: organizacion.id,
-    },
-  });
-  const tipoAcompanamientoPrivado = await prisma.tipoServicioOfrecido.upsert({
-    where: { codigo: "TSV-00002" },
-    update: {},
-    create: {
-      codigo: "TSV-00002",
-      nombre: "Acompañamiento particular",
-      descripcion: "Contratado de forma particular, sin ayuda pública ni plaza concertada",
-      ivaPorcentaje: 10,
-      precioBase: 15,
-      organizacionId: organizacion.id,
-    },
-  });
-  await prisma.tipoServicioOfrecido.upsert({
-    where: { codigo: "TSV-00003" },
-    update: {},
-    create: {
-      codigo: "TSV-00003",
-      nombre: "Teleasistencia",
-      descripcion: "Servicio de teleasistencia 24h",
-      ivaPorcentaje: 4,
-      precioBase: 25,
       organizacionId: organizacion.id,
     },
   });
@@ -339,7 +305,6 @@ async function main() {
       importeProfesional: 10.62,
       // IVA (mismo cálculo que hace POST /servicios/:id/tarifa): plaza
       // concertada → 4% superreducido.
-      tipoServicioOfrecidoId: tipoAyudaDomicilio.id,
       ivaPorcentaje: 4,
       ivaImporte: 0.5,
       totalConIva: 13.0,
@@ -515,7 +480,6 @@ async function main() {
       tarifaTipo: "PAGADO",
       comisionImporte: 6.75,
       importeProfesional: 38.25,
-      tipoServicioOfrecidoId: tipoAcompanamientoPrivado.id,
       ivaPorcentaje: 10,
       ivaImporte: 4.5,
       totalConIva: 49.5,

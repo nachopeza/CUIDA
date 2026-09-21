@@ -3,7 +3,7 @@ import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { Modal } from "./Modal.js";
 import { EstadoBadge } from "./EstadoBadge.js";
-import type { EmpresaColaboradora, Necesidad, Profesional, Solicitud, TipoServicioOfrecido } from "../lib/types.js";
+import type { EmpresaColaboradora, Necesidad, Profesional, Solicitud } from "../lib/types.js";
 
 // Espejo de TRANSICIONES_SERVICIO del backend (backend/src/services/estados.ts):
 // un desplegable solo debe ofrecer estados a los que realmente se pueda pasar
@@ -60,8 +60,9 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   const [necesidades, setNecesidades] = useState<Necesidad[]>([]);
   const [profesionales, setProfesionales] = useState<Profesional[]>([]);
   const [empresas, setEmpresas] = useState<EmpresaColaboradora[]>([]);
-  const [tiposServicio, setTiposServicio] = useState<TipoServicioOfrecido[]>([]);
   const [datosAbiertos, setDatosAbiertos] = useState(false);
+  const [perfilPersonaAbierto, setPerfilPersonaAbierto] = useState(false);
+  const [perfilProfesionalAbierto, setPerfilProfesionalAbierto] = useState(false);
   const [tarifaAbierta, setTarifaAbierta] = useState(false);
   const [modoAsignacion, setModoAsignacion] = useState<"mercado" | "directo">("mercado");
 
@@ -72,23 +73,21 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
     tarifaTipo: "" as "" | "PAGADO" | "VOLUNTARIO",
     tarifaNotas: "",
     tipoServicio: "PUNTUAL" as "PUNTUAL" | "RECURRENTE",
-    tipoServicioOfrecidoId: "",
+    ivaPorcentaje: "",
   });
   const [nuevaVisita, setNuevaVisita] = useState({ fecha: "", horaInicio: "", horaFin: "", tareas: "" });
 
   async function cargar() {
-    const [sol, necs, pros, emps, tipos] = await Promise.all([
+    const [sol, necs, pros, emps] = await Promise.all([
       api.get<Solicitud>(`/solicitudes/${solicitudId}`, token),
       api.get<Necesidad[]>("/necesidades", token),
       api.get<Profesional[]>("/profesionales", token),
       api.get<EmpresaColaboradora[]>("/empresas-colaboradoras", token),
-      api.get<TipoServicioOfrecido[]>("/catalogo-servicios", token),
     ]);
     setS(sol);
     setNecesidades(necs);
     setProfesionales(pros);
     setEmpresas(emps);
-    setTiposServicio(tipos);
     if (sol.plan) {
       setPlan({
         fechaInicio: sol.plan.fechaInicio.slice(0, 10),
@@ -107,7 +106,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
         tarifaTipo: sol.servicio.tarifaTipo ?? "",
         tarifaNotas: sol.servicio.tarifaNotas ?? "",
         tipoServicio: sol.servicio.tipoServicio ?? "PUNTUAL",
-        tipoServicioOfrecidoId: sol.servicio.tipoServicioOfrecidoId ?? "",
+        ivaPorcentaje: sol.servicio.ivaPorcentaje != null ? String(Number(sol.servicio.ivaPorcentaje)) : "",
       });
     }
   }
@@ -169,7 +168,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
         tarifaTipo: tarifa.tarifaTipo || null,
         tarifaNotas: tarifa.tarifaNotas || undefined,
         tipoServicio: tarifa.tipoServicio,
-        tipoServicioOfrecidoId: tarifa.tipoServicioOfrecidoId || null,
+        ivaPorcentaje: tarifa.ivaPorcentaje ? Number(tarifa.ivaPorcentaje) : null,
       },
       token,
     );
@@ -318,6 +317,104 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             ⚠ Incidencia {incidenciaGeneralAbierta.codigo} abierta ({incidenciaGeneralAbierta.descripcion}) — resuélvela antes de finalizar/validar/cerrar el servicio.
           </p>
         )}
+
+        {/* Contacto directo (sección "desde la ficha se debe poder
+            contactar con ambos, con el profesional y con el usuario
+            responsable — ver el perfil de ambos"): sin salir de la ficha,
+            ni tener que ir a la pestaña de Usuarios o de Profesionales. */}
+        <div className={`grid grid-cols-1 gap-3 ${srv?.profesional ? "sm:grid-cols-2" : ""}`}>
+          <div className="rounded-lg border border-slate-200 p-3">
+            <div className="mb-1.5 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Persona / responsable</p>
+              <button onClick={() => setPerfilPersonaAbierto((v) => !v)} className="text-xs text-slate-400 underline decoration-dotted hover:text-slate-600">
+                {perfilPersonaAbierto ? "Ocultar perfil ▲" : "Ver perfil ▼"}
+              </button>
+            </div>
+            <p className="text-sm font-medium text-slate-800">
+              {s.persona.nombre} {s.persona.apellidos}
+            </p>
+            <div className="mt-1 flex flex-wrap gap-2 text-xs">
+              {s.persona.telefono && (
+                <a href={`tel:${s.persona.telefono}`} className="rounded-md border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50">
+                  📞 {s.persona.telefono}
+                </a>
+              )}
+              {s.persona.usuario?.email && (
+                <a href={`mailto:${s.persona.usuario.email}`} className="rounded-md border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50">
+                  ✉️ {s.persona.usuario.email}
+                </a>
+              )}
+            </div>
+            {perfilPersonaAbierto && (
+              <dl className="mt-2 space-y-1 border-t border-slate-100 pt-2 text-xs text-slate-600">
+                <div>
+                  <dt className="text-slate-400">Dirección</dt>
+                  <dd>{s.persona.direccion || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Contactos de emergencia</dt>
+                  <dd>{s.persona.contactos || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Preferencias</dt>
+                  <dd>{s.persona.preferencias || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Medicación</dt>
+                  <dd>{s.persona.medicacion || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Médico / centro de referencia</dt>
+                  <dd>{s.persona.medico || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Recomendaciones</dt>
+                  <dd>{s.persona.recomendaciones || "—"}</dd>
+                </div>
+              </dl>
+            )}
+          </div>
+
+          {srv?.profesional && (
+            <div className="rounded-lg border border-slate-200 p-3">
+              <div className="mb-1.5 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Profesional</p>
+                <button onClick={() => setPerfilProfesionalAbierto((v) => !v)} className="text-xs text-slate-400 underline decoration-dotted hover:text-slate-600">
+                  {perfilProfesionalAbierto ? "Ocultar perfil ▲" : "Ver perfil ▼"}
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                {srv.profesional.foto && <img src={srv.profesional.foto} alt="" className="h-8 w-8 rounded-full object-cover" />}
+                <p className="text-sm font-medium text-slate-800">
+                  {srv.profesional.nombre} {srv.profesional.apellidos}
+                </p>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                {srv.profesional.telefono && (
+                  <a href={`tel:${srv.profesional.telefono}`} className="rounded-md border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50">
+                    📞 {srv.profesional.telefono}
+                  </a>
+                )}
+              </div>
+              {perfilProfesionalAbierto && (
+                <dl className="mt-2 space-y-1 border-t border-slate-100 pt-2 text-xs text-slate-600">
+                  <div>
+                    <dt className="text-slate-400">Zona</dt>
+                    <dd>{srv.profesional.zona || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-400">Empresa</dt>
+                    <dd>{srv.profesional.empresaColaboradora?.nombre ?? "Independiente"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-400">Biografía</dt>
+                    <dd>{srv.profesional.biografia || "—"}</dd>
+                  </div>
+                </dl>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Datos de la solicitud: siempre editables, pero replegados en cuanto
             ya está aceptada — ya no es lo que hay que mirar en esa fase. */}
@@ -554,20 +651,6 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
               </div>
             )}
 
-            {["CONFIRMADO", "EN_CURSO", "FINALIZADO", "VALIDADO", "CERRADO"].includes(srv.estado) && srv.profesional && (
-              <div className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                {srv.profesional.foto && <img src={srv.profesional.foto} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />}
-                <div>
-                  <p>
-                    {srv.profesional.nombre} {srv.profesional.apellidos}
-                    {srv.profesional.telefono && ` · ${srv.profesional.telefono}`}
-                    {srv.empresaColaboradora && <span className="text-slate-400"> · vía {srv.empresaColaboradora.nombre}</span>}
-                  </p>
-                  {srv.profesional.biografia && <p className="mt-0.5 text-xs text-slate-500">{srv.profesional.biografia}</p>}
-                </div>
-              </div>
-            )}
-
             {srv.estado === "FINALIZADO" && (
               <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
                 El profesional ha terminado. Verifica las visitas abajo para cerrar el servicio.
@@ -648,29 +731,6 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
               {tarifaAbierta && (
                 <div className="space-y-3 border-t border-slate-100 px-3 pb-3 pt-3">
                   <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
-                    <label className="text-slate-500 sm:col-span-2">
-                      Tipo de servicio (catálogo) — define el IVA aplicable
-                      <select
-                        value={tarifa.tipoServicioOfrecidoId}
-                        onChange={(e) => {
-                          const id = e.target.value;
-                          const tipo = tiposServicio.find((ts) => ts.id === id);
-                          setTarifa((t) => ({
-                            ...t,
-                            tipoServicioOfrecidoId: id,
-                            tarifaImporte: t.tarifaImporte || (tipo?.precioBase != null ? String(tipo.precioBase) : t.tarifaImporte),
-                          }));
-                        }}
-                        className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
-                      >
-                        <option value="">Sin catálogo (IVA 4% por defecto)</option>
-                        {tiposServicio.map((ts) => (
-                          <option key={ts.id} value={ts.id}>
-                            {ts.nombre} · IVA {Number(ts.ivaPorcentaje)}%
-                          </option>
-                        ))}
-                      </select>
-                    </label>
                     <label className="text-slate-500">
                       Empresa responsable
                       <select
@@ -709,6 +769,19 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                         className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
                       />
                     </label>
+                    <label className="text-slate-500">
+                      IVA % (heredado de "{s.necesidad.nombre}": {Number(s.necesidad.ivaPorcentaje)}%)
+                      <input
+                        type="number"
+                        min="0"
+                        max="21"
+                        step="0.01"
+                        placeholder={String(Number(s.necesidad.ivaPorcentaje))}
+                        value={tarifa.ivaPorcentaje}
+                        onChange={(e) => setTarifa((t) => ({ ...t, ivaPorcentaje: e.target.value }))}
+                        className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                      />
+                    </label>
                     <input
                       type="text"
                       placeholder="Notas de la tarifa (opcional)"
@@ -721,10 +794,10 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                   {tarifa.tarifaImporte && (
                     <p className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
                       {(() => {
-                        const ivaPct = tiposServicio.find((ts) => ts.id === tarifa.tipoServicioOfrecidoId)?.ivaPorcentaje ?? 4;
+                        const ivaPct = tarifa.ivaPorcentaje ? Number(tarifa.ivaPorcentaje) : Number(s.necesidad.ivaPorcentaje);
                         const importe = Number(tarifa.tarifaImporte) || 0;
-                        const iva = Math.round(importe * (Number(ivaPct) / 100) * 100) / 100;
-                        return `Base ${importe.toFixed(2)} € + IVA ${Number(ivaPct)}% (${iva.toFixed(2)} €) = ${(importe + iva).toFixed(2)} € total`;
+                        const iva = Math.round(importe * (ivaPct / 100) * 100) / 100;
+                        return `Base ${importe.toFixed(2)} € + IVA ${ivaPct}% (${iva.toFixed(2)} €) = ${(importe + iva).toFixed(2)} € total`;
                       })()}
                     </p>
                   )}
