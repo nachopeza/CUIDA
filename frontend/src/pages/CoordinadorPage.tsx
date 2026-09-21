@@ -239,42 +239,66 @@ export function CoordinadorPage() {
     <div className="flex flex-col gap-4 md:flex-row">
       {/* Barra lateral (desktop) */}
       <aside className="hidden shrink-0 md:block md:w-56">
-        <nav className="sticky top-6 space-y-0.5">
-          {NAV.map((n) => {
-            const badge = badges[n.key];
-            return (
-              <button
-                key={n.key}
-                onClick={() => irA(n.key)}
-                className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition ${
-                  tab === n.key ? "bg-brand text-white" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <span className="flex items-center gap-2.5">
-                  <n.icon className="h-4 w-4 shrink-0" />
-                  {n.label}
-                </span>
-                {badge && badge.valor > 0 && (
-                  <span
-                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                      tab === n.key ? "bg-white/25 text-white" : badge.tono === "rose" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"
-                    }`}
-                  >
-                    {badge.valor}
+        <div className="sticky top-6">
+          <div className="mb-3">
+            <GlobalSearch
+              personas={personas}
+              solicitudes={solicitudes}
+              onAbrirPersona={abrirPersona}
+              onAbrirSolicitud={(id) => {
+                setTab("solicitudes");
+                setFichaAbierta(id);
+              }}
+            />
+          </div>
+          <nav className="space-y-0.5">
+            {NAV.map((n) => {
+              const badge = badges[n.key];
+              return (
+                <button
+                  key={n.key}
+                  onClick={() => irA(n.key)}
+                  className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition ${
+                    tab === n.key ? "bg-brand text-white" : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <n.icon className="h-4 w-4 shrink-0" />
+                    {n.label}
                   </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
+                  {badge && badge.valor > 0 && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                        tab === n.key ? "bg-white/25 text-white" : badge.tono === "rose" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {badge.valor}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
       </aside>
 
       {/* Navegación móvil */}
-      <div className="flex items-center justify-between md:hidden">
+      <div className="flex items-center gap-2 md:hidden">
         <button onClick={() => setMenuMovilAbierto((v) => !v)} className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700">
           {menuMovilAbierto ? <IconX className="h-4 w-4" /> : <IconMenu className="h-4 w-4" />}
           {tituloTab}
         </button>
+        <div className="min-w-0 flex-1">
+          <GlobalSearch
+            personas={personas}
+            solicitudes={solicitudes}
+            onAbrirPersona={abrirPersona}
+            onAbrirSolicitud={(id) => {
+              setTab("solicitudes");
+              setFichaAbierta(id);
+            }}
+          />
+        </div>
       </div>
       {menuMovilAbierto && (
         <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-slate-200 bg-white p-2 md:hidden">
@@ -298,15 +322,6 @@ export function CoordinadorPage() {
             <h2 className="text-lg font-semibold text-slate-800">{tab === "resumen" ? "Panel de coordinación" : tituloTab}</h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <GlobalSearch
-              personas={personas}
-              solicitudes={solicitudes}
-              onAbrirPersona={abrirPersona}
-              onAbrirSolicitud={(id) => {
-                setTab("solicitudes");
-                setFichaAbierta(id);
-              }}
-            />
             <button
               onClick={() => setNuevoUsuario(true)}
               className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
