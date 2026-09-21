@@ -3,6 +3,7 @@ import { useAuth } from "../../lib/auth.js";
 import { api, ApiError } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
+import { SearchBox } from "../../components/SearchBox.js";
 import { useSeleccion } from "../../lib/useSeleccion.js";
 import { exportarCSV } from "../../lib/csv.js";
 import type { Factura, Persona } from "../../lib/types.js";
@@ -32,6 +33,7 @@ export function FacturacionTab() {
   const [error, setError] = useState<string | null>(null);
   const [generando, setGenerando] = useState(false);
   const [detalleAbierto, setDetalleAbierto] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState("");
 
   async function cargar() {
     const [pers, facs] = await Promise.all([
@@ -69,10 +71,15 @@ export function FacturacionTab() {
     await cargar();
   }
 
-  const seleccionFacturas = useSeleccion(facturas);
+  const facturasFiltradas = facturas.filter((f) => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return true;
+    return `${f.persona.nombre} ${f.persona.apellidos} ${f.codigo} ${f.mes}`.toLowerCase().includes(q);
+  });
+  const seleccionFacturas = useSeleccion(facturasFiltradas);
 
   function exportarFacturas() {
-    const filas = seleccionFacturas.seleccionadas.length > 0 ? seleccionFacturas.seleccionadas : facturas;
+    const filas = seleccionFacturas.seleccionadas.length > 0 ? seleccionFacturas.seleccionadas : facturasFiltradas;
     exportarCSV(
       filas,
       [
@@ -114,9 +121,14 @@ export function FacturacionTab() {
 
       <Card title="Facturas">
         {facturas.length === 0 && <p className="text-sm text-slate-500">Todavía no se ha generado ninguna factura.</p>}
-        {facturas.length > 0 && <ExportarBarra total={facturas.length} seleccionadas={seleccionFacturas.seleccionadas.length} onExportar={exportarFacturas} />}
+        {facturas.length > 0 && (
+          <>
+            <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por persona, código o mes…" className="mb-2 w-full sm:max-w-xs" />
+            <ExportarBarra total={facturasFiltradas.length} seleccionadas={seleccionFacturas.seleccionadas.length} onExportar={exportarFacturas} />
+          </>
+        )}
         <ul className="divide-y divide-slate-100">
-          {facturas.map((f) => (
+          {facturasFiltradas.map((f) => (
             <li key={f.id} className="py-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-start gap-2">

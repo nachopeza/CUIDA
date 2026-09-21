@@ -20,6 +20,7 @@ const crearProfesionalSchema = z.object({
   bizum: z.string().optional(),
   foto: z.string().optional(),
   biografia: z.string().optional(),
+  disponibilidad: z.string().optional(),
   empresaColaboradoraId: z.string().optional(),
   email: z.string().email().optional(),
   password: z.string().min(6).optional(),
@@ -35,6 +36,7 @@ const editarProfesionalSchema = z.object({
   bizum: z.string().optional(),
   foto: z.string().optional(),
   biografia: z.string().optional(),
+  disponibilidad: z.string().optional(),
   empresaColaboradoraId: z.string().nullable().optional(),
 });
 
@@ -61,6 +63,7 @@ profesionalesRouter.post("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"
       bizum: parsed.data.bizum,
       foto: parsed.data.foto,
       biografia: parsed.data.biografia,
+      disponibilidad: parsed.data.disponibilidad,
       empresaColaboradoraId: parsed.data.empresaColaboradoraId,
       estado: "ACTIVO",
       organizacionId: req.usuario!.organizacionId,
@@ -96,7 +99,7 @@ profesionalesRouter.post("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"
 profesionalesRouter.get("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
   const profesionales = await prisma.profesional.findMany({
     where: { organizacionId: req.usuario!.organizacionId ?? undefined, estado: "ACTIVO" },
-    include: { empresaColaboradora: true },
+    include: { empresaColaboradora: true, usuario: { select: { email: true, activo: true } } },
     orderBy: { nombre: "asc" },
   });
   res.json(profesionales);
@@ -112,7 +115,7 @@ profesionalesRouter.get("/:id", async (req, res) => {
 
   const profesional = await prisma.profesional.findUnique({
     where: { id: req.params.id },
-    include: { empresaColaboradora: true },
+    include: { empresaColaboradora: true, usuario: { select: { email: true, activo: true } } },
   });
   if (!profesional || profesional.organizacionId !== usuario.organizacionId) return res.status(404).json({ error: "No encontrado" });
 
@@ -157,6 +160,32 @@ profesionalesRouter.patch("/:id", async (req, res) => {
   });
 
   res.json(actualizado);
+});
+
+// Resetear la contraseña de la cuenta de acceso del profesional (sección
+// "cambios de datos, contraseñas, usuarios"): mismo patrón que en personas,
+// solo coordinación puede hacerlo, se muestra una sola vez.
+profesionalesRouter.post("/:id/cuenta/password", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const usuario = req.usuario!;
+  const profesional = await prisma.profesional.findUnique({ where: { id: req.params.id } });
+  if (!profesional || profesional.organizacionId !== usuario.organizacionId) return res.status(404).json({ error: "No encontrado" });
+
+  const cuenta = await prisma.usuario.findUnique({ where: { profesionalId: profesional.id } });
+  if (!cuenta) return res.status(409).json({ error: "Este profesional todavía no tiene cuenta de acceso" });
+
+  const passwordGenerada = Math.random().toString(36).slice(2, 10);
+  const passwordHash = await bcrypt.hash(passwordGenerada, 10);
+  await prisma.usuario.update({ where: { id: cuenta.id }, data: { passwordHash } });
+
+  await registrarAuditoria({
+    usuarioId: usuario.sub,
+    organizacionId: profesional.organizacionId,
+    accion: "resetear_password_profesional",
+    entidadTipo: "Profesional",
+    entidadId: profesional.id,
+  });
+
+  res.json({ email: cuenta.email, passwordGenerada });
 });
 
 // Documentos del profesional (sección "ver toda su información...

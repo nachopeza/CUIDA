@@ -99,6 +99,7 @@ export interface Solicitud {
   codigo: string;
   descripcionLibre: string;
   estado: string;
+  createdAt: string;
   persona: Persona;
   necesidad: Necesidad;
   plan: Plan | null;
@@ -157,9 +158,11 @@ export interface Profesional {
   bizum?: string | null;
   foto?: string | null;
   biografia?: string | null;
+  disponibilidad?: string | null;
   estado: string;
   empresaColaboradoraId?: string | null;
   empresaColaboradora?: EmpresaColaboradora | null;
+  usuario?: { email: string; activo: boolean } | null;
 }
 
 export interface Documento {

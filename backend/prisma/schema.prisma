@@ -199,6 +199,10 @@ model Profesional {
   // valorar quién atiende a la persona, nunca solo un nombre en una lista.
   foto         String?
   biografia    String?
+  // Disponibilidad semanal (sección "incluir disponibilidad"): JSON con días
+  // de la semana y franja horaria — texto libre en BD, estructurado solo en
+  // el frontend, para no tener que migrar otra vez si cambia la forma.
+  disponibilidad String?
   estado       EstadoProfesional @default(PENDIENTE)
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt

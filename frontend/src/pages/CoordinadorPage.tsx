@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
-import { Card } from "../components/Layout.js";
-import { EstadoBadge } from "../components/EstadoBadge.js";
+import { EstadoBadge, EstadoUnificadoBadge } from "../components/EstadoBadge.js";
+import { estadoUnificadoDeSolicitud, ESTADOS_UNIFICADOS } from "../lib/estadoUnificado.js";
 import { Pagination, usePaginacion } from "../components/Pagination.js";
 import { ExportarBarra } from "../components/ExportarBarra.js";
 import { useSeleccion } from "../lib/useSeleccion.js";
@@ -81,7 +81,25 @@ const GRUPO_LABEL: Record<Grupo, string> = {
   finalizadas: "Finalizadas",
 };
 
+// Color por grupo (sección "dale estilo a las casillas de numeración de las
+// solicitudes... planificadlas bien y estructúralas según su color de
+// estado"): las casillas dejan de ser píldoras planas indistinguibles y
+// pasan a tarjetas con el mismo código de color que el resto del panel.
+const GRUPO_COLOR: Record<Grupo, { borde: string; fondo: string; texto: string; dot: string }> = {
+  gestion: { borde: "border-amber-300", fondo: "bg-amber-50", texto: "text-amber-700", dot: "bg-amber-400" },
+  en_proceso: { borde: "border-blue-300", fondo: "bg-blue-50", texto: "text-blue-700", dot: "bg-blue-400" },
+  incidencias: { borde: "border-rose-300", fondo: "bg-rose-50", texto: "text-rose-700", dot: "bg-rose-400" },
+  canceladas: { borde: "border-slate-300", fondo: "bg-slate-100", texto: "text-slate-700", dot: "bg-slate-400" },
+  finalizadas: { borde: "border-teal-300", fondo: "bg-teal-50", texto: "text-teal-700", dot: "bg-teal-400" },
+};
+
 type Filtro = null | Grupo;
+
+// Incidencia como ticket (sección "incidencia puede ser un ticket"): número
+// de ticket, franja de color por prioridad y mini-pipeline del estado, en
+// vez de una tarjeta genérica indistinguible de las demás.
+const PIPELINE_INCIDENCIA = ["NUEVA", "EN_REVISION", "ASIGNADA", "EN_RESOLUCION", "RESUELTA", "CERRADA"];
+const PRIORIDAD_BORDE: Record<string, string> = { ALTA: "border-l-rose-500", MEDIA: "border-l-amber-400", BAJA: "border-l-slate-300" };
 
 export function CoordinadorPage() {
   const { token } = useAuth();
@@ -223,6 +241,7 @@ export function CoordinadorPage() {
         { encabezado: "Tipo", valor: (s) => (s.servicio?.tipoServicio === "RECURRENTE" ? "Recurrente" : "Puntual") },
         { encabezado: "Estado", valor: (s) => (s.servicio ? s.servicio.estado : s.estado) },
         { encabezado: "Profesional", valor: (s) => (s.servicio?.profesional ? `${s.servicio.profesional.nombre} ${s.servicio.profesional.apellidos}` : "") },
+        { encabezado: "Creada", valor: (s) => new Date(s.createdAt).toLocaleDateString("es-ES") },
       ],
       "solicitudes",
     );
@@ -341,57 +360,57 @@ export function CoordinadorPage() {
 
         {tab === "solicitudes" && (
           <div>
-            <div className="mb-3 flex flex-wrap gap-1.5">
+            <div className="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
               <button
                 onClick={() => setFiltro(null)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium ${!filtro ? "bg-brand text-white" : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}
+                className={`rounded-lg border-2 px-2 py-2 text-center transition ${!filtro ? "border-brand bg-brand-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
               >
-                Todas ({solicitudes.length})
+                <p className={`text-xl font-semibold ${!filtro ? "text-brand-800" : "text-slate-800"}`}>{solicitudes.length}</p>
+                <p className={`text-[11px] font-medium ${!filtro ? "text-brand-800" : "text-slate-500"}`}>Todas</p>
               </button>
-              {(Object.keys(GRUPO_LABEL) as Grupo[]).map((g) => (
-                <button
-                  key={g}
-                  onClick={() => setFiltro(g)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-medium ${filtro === g ? "bg-brand text-white" : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}
-                >
-                  {GRUPO_LABEL[g]} ({gruposCount[g]})
-                </button>
-              ))}
-              {porVerificarCount > 0 && (
-                <button
-                  onClick={() => {
-                    setFiltro("en_proceso");
-                    setEstadoFiltro("FINALIZADO");
-                  }}
-                  className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                    filtro === "en_proceso" && estadoFiltro === "FINALIZADO" ? "bg-amber-500 text-white" : "border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                  }`}
-                >
-                  🕐 Por verificar ({porVerificarCount})
-                </button>
-              )}
+              {(Object.keys(GRUPO_LABEL) as Grupo[]).map((g) => {
+                const c = GRUPO_COLOR[g];
+                const activo = filtro === g;
+                return (
+                  <button
+                    key={g}
+                    onClick={() => setFiltro(g)}
+                    className={`rounded-lg border-2 px-2 py-2 text-center transition ${activo ? `${c.borde} ${c.fondo}` : "border-slate-200 bg-white hover:bg-slate-50"}`}
+                  >
+                    <p className={`text-xl font-semibold ${activo ? c.texto : "text-slate-800"}`}>{gruposCount[g]}</p>
+                    <p className={`flex items-center justify-center gap-1 text-[11px] font-medium ${activo ? c.texto : "text-slate-500"}`}>
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${c.dot}`} /> {GRUPO_LABEL[g]}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
+
+            {porVerificarCount > 0 && (
+              <button
+                onClick={() => {
+                  setFiltro("en_proceso");
+                  setEstadoFiltro("FINALIZADO");
+                }}
+                className={`mb-3 rounded-full px-3 py-1.5 text-xs font-medium ${
+                  filtro === "en_proceso" && estadoFiltro === "FINALIZADO" ? "bg-orange-500 text-white" : "border border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                }`}
+              >
+                🕐 Por verificar ({porVerificarCount})
+              </button>
+            )}
 
             {/* Leyenda de color (sección "se debe ver de alguna forma
                 visual que son los estados de cada solicitud. Simple
-                minimalista"): qué significa cada color del badge de
-                Estado, sin listar los ~15 valores posibles uno a uno. */}
+                minimalista"): una sola fuente de verdad (estadoUnificado.ts)
+                para el color del badge, la leyenda y el estado que se puede
+                elegir — así nunca se desincronizan entre sí. */}
             <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
-              <span className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-blue-400" /> En revisión
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-amber-400" /> Buscando / esperando confirmación
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-brand-green-500" /> Confirmado, en curso o realizado
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-slate-400" /> Cerrado
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-rose-400" /> Cancelado / incidencia
-              </span>
+              {ESTADOS_UNIFICADOS.map((e) => (
+                <span key={e.clave} className="flex items-center gap-1">
+                  <span className={`h-2 w-2 rounded-full ${e.dot}`} /> {e.etiqueta}
+                </span>
+              ))}
             </div>
 
             <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
@@ -439,6 +458,7 @@ export function CoordinadorPage() {
                       <th className="px-4 py-2.5">Tipo</th>
                       <th className="px-4 py-2.5">Estado</th>
                       <th className="px-4 py-2.5">Profesional</th>
+                      <th className="px-4 py-2.5">Creada</th>
                       <th className="px-4 py-2.5">Código</th>
                     </tr>
                   </thead>
@@ -455,15 +475,10 @@ export function CoordinadorPage() {
                         <td className="px-4 py-2.5 text-slate-500">{s.servicio?.tipoServicio === "RECURRENTE" ? "Recurrente" : "Puntual"}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-1.5">
-                            <EstadoBadge estado={s.servicio ? s.servicio.estado : s.estado} />
+                            <EstadoUnificadoBadge clave={estadoUnificadoDeSolicitud(s)} />
                             {grupoDeSolicitud(s) === "incidencias" && (
                               <span className="text-amber-600" title="Incidencia abierta">
                                 ⚠
-                              </span>
-                            )}
-                            {s.servicio?.estado === "FINALIZADO" && (
-                              <span className="text-amber-600" title="El profesional ha terminado — pendiente de verificar por coordinación">
-                                🕐 Por verificar
                               </span>
                             )}
                           </div>
@@ -471,6 +486,7 @@ export function CoordinadorPage() {
                         <td className="px-4 py-2.5 text-slate-500">
                           {s.servicio?.profesional ? `${s.servicio.profesional.nombre} ${s.servicio.profesional.apellidos}` : "—"}
                         </td>
+                        <td className="px-4 py-2.5 text-xs text-slate-400">{new Date(s.createdAt).toLocaleDateString("es-ES")}</td>
                         <td className="px-4 py-2.5 text-xs text-slate-400">{s.codigo}</td>
                       </tr>
                     ))}
@@ -510,21 +526,33 @@ export function CoordinadorPage() {
             {incidencias.map((i) => {
               const esCancelacion = i.tipo === "SOLICITUD_CANCELACION";
               const pendiente = !["RESUELTA", "CERRADA"].includes(i.estado);
+              const paso = PIPELINE_INCIDENCIA.indexOf(i.estado);
               return (
-                <Card key={i.id}>
+                <div
+                  key={i.id}
+                  className={`mb-3 rounded-lg border border-l-4 border-slate-200 bg-white p-4 ${PRIORIDAD_BORDE[i.prioridad] ?? "border-l-slate-300"}`}
+                >
                   <div className="mb-2 flex items-center justify-between">
                     <button onClick={() => setIncidenciaFichaAbierta(i.id)} className="text-left hover:underline">
                       <p className="font-medium">
-                        {esCancelacion && "🚫 "}
+                        <span className="text-slate-400">🎫 {i.codigo}</span> {esCancelacion && "🚫 "}
                         {i.descripcion}
                       </p>
                       <p className="text-xs text-slate-400">
-                        {i.codigo} · prioridad {i.prioridad}
+                        prioridad {i.prioridad.toLowerCase()}
                         {i.servicio?.solicitud && ` · ${i.servicio.solicitud.persona.nombre} · ${i.servicio.solicitud.necesidad.nombre}`}
                       </p>
                     </button>
                     <EstadoBadge estado={i.estado} />
                   </div>
+
+                  {paso >= 0 && (
+                    <div className="mb-3 flex items-center gap-1" title={PIPELINE_INCIDENCIA.map((e) => e.replace(/_/g, " ")).join(" → ")}>
+                      {PIPELINE_INCIDENCIA.map((estado, idx) => (
+                        <span key={estado} className={`h-1.5 flex-1 rounded-full ${idx <= paso ? "bg-slate-400" : "bg-slate-100"}`} />
+                      ))}
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap gap-2">
                     {esCancelacion && pendiente && (
@@ -547,7 +575,7 @@ export function CoordinadorPage() {
                       Abrir ficha
                     </button>
                   </div>
-                </Card>
+                </div>
               );
             })}
           </div>

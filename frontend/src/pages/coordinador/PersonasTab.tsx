@@ -5,6 +5,7 @@ import { Card } from "../../components/Layout.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
 import { useSeleccion } from "../../lib/useSeleccion.js";
 import { exportarCSV } from "../../lib/csv.js";
+import { SearchBox } from "../../components/SearchBox.js";
 import type { Persona } from "../../lib/types.js";
 
 // Portal de usuarios (sección "el portal de usuarios es muy importante.
@@ -51,12 +52,7 @@ export function PersonasTab({ onAbrirFicha, refreshKey }: { onAbrirFicha: (id: s
   return (
     <div>
       <div className="mb-4">
-        <input
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre o código…"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:max-w-xs"
-        />
+        <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre o código…" className="w-full sm:max-w-xs" />
       </div>
 
       <ExportarBarra total={filtradas.length} seleccionadas={seleccion.seleccionadas.length} onExportar={exportar} />

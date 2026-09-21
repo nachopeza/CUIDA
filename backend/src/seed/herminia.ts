@@ -189,6 +189,7 @@ async function main() {
       foto: "https://i.pravatar.cc/300?img=47",
       biografia:
         "Auxiliar de ayuda a domicilio con 8 años de experiencia en atención a personas mayores. Certificado profesional en Atención Sociosanitaria a Personas Dependientes en el Domicilio. Especializada en movilidad reducida y acompañamiento. Habla catalán, castellano e inglés básico. \"Me gusta que las personas a las que cuido se sientan como en familia.\"",
+      disponibilidad: JSON.stringify({ dias: ["L", "M", "X", "J", "V"], franja: "Mañana" }),
       estado: "ACTIVO",
       organizacionId: organizacion.id,
     },

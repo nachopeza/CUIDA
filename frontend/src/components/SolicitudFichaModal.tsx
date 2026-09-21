@@ -3,6 +3,10 @@ import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { Modal } from "./Modal.js";
 import { EstadoBadge } from "./EstadoBadge.js";
+import { PersonaDetalleModal } from "../pages/coordinador/PersonaDetalleModal.js";
+import { ProfesionalFormModal } from "../pages/coordinador/ProfesionalFormModal.js";
+import { parsearDisponibilidad } from "../lib/disponibilidad.js";
+import { resumenDisponibilidad } from "./DisponibilidadPicker.js";
 import type { EmpresaColaboradora, Necesidad, Profesional, Solicitud } from "../lib/types.js";
 
 // Espejo de TRANSICIONES_SERVICIO del backend (backend/src/services/estados.ts):
@@ -63,6 +67,8 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   const [datosAbiertos, setDatosAbiertos] = useState(false);
   const [perfilPersonaAbierto, setPerfilPersonaAbierto] = useState(false);
   const [perfilProfesionalAbierto, setPerfilProfesionalAbierto] = useState(false);
+  const [editarPersonaAbierto, setEditarPersonaAbierto] = useState(false);
+  const [editarProfesionalAbierto, setEditarProfesionalAbierto] = useState(false);
   const [tarifaAbierta, setTarifaAbierta] = useState(false);
   const [modoAsignacion, setModoAsignacion] = useState<"mercado" | "directo">("mercado");
 
@@ -272,6 +278,14 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   return (
     <Modal title={`${s.persona.nombre} ${s.persona.apellidos} · ${s.codigo}`} onClose={onClose} size="lg">
       <div className="space-y-5">
+        {/* Fecha de creación (sección "se debe poder visualizar la fecha
+            de creación de la solicitud"): siempre visible, sin tener que
+            abrir el historial de abajo. */}
+        <p className="-mt-3 text-xs text-slate-400">
+          Solicitud creada el {new Date(s.createdAt).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })} a las{" "}
+          {new Date(s.createdAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+        </p>
+
         {cancelada ? (
           <div className="rounded-lg border-2 border-rose-200 bg-rose-50 px-4 py-3">
             <p className="text-sm font-medium text-rose-700">Solicitud cancelada</p>
@@ -326,13 +340,18 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
           <div className="rounded-lg border border-slate-200 p-3">
             <div className="mb-1.5 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Persona / responsable</p>
-              <button onClick={() => setPerfilPersonaAbierto((v) => !v)} className="text-xs text-slate-400 underline decoration-dotted hover:text-slate-600">
-                {perfilPersonaAbierto ? "Ocultar perfil ▲" : "Ver perfil ▼"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setEditarPersonaAbierto(true)} className="text-xs font-medium text-brand underline decoration-dotted hover:text-brand-800">
+                  Editar perfil completo
+                </button>
+                <button onClick={() => setPerfilPersonaAbierto((v) => !v)} className="text-xs text-slate-400 underline decoration-dotted hover:text-slate-600">
+                  {perfilPersonaAbierto ? "Ocultar ▲" : "Ver perfil ▼"}
+                </button>
+              </div>
             </div>
-            <p className="text-sm font-medium text-slate-800">
+            <button onClick={() => setEditarPersonaAbierto(true)} className="text-sm font-medium text-slate-800 hover:text-brand hover:underline">
               {s.persona.nombre} {s.persona.apellidos}
-            </p>
+            </button>
             <div className="mt-1 flex flex-wrap gap-2 text-xs">
               {s.persona.telefono && (
                 <a href={`tel:${s.persona.telefono}`} className="rounded-md border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50">
@@ -379,16 +398,21 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             <div className="rounded-lg border border-slate-200 p-3">
               <div className="mb-1.5 flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Profesional</p>
-                <button onClick={() => setPerfilProfesionalAbierto((v) => !v)} className="text-xs text-slate-400 underline decoration-dotted hover:text-slate-600">
-                  {perfilProfesionalAbierto ? "Ocultar perfil ▲" : "Ver perfil ▼"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setEditarProfesionalAbierto(true)} className="text-xs font-medium text-brand underline decoration-dotted hover:text-brand-800">
+                    Editar perfil completo
+                  </button>
+                  <button onClick={() => setPerfilProfesionalAbierto((v) => !v)} className="text-xs text-slate-400 underline decoration-dotted hover:text-slate-600">
+                    {perfilProfesionalAbierto ? "Ocultar ▲" : "Ver perfil ▼"}
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+              <button onClick={() => setEditarProfesionalAbierto(true)} className="flex items-center gap-2 hover:text-brand">
                 {srv.profesional.foto && <img src={srv.profesional.foto} alt="" className="h-8 w-8 rounded-full object-cover" />}
-                <p className="text-sm font-medium text-slate-800">
+                <p className="text-sm font-medium text-slate-800 hover:underline">
                   {srv.profesional.nombre} {srv.profesional.apellidos}
                 </p>
-              </div>
+              </button>
               <div className="mt-1 flex flex-wrap gap-2 text-xs">
                 {srv.profesional.telefono && (
                   <a href={`tel:${srv.profesional.telefono}`} className="rounded-md border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50">
@@ -405,6 +429,10 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                   <div>
                     <dt className="text-slate-400">Empresa</dt>
                     <dd>{srv.profesional.empresaColaboradora?.nombre ?? "Independiente"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-400">Disponibilidad</dt>
+                    <dd>{resumenDisponibilidad(parsearDisponibilidad(srv.profesional.disponibilidad))}</dd>
                   </div>
                   <div>
                     <dt className="text-slate-400">Biografía</dt>
@@ -837,6 +865,23 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
           </div>
         )}
       </div>
+
+      {editarPersonaAbierto && (
+        <PersonaDetalleModal
+          personaId={s.persona.id}
+          onClose={() => setEditarPersonaAbierto(false)}
+          onCambiado={recargar}
+        />
+      )}
+
+      {editarProfesionalAbierto && srv?.profesional && (
+        <ProfesionalFormModal
+          profesional={srv.profesional}
+          empresas={empresas}
+          onClose={() => setEditarProfesionalAbierto(false)}
+          onSaved={recargar}
+        />
+      )}
     </Modal>
   );
 }

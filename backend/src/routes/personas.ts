@@ -137,6 +137,30 @@ personasRouter.post("/:id/cuenta", requiereRol("COORDINADOR", "ORGANIZACION", "A
   res.status(201).json({ email: parsed.data.email, passwordGenerada: parsed.data.password ? undefined : passwordGenerada });
 });
 
+// Resetear la contraseña de la cuenta ya existente (sección "cambios de
+// datos, contraseñas, usuarios"): coordinación puede generar una nueva sin
+// tener que borrar y volver a crear la cuenta — se muestra una sola vez,
+// igual que al crearla.
+personasRouter.post("/:id/cuenta/password", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const persona = await prisma.persona.findUnique({ where: { id: req.params.id }, include: { usuario: true } });
+  if (!persona || persona.organizacionId !== req.usuario!.organizacionId) return res.status(404).json({ error: "No encontrada" });
+  if (!persona.usuario) return res.status(409).json({ error: "Esta persona todavía no tiene cuenta de acceso" });
+
+  const passwordGenerada = generarPassword();
+  const passwordHash = await bcrypt.hash(passwordGenerada, 10);
+  await prisma.usuario.update({ where: { id: persona.usuario.id }, data: { passwordHash } });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: req.usuario!.organizacionId,
+    accion: "resetear_password_persona",
+    entidadTipo: "Persona",
+    entidadId: persona.id,
+  });
+
+  res.json({ email: persona.usuario.email, passwordGenerada });
+});
+
 personasRouter.get("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
   const personas = await prisma.persona.findMany({
     where: { organizacionId: req.usuario!.organizacionId ?? undefined },

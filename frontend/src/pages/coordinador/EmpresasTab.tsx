@@ -7,6 +7,7 @@ import { EmpresaFormModal } from "./EmpresaFormModal.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
 import { useSeleccion } from "../../lib/useSeleccion.js";
 import { exportarCSV } from "../../lib/csv.js";
+import { SearchBox } from "../../components/SearchBox.js";
 import type { EmpresaColaboradora } from "../../lib/types.js";
 
 export function EmpresasTab() {
@@ -52,12 +53,7 @@ export function EmpresasTab() {
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <input
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre, código o CIF…"
-          className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm sm:max-w-xs"
-        />
+        <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre, código o CIF…" className="flex-1 sm:max-w-xs" />
         <button onClick={() => setNuevoAbierto(true)} className="ml-auto flex items-center gap-1 rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-800">
           <IconPlus className="h-4 w-4" /> Nueva empresa
         </button>

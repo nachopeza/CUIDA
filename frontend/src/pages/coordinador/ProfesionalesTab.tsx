@@ -7,6 +7,9 @@ import { ProfesionalFormModal } from "./ProfesionalFormModal.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
 import { useSeleccion } from "../../lib/useSeleccion.js";
 import { exportarCSV } from "../../lib/csv.js";
+import { SearchBox } from "../../components/SearchBox.js";
+import { parsearDisponibilidad } from "../../lib/disponibilidad.js";
+import { resumenDisponibilidad } from "../../components/DisponibilidadPicker.js";
 import type { EmpresaColaboradora, Profesional } from "../../lib/types.js";
 
 const ZONA_POR_DEFECTO = "Cantabria";
@@ -56,6 +59,7 @@ export function ProfesionalesTab() {
         { encabezado: "Nombre", valor: (p) => `${p.nombre} ${p.apellidos}` },
         { encabezado: "Zona", valor: (p) => p.zona ?? ZONA_POR_DEFECTO },
         { encabezado: "Empresa", valor: (p) => p.empresaColaboradora?.nombre ?? "Independiente" },
+        { encabezado: "Disponibilidad", valor: (p) => resumenDisponibilidad(parsearDisponibilidad(p.disponibilidad)) },
         { encabezado: "Teléfono", valor: (p) => p.telefono },
         { encabezado: "Estado", valor: (p) => p.estado },
       ],
@@ -66,12 +70,7 @@ export function ProfesionalesTab() {
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <input
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre, código o zona…"
-          className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm sm:max-w-xs"
-        />
+        <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre, código o zona…" className="flex-1 sm:max-w-xs" />
         <select value={empresaFiltro} onChange={(e) => setEmpresaFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-2 text-sm">
           <option value="">Todas las empresas</option>
           <option value="__independiente__">Independientes</option>
@@ -101,6 +100,7 @@ export function ProfesionalesTab() {
                   <th className="px-4 py-2.5">Nombre</th>
                   <th className="px-4 py-2.5">Zona</th>
                   <th className="px-4 py-2.5">Empresa</th>
+                  <th className="px-4 py-2.5">Disponibilidad</th>
                   <th className="px-4 py-2.5">Teléfono</th>
                   <th className="px-4 py-2.5">Código</th>
                 </tr>
@@ -126,6 +126,7 @@ export function ProfesionalesTab() {
                     </td>
                     <td className="px-4 py-2.5 text-slate-500">{p.zona ?? ZONA_POR_DEFECTO}</td>
                     <td className="px-4 py-2.5 text-slate-500">{p.empresaColaboradora ? p.empresaColaboradora.nombre : "Independiente"}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500">{resumenDisponibilidad(parsearDisponibilidad(p.disponibilidad))}</td>
                     <td className="px-4 py-2.5 text-slate-500">{p.telefono ?? "—"}</td>
                     <td className="px-4 py-2.5 text-xs text-slate-400">{p.codigo}</td>
                   </tr>

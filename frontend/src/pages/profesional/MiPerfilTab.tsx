@@ -3,6 +3,9 @@ import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
 import { DocumentosProfesional } from "../../components/DocumentosProfesional.js";
+import { FotoUpload } from "../../components/FotoUpload.js";
+import { DisponibilidadPicker } from "../../components/DisponibilidadPicker.js";
+import { parsearDisponibilidad, serializarDisponibilidad, type Disponibilidad } from "../../lib/disponibilidad.js";
 import type { Profesional } from "../../lib/types.js";
 
 const PERFIL_VACIO = { telefono: "", zona: "", dni: "", numeroCuenta: "", bizum: "", foto: "", biografia: "" };
@@ -14,6 +17,7 @@ export function MiPerfilTab() {
   const { token, usuario } = useAuth();
   const [profesional, setProfesional] = useState<Profesional | null>(null);
   const [form, setForm] = useState<Perfil>(PERFIL_VACIO);
+  const [disponibilidad, setDisponibilidad] = useState<Disponibilidad>(parsearDisponibilidad(null));
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -30,6 +34,7 @@ export function MiPerfilTab() {
       foto: p.foto ?? "",
       biografia: p.biografia ?? "",
     });
+    setDisponibilidad(parsearDisponibilidad(p.disponibilidad));
   }
 
   useEffect(() => {
@@ -43,7 +48,7 @@ export function MiPerfilTab() {
     setGuardando(true);
     try {
       const datos = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v || undefined]));
-      await api.patch(`/profesionales/${usuario.profesionalId}`, datos, token);
+      await api.patch(`/profesionales/${usuario.profesionalId}`, { ...datos, disponibilidad: serializarDisponibilidad(disponibilidad) }, token);
       setMensaje("Perfil actualizado.");
       await cargar();
     } finally {
@@ -55,15 +60,8 @@ export function MiPerfilTab() {
 
   return (
     <Card title="Mi perfil">
-      <div className="mb-4 flex items-center gap-3">
-        {form.foto ? (
-          <img src={form.foto} alt="" className="h-16 w-16 rounded-full object-cover" />
-        ) : (
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-xl font-semibold text-slate-500">
-            {profesional.nombre[0]}
-            {profesional.apellidos[0]}
-          </div>
-        )}
+      <div className="mb-4 flex flex-wrap items-center gap-4">
+        <FotoUpload value={form.foto} onChange={(foto) => setForm((f) => ({ ...f, foto }))} nombre={profesional.nombre} />
         <div>
           <p className="font-semibold text-slate-800">
             {profesional.nombre} {profesional.apellidos}
@@ -81,15 +79,6 @@ export function MiPerfilTab() {
       {mensaje && <div className="mb-3 rounded-lg border border-brand-green-200 bg-brand-green-50 px-3 py-2 text-sm text-brand-green-700">{mensaje}</div>}
 
       <form onSubmit={guardar} className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-        <label className="text-xs text-slate-500 sm:col-span-2">
-          Foto (URL)
-          <input
-            value={form.foto}
-            onChange={(e) => setForm((f) => ({ ...f, foto: e.target.value }))}
-            placeholder="https://…"
-            className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2"
-          />
-        </label>
         <label className="text-xs text-slate-500 sm:col-span-2">
           Biografía / experiencia (tipo CV)
           <textarea
@@ -119,6 +108,12 @@ export function MiPerfilTab() {
         <label className="text-xs text-slate-500 sm:col-span-2">
           Bizum
           <input value={form.bizum} onChange={(e) => setForm((f) => ({ ...f, bizum: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2" />
+        </label>
+        <label className="text-xs text-slate-500 sm:col-span-2">
+          Disponibilidad
+          <div className="mt-1 rounded-md border border-slate-200 p-2.5">
+            <DisponibilidadPicker value={disponibilidad} onChange={setDisponibilidad} />
+          </div>
         </label>
         <button type="submit" disabled={guardando} className="rounded-md bg-brand px-4 py-2 font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2">
           {guardando ? "Guardando…" : "Guardar cambios"}

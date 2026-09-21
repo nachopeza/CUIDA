@@ -5,6 +5,7 @@ import { ICONOS_NECESIDAD } from "../../lib/necesidadIconos.js";
 import { useSeleccion } from "../../lib/useSeleccion.js";
 import { exportarCSV } from "../../lib/csv.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
+import { SearchBox } from "../../components/SearchBox.js";
 import type { Necesidad } from "../../lib/types.js";
 
 const VACIO = { nombre: "", descripcion: "", ivaPorcentaje: "4", precioBase: "" };
@@ -21,6 +22,7 @@ export function ServiciosTab() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [edicion, setEdicion] = useState(VACIO);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
 
   async function cargar() {
     setServicios(await api.get<Necesidad[]>("/necesidades/todas", token));
@@ -82,7 +84,12 @@ export function ServiciosTab() {
     await cargar();
   }
 
-  const visibles = servicios.filter((s) => mostrarInactivos || s.activo !== false);
+  const visibles = servicios.filter((s) => {
+    if (!mostrarInactivos && s.activo === false) return false;
+    const q = busqueda.trim().toLowerCase();
+    if (q && !`${s.nombre} ${s.codigo} ${s.descripcion ?? ""}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
   const seleccion = useSeleccion(visibles);
 
   function exportar() {
@@ -140,10 +147,13 @@ export function ServiciosTab() {
         />
       </div>
 
-      <label className="mb-2 flex items-center gap-1.5 text-xs text-slate-500">
-        <input type="checkbox" checked={mostrarInactivos} onChange={(e) => setMostrarInactivos(e.target.checked)} />
-        Mostrar también los desactivados
-      </label>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre o descripción…" className="w-full sm:max-w-xs" />
+        <label className="flex items-center gap-1.5 text-xs text-slate-500">
+          <input type="checkbox" checked={mostrarInactivos} onChange={(e) => setMostrarInactivos(e.target.checked)} />
+          Mostrar también los desactivados
+        </label>
+      </div>
 
       <ExportarBarra total={visibles.length} seleccionadas={seleccion.seleccionadas.length} onExportar={exportar} />
 

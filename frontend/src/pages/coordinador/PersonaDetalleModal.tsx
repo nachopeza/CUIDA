@@ -29,6 +29,7 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
   const [familiar, setFamiliar] = useState(FAMILIAR_VACIO);
   const [familiarCreado, setFamiliarCreado] = useState<{ email: string; password: string } | null>(null);
   const [fichaSolicitud, setFichaSolicitud] = useState<string | null>(null);
+  const [passwordReseteada, setPasswordReseteada] = useState<{ email: string; passwordGenerada: string } | null>(null);
 
   async function cargar() {
     const [p, sols] = await Promise.all([
@@ -67,6 +68,11 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
     setCuenta(CUENTA_VACIA);
     await cargar();
     onCambiado();
+  }
+
+  async function resetearPassword() {
+    const res = await api.post<{ email: string; passwordGenerada: string }>(`/personas/${personaId}/cuenta/password`, {}, token);
+    setPasswordReseteada(res);
   }
 
   async function vincularFamiliar(e: FormEvent) {
@@ -132,7 +138,18 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
           <div className="mb-2 rounded-lg border border-slate-200 p-3">
             <p className="text-sm font-medium text-slate-700">Cuenta de la persona <span className="font-normal text-slate-400">— acceso simple y directo</span></p>
             {persona.usuario ? (
-              <p className="text-sm text-slate-600">{persona.usuario.email} {!persona.usuario.activo && <span className="text-rose-600">(inactiva)</span>}</p>
+              <div>
+                <p className="text-sm text-slate-600">{persona.usuario.email} {!persona.usuario.activo && <span className="text-rose-600">(inactiva)</span>}</p>
+                {passwordReseteada ? (
+                  <p className="mt-1 text-xs text-brand-green-700">
+                    Nueva contraseña: <strong>{passwordReseteada.passwordGenerada}</strong> (apúntala, no se repetirá)
+                  </p>
+                ) : (
+                  <button onClick={resetearPassword} className="mt-1 text-xs font-medium text-slate-500 underline decoration-dotted hover:text-slate-700">
+                    Resetear contraseña
+                  </button>
+                )}
+              </div>
             ) : cuentaCreada ? (
               <p className="text-sm text-brand-green-700">Creada: {cuentaCreada.email} · contraseña <strong>{cuentaCreada.password}</strong> (apúntala, no se repetirá)</p>
             ) : creandoCuenta ? (
