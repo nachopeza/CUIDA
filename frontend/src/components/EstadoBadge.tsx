@@ -1,4 +1,4 @@
-import { infoEstadoUnificado, type ClaveEstadoUnificado } from "../lib/estadoUnificado.js";
+import { infoEstado, type ClaveEstado } from "../lib/estadoUnificado.js";
 
 // Colores diferenciados por estado (sección "diferenciar color en curso,
 // validado, confirmado — deben diferenciarse y simplificarse"): antes
@@ -42,10 +42,15 @@ export function EstadoBadge({ estado }: { estado: string }) {
   return <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${clase}`}>{estado.replace(/_/g, " ")}</span>;
 }
 
-// Badge del estado unificado (sección "un desplegable con cada estado
-// unificado... simple, minimalista"): muestra la fase visible en vez del
-// enum en crudo de Solicitud/Servicio.
-export function EstadoUnificadoBadge({ clave }: { clave: ClaveEstadoUnificado }) {
-  const info = infoEstadoUnificado(clave);
-  return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${info.badge}`}>{info.etiqueta}</span>;
+// Badge del estado de trabajo (sección "simplifica estados de solicitudes,
+// que sea más práctico y visual"): una de las cinco fases reales, con la
+// misma palabra y el mismo color que las casillas de conteo y los filtros —
+// nunca el enum en crudo de la base de datos.
+export function EstadoUnificadoBadge({ clave }: { clave: ClaveEstado }) {
+  const info = infoEstado(clave);
+  return (
+    <span className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${info.badge}`} title={info.ayuda}>
+      {info.etiqueta}
+    </span>
+  );
 }

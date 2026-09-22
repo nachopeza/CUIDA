@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { EstadoBadge, EstadoUnificadoBadge } from "../components/EstadoBadge.js";
-import { estadoUnificadoDeSolicitud, ESTADOS_UNIFICADOS } from "../lib/estadoUnificado.js";
+import { estadoDeSolicitud, tieneIncidencia, ESTADOS, infoEstado, type ClaveEstado } from "../lib/estadoUnificado.js";
 import { Pagination, usePaginacion } from "../components/Pagination.js";
 import { ExportarBarra } from "../components/ExportarBarra.js";
 import { SearchBox } from "../components/SearchBox.js";
@@ -57,46 +57,10 @@ const NAV: { key: Tab; label: string; icon: typeof IconHome }[] = [
   { key: "actividad", label: "Actividad", icon: IconActivity },
 ];
 
-// Agrupación única de la solicitud en un estado de negocio (sección "debe
-// ser solicitudes (en general), gestión, en proceso, incidencias,
-// canceladas y finalizadas"): una sola función de la que dependen los KPIs,
-// los chips de filtro y el aviso de incidencia en la tabla, para que nunca
-// se desincronicen entre sí (esa desincronización era la causa de que
-// "Finalizadas" pareciera no encontrar nunca nada).
-type Grupo = "gestion" | "en_proceso" | "incidencias" | "canceladas" | "finalizadas";
-
-function grupoDeSolicitud(s: Solicitud): Grupo {
-  const incidenciaAbierta = s.servicio?.incidencias?.some((i) => !["RESUELTA", "CERRADA"].includes(i.estado));
-  if (incidenciaAbierta) return "incidencias";
-  if (s.estado === "CANCELADA" || s.servicio?.estado === "CANCELADO") return "canceladas";
-  if (s.servicio && ["VALIDADO", "CERRADO"].includes(s.servicio.estado)) return "finalizadas";
-  if (s.servicio && ["CONFIRMADO", "EN_CURSO", "FINALIZADO"].includes(s.servicio.estado)) return "en_proceso";
-  // Sin servicio todavía, o servicio PENDIENTE/ASIGNADO: coordinación
-  // todavía está buscando o confirmando quién lo va a hacer.
-  return "gestion";
-}
-
-const GRUPO_LABEL: Record<Grupo, string> = {
-  gestion: "Gestión",
-  en_proceso: "En proceso",
-  incidencias: "Incidencias",
-  canceladas: "Canceladas",
-  finalizadas: "Finalizadas",
-};
-
-// Color por grupo (sección "dale estilo a las casillas de numeración de las
-// solicitudes... planificadlas bien y estructúralas según su color de
-// estado"): las casillas dejan de ser píldoras planas indistinguibles y
-// pasan a tarjetas con el mismo código de color que el resto del panel.
-const GRUPO_COLOR: Record<Grupo, { borde: string; fondo: string; texto: string; dot: string }> = {
-  gestion: { borde: "border-amber-300", fondo: "bg-amber-50", texto: "text-amber-700", dot: "bg-amber-400" },
-  en_proceso: { borde: "border-blue-300", fondo: "bg-blue-50", texto: "text-blue-700", dot: "bg-blue-400" },
-  incidencias: { borde: "border-rose-300", fondo: "bg-rose-50", texto: "text-rose-700", dot: "bg-rose-400" },
-  canceladas: { borde: "border-slate-300", fondo: "bg-slate-100", texto: "text-slate-700", dot: "bg-slate-400" },
-  finalizadas: { borde: "border-teal-300", fondo: "bg-teal-50", texto: "text-teal-700", dot: "bg-teal-400" },
-};
-
-type Filtro = null | Grupo;
+// El filtro de la lista usa el mismo vocabulario que los badges y las
+// casillas de conteo (estadoUnificado.ts): una fase de trabajo, o bien el
+// corte transversal "tiene una incidencia abierta".
+type Filtro = null | ClaveEstado | "con_incidencia";
 
 // Incidencia como ticket (sección "incidencia puede ser un ticket"): número
 // de ticket, franja de color por prioridad y mini-pipeline del estado, en
@@ -110,7 +74,6 @@ export function CoordinadorPage() {
   const [tab, setTab] = useState<Tab>("escritorio");
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
   const [filtro, setFiltro] = useState<Filtro>(null);
-  const [estadoFiltro, setEstadoFiltro] = useState("");
   const [tipoFiltro, setTipoFiltro] = useState("");
   const [profesionalFiltro, setProfesionalFiltro] = useState("");
   const [busquedaSolicitudes, setBusquedaSolicitudes] = useState("");
@@ -204,28 +167,27 @@ export function CoordinadorPage() {
     await cargar();
   }
 
-  const gruposCount = useMemo(() => {
-    const conteo: Record<Grupo, number> = { gestion: 0, en_proceso: 0, incidencias: 0, canceladas: 0, finalizadas: 0 };
-    for (const s of solicitudes) conteo[grupoDeSolicitud(s)]++;
+  const conteoEstados = useMemo(() => {
+    const conteo = { nueva: 0, buscando: 0, en_curso: 0, por_verificar: 0, finalizada: 0, cancelada: 0 } as Record<ClaveEstado, number>;
+    for (const s of solicitudes) conteo[estadoDeSolicitud(s)]++;
     return conteo;
   }, [solicitudes]);
 
-  // El profesional ya terminó (Servicio FINALIZADO) pero coordinación
-  // todavía no lo ha verificado: dentro de "En proceso" es el único caso
-  // que requiere una acción de coordinación ahora mismo, así que se marca
-  // aparte en vez de perderse mezclado con "confirmado"/"en curso".
-  const porVerificarCount = useMemo(() => solicitudes.filter((s) => s.servicio?.estado === "FINALIZADO").length, [solicitudes]);
+  const conIncidenciaCount = useMemo(() => solicitudes.filter(tieneIncidencia).length, [solicitudes]);
 
   const badges: Partial<Record<Tab, { valor: number; tono: "rose" | "amber" }>> = {
     incidencias: { valor: incidencias.filter((i) => !["RESUELTA", "CERRADA"].includes(i.estado)).length, tono: "rose" },
-    solicitudes: { valor: gruposCount.gestion, tono: "amber" },
+    // Lo que espera a coordinación en Solicitudes: lo nuevo sin revisar más
+    // lo terminado sin verificar.
+    solicitudes: { valor: conteoEstados.nueva + conteoEstados.por_verificar, tono: "amber" },
   };
 
   const solicitudesFiltradas = useMemo(() => {
     const q = busquedaSolicitudes.trim().toLowerCase();
     return solicitudes.filter((s) => {
-      if (filtro && grupoDeSolicitud(s) !== filtro) return false;
-      if (estadoFiltro && (s.servicio ? s.servicio.estado : s.estado) !== estadoFiltro) return false;
+      if (filtro === "con_incidencia" && !tieneIncidencia(s)) return false;
+      if (filtro && filtro !== "con_incidencia" && estadoDeSolicitud(s) !== filtro) return false;
+      
       if (tipoFiltro && (s.servicio?.tipoServicio ?? "PUNTUAL") !== tipoFiltro) return false;
       if (profesionalFiltro) {
         if (profesionalFiltro === "__sin__" && s.servicio?.profesionalId) return false;
@@ -239,14 +201,14 @@ export function CoordinadorPage() {
       }
       return true;
     });
-  }, [solicitudes, filtro, estadoFiltro, tipoFiltro, profesionalFiltro, busquedaSolicitudes]);
+  }, [solicitudes, filtro, tipoFiltro, profesionalFiltro, busquedaSolicitudes]);
 
   const ordenSolicitudes = useOrdenacion(solicitudesFiltradas, {
     codigo: (s) => s.codigo,
     fecha: (s) => s.createdAt,
     persona: (s) => `${s.persona.apellidos} ${s.persona.nombre}`,
     servicio: (s) => s.necesidad.nombre,
-    estado: (s) => estadoUnificadoDeSolicitud(s),
+    estado: (s) => estadoDeSolicitud(s),
     profesional: (s) => (s.servicio?.profesional ? `${s.servicio.profesional.apellidos} ${s.servicio.profesional.nombre}` : null),
   });
 
@@ -309,11 +271,6 @@ export function CoordinadorPage() {
       return true;
     });
   }, [incidencias, prioridadFiltro, incidenciaEstadoFiltro, busquedaIncidencias]);
-
-  const estadosPresentes = useMemo(() => {
-    const set = new Set(solicitudes.map((s) => (s.servicio ? s.servicio.estado : s.estado)));
-    return Array.from(set).sort();
-  }, [solicitudes]);
 
   const tituloTab = NAV.find((n) => n.key === tab)?.label ?? "";
 
@@ -423,57 +380,59 @@ export function CoordinadorPage() {
 
         {tab === "solicitudes" && (
           <div>
-            <div className="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+            {/* Las casillas son a la vez el resumen, la leyenda y el filtro:
+                mismo nombre y mismo color que el badge de cada fila, así no
+                hay dos vocabularios que aprender (sección "simplifica
+                estados de solicitudes, que sea más práctico y visual"). */}
+            <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
               <button
                 onClick={() => setFiltro(null)}
-                className={`rounded-lg border-2 px-2 py-2 text-center transition ${!filtro ? "border-brand bg-brand-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
+                className={`rounded-lg border px-2.5 py-2 text-left transition ${!filtro ? "border-brand bg-brand-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
               >
-                <p className={`text-xl font-semibold ${!filtro ? "text-brand-800" : "text-slate-800"}`}>{solicitudes.length}</p>
+                <p className={`text-xl font-semibold leading-tight ${!filtro ? "text-brand-800" : "text-slate-800"}`}>{solicitudes.length}</p>
                 <p className={`text-[11px] font-medium ${!filtro ? "text-brand-800" : "text-slate-500"}`}>Todas</p>
               </button>
-              {(Object.keys(GRUPO_LABEL) as Grupo[]).map((g) => {
-                const c = GRUPO_COLOR[g];
-                const activo = filtro === g;
+              {ESTADOS.map((e) => {
+                const activo = filtro === e.clave;
+                const valor = conteoEstados[e.clave];
                 return (
                   <button
-                    key={g}
-                    onClick={() => setFiltro(g)}
-                    className={`rounded-lg border-2 px-2 py-2 text-center transition ${activo ? `${c.borde} ${c.fondo}` : "border-slate-200 bg-white hover:bg-slate-50"}`}
+                    key={e.clave}
+                    onClick={() => setFiltro(activo ? null : e.clave)}
+                    title={e.ayuda}
+                    className={`rounded-lg border px-2.5 py-2 text-left transition ${
+                      activo ? `${e.borde} ${e.fondo}` : valor === 0 ? "border-slate-200 bg-white opacity-60 hover:opacity-100" : "border-slate-200 bg-white hover:bg-slate-50"
+                    }`}
                   >
-                    <p className={`text-xl font-semibold ${activo ? c.texto : "text-slate-800"}`}>{gruposCount[g]}</p>
-                    <p className={`flex items-center justify-center gap-1 text-[11px] font-medium ${activo ? c.texto : "text-slate-500"}`}>
-                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${c.dot}`} /> {GRUPO_LABEL[g]}
+                    <p className={`text-xl font-semibold leading-tight ${activo ? e.texto : "text-slate-800"}`}>{valor}</p>
+                    <p className={`flex items-center gap-1 text-[11px] font-medium ${activo ? e.texto : "text-slate-500"}`}>
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${e.dot}`} /> {e.etiqueta}
                     </p>
                   </button>
                 );
               })}
             </div>
 
-            {porVerificarCount > 0 && (
+            {/* La incidencia no es una fase: se cruza con cualquiera de
+                ellas, así que va aparte de la rejilla, como un corte extra
+                sobre la misma lista. Y junto a ella, qué toca hacer en la
+                fase que se está mirando: el filtro deja de ser solo un
+                recorte y pasa a decir para qué sirve. */}
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
               <button
-                onClick={() => {
-                  setFiltro("en_proceso");
-                  setEstadoFiltro("FINALIZADO");
-                }}
-                className={`mb-3 rounded-full px-3 py-1.5 text-xs font-medium ${
-                  filtro === "en_proceso" && estadoFiltro === "FINALIZADO" ? "bg-orange-500 text-white" : "border border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                onClick={() => setFiltro(filtro === "con_incidencia" ? null : "con_incidencia")}
+                title="Solicitudes con una incidencia abierta, estén en la fase que estén"
+                className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                  filtro === "con_incidencia"
+                    ? "border-rose-300 bg-rose-50 text-rose-700"
+                    : conIncidenciaCount === 0
+                      ? "border-slate-200 text-slate-400 hover:bg-slate-50"
+                      : "border-rose-200 text-rose-600 hover:bg-rose-50"
                 }`}
               >
-                🕐 Por verificar ({porVerificarCount})
+                ⚠ Con incidencia ({conIncidenciaCount})
               </button>
-            )}
-
-            {/* Leyenda de color (sección "se debe ver de alguna forma
-                visual que son los estados de cada solicitud. Simple
-                minimalista"): una sola fuente de verdad (estadoUnificado.ts)
-                para el color del badge, la leyenda y el estado que se puede
-                elegir — así nunca se desincronizan entre sí. */}
-            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
-              {ESTADOS_UNIFICADOS.map((e) => (
-                <span key={e.clave} className="flex items-center gap-1">
-                  <span className={`h-2 w-2 rounded-full ${e.dot}`} /> {e.etiqueta}
-                </span>
-              ))}
+              {filtro && filtro !== "con_incidencia" && <span className="text-xs text-slate-500">{infoEstado(filtro).ayuda}.</span>}
             </div>
 
             {/* Barra de lista: buscar, ordenar y filtros avanzados encima de
@@ -497,16 +456,15 @@ export function CoordinadorPage() {
               <button
                 onClick={() => setFiltrosAbiertos((v) => !v)}
                 className={`rounded-md border px-3 py-2 text-xs font-medium ${
-                  estadoFiltro || tipoFiltro || profesionalFiltro ? "border-brand bg-brand-50 text-brand-800" : "border-slate-300 text-slate-600 hover:bg-slate-50"
+                  tipoFiltro || profesionalFiltro ? "border-brand bg-brand-50 text-brand-800" : "border-slate-300 text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                ⚙ Filtros avanzados{[estadoFiltro, tipoFiltro, profesionalFiltro].filter(Boolean).length > 0 && ` (${[estadoFiltro, tipoFiltro, profesionalFiltro].filter(Boolean).length})`}
+                ⚙ Filtros avanzados{[tipoFiltro, profesionalFiltro].filter(Boolean).length > 0 && ` (${[tipoFiltro, profesionalFiltro].filter(Boolean).length})`}
               </button>
-              {(filtro || estadoFiltro || tipoFiltro || profesionalFiltro || busquedaSolicitudes) && (
+              {(filtro || tipoFiltro || profesionalFiltro || busquedaSolicitudes) && (
                 <button
                   onClick={() => {
                     setFiltro(null);
-                    setEstadoFiltro("");
                     setTipoFiltro("");
                     setProfesionalFiltro("");
                     setBusquedaSolicitudes("");
@@ -518,19 +476,11 @@ export function CoordinadorPage() {
               )}
             </div>
 
+            {/* El estado ya se filtra con las casillas de arriba: aquí solo
+                lo que no cabe ahí, para no reintroducir el desplegable con
+                los quince estados internos. */}
             {filtrosAbiertos && (
-              <div className="mb-3 grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs sm:grid-cols-3">
-                <label className="text-slate-500">
-                  Estado
-                  <select value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5">
-                    <option value="">Todos los estados</option>
-                    {estadosPresentes.map((e) => (
-                      <option key={e} value={e}>
-                        {e.replace(/_/g, " ")}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              <div className="mb-3 grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs sm:grid-cols-2">
                 <label className="text-slate-500">
                   Tipo de servicio
                   <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5">
@@ -618,8 +568,8 @@ export function CoordinadorPage() {
                         </td>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-1.5">
-                            <EstadoUnificadoBadge clave={estadoUnificadoDeSolicitud(s)} />
-                            {grupoDeSolicitud(s) === "incidencias" && (
+                            <EstadoUnificadoBadge clave={estadoDeSolicitud(s)} />
+                            {tieneIncidencia(s) && (
                               <span className="text-amber-600" title="Incidencia abierta">
                                 ⚠
                               </span>

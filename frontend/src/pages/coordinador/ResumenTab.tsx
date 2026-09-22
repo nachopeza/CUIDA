@@ -78,7 +78,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA }: Props
       valor: nuevasSolicitudes,
       icon: IconClipboard,
       tono: "amber" as const,
-      onClick: () => onIrA("solicitudes", "gestion"),
+      onClick: () => onIrA("solicitudes", "nueva"),
     },
     {
       label: "Cancelaciones pendientes",
@@ -102,7 +102,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA }: Props
       valor: serviciosDisponibles,
       icon: IconBriefcase,
       tono: "amber" as const,
-      onClick: () => onIrA("solicitudes", "gestion"),
+      onClick: () => onIrA("solicitudes", "buscando"),
     },
     {
       label: "Visitas por verificar",
