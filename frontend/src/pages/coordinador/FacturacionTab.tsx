@@ -1,313 +1,575 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
-import { api, ApiError } from "../../lib/api.js";
-import { Card } from "../../components/Layout.js";
-import { ExportarBarra } from "../../components/ExportarBarra.js";
+import { api } from "../../lib/api.js";
 import { SearchBox } from "../../components/SearchBox.js";
-import { useOrdenacion } from "../../lib/useOrdenacion.js";
-import { useSeleccion } from "../../lib/useSeleccion.js";
+import { Modal } from "../../components/Modal.js";
 import { exportarCSV } from "../../lib/csv.js";
-import type { Factura, Persona, Visita } from "../../lib/types.js";
+import { duracion, euros } from "../../lib/economia.js";
+import { FacturaDocumento, referenciaFactura } from "../../components/FacturaDocumento.js";
+import { LiquidacionDocumento } from "../../components/LiquidacionDocumento.js";
+import { IconAlert, IconCheck, IconDownload, IconEuro, IconFile, IconPlus } from "../../components/icons.js";
+import type { Factura, Liquidacion, Persona, Remesa } from "../../lib/types.js";
 
-const SIGUIENTE_FACTURA: Record<string, string> = { BORRADOR: "EMITIDA", EMITIDA: "PAGADA" };
-// "Se debe generar una nota de pago para luego emitir la factura": el
-// BORRADOR es esa nota de pago — un cálculo ya hecho pero todavía no
-// formalizado — así que se etiqueta distinto aunque el estado interno sea
-// el mismo.
-const ETIQUETA_ESTADO_FACTURA: Record<string, string> = { BORRADOR: "Nota de pago", EMITIDA: "Factura emitida", PAGADA: "Pagada" };
-const ETIQUETA_ACCION_FACTURA: Record<string, string> = { BORRADOR: "Emitir factura", EMITIDA: "Marcar pagada" };
+type Vista = "cobrar" | "pagar" | "remesas";
+
+const ESTADO_FACTURA: Record<string, { etiqueta: string; clase: string }> = {
+  BORRADOR: { etiqueta: "Borrador", clase: "bg-slate-200 text-slate-700" },
+  EMITIDA: { etiqueta: "Emitida", clase: "bg-blue-100 text-blue-700" },
+  PAGADA: { etiqueta: "Cobrada", clase: "bg-brand-green-100 text-brand-green-700" },
+  IMPAGADA: { etiqueta: "Impagada", clase: "bg-rose-100 text-rose-700" },
+  ANULADA: { etiqueta: "Anulada", clase: "bg-slate-300 text-slate-600" },
+};
+
+const ESTADO_LIQUIDACION: Record<string, { etiqueta: string; clase: string }> = {
+  BORRADOR: { etiqueta: "Borrador", clase: "bg-slate-200 text-slate-700" },
+  APROBADA: { etiqueta: "Aprobada", clase: "bg-blue-100 text-blue-700" },
+  PAGADA: { etiqueta: "Pagada", clase: "bg-brand-green-100 text-brand-green-700" },
+};
 
 function mesActualISO() {
   return new Date().toISOString().slice(0, 7);
 }
 
-function horasDeVisita(v: Visita): number {
-  if (!v.horaInicioReal || !v.horaFinReal) return 0;
-  return (new Date(v.horaFinReal).getTime() - new Date(v.horaInicioReal).getTime()) / 3600000;
+function fechaCorta(iso?: string | null) {
+  return iso ? new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "short" }) : "—";
 }
 
-// Las visitas de un servicio recurrente se facturan por horas y se agrupan
-// en una sola línea por servicio (sección "basar el sistema de facturación
-// en el tiempo... lo que vale es el tiempo que pasan los profesionales con
-// los usuarios"): mismo cálculo que hace el backend al generar la factura.
-function lineasPorHoras(visitas: Visita[]) {
-  const grupos = new Map<string, { concepto: string; profesional: string; horas: number; precioHora: number; ivaPct: number }>();
-  for (const v of visitas) {
-    const servicioId = v.servicio?.id ?? v.id;
-    const actual = grupos.get(servicioId) ?? {
-      concepto: v.servicio?.solicitud.necesidad.nombre ?? "Servicio recurrente",
-      profesional: v.profesional ? `${v.profesional.nombre} ${v.profesional.apellidos}` : "—",
-      horas: 0,
-      precioHora: Number(v.servicio?.tarifaImporte ?? 0),
-      ivaPct: Number(v.servicio?.ivaPorcentaje ?? 0),
-    };
-    actual.horas += horasDeVisita(v);
-    grupos.set(servicioId, actual);
-  }
-  return Array.from(grupos.entries()).map(([servicioId, g]) => {
-    const base = Math.round(g.horas * g.precioHora * 100) / 100;
-    const iva = Math.round(base * (g.ivaPct / 100) * 100) / 100;
-    return { servicioId, ...g, base, iva, total: Math.round((base + iva) * 100) / 100 };
-  });
+// Vencida y sin cobrar. Se calcula aquí y no en el servidor porque depende
+// del día en que se mira, no de un estado guardado.
+function estaVencida(f: Factura): boolean {
+  if (f.estado !== "EMITIDA" || !f.fechaVencimiento) return false;
+  return new Date(f.fechaVencimiento).getTime() < Date.now();
 }
 
-// Facturación mensual (sección "función es cobrar por gestión un pequeño
-// porcentaje... cuenta mensual con los servicios solicitados... al final de
-// mes se le cobrará el importe. Ese importe se dividirá y se entregará a
-// los profesionales o empresas colaboradoras").
+function Cifra({ etiqueta, valor, tono }: { etiqueta: string; valor: string; tono?: "verde" | "rojo" }) {
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${tono === "verde" ? "border-brand-green-200 bg-brand-green-50" : tono === "rojo" ? "border-rose-200 bg-rose-50" : "border-slate-200 bg-white"}`}>
+      <p className={`text-xs ${tono === "verde" ? "text-brand-green-700" : tono === "rojo" ? "text-rose-700" : "text-slate-500"}`}>{etiqueta}</p>
+      <p className={`text-lg font-semibold ${tono === "verde" ? "text-brand-green-800" : tono === "rojo" ? "text-rose-800" : "text-slate-900"}`}>{valor}</p>
+    </div>
+  );
+}
+
+// El dinero de la empresa en un solo sitio: lo que entra de las familias, lo
+// que sale hacia quien trabaja y los envíos al banco. Antes sólo existía una
+// lista de facturas sin identidad fiscal y el pago a profesionales era un
+// sí/no escondido en cada servicio.
 export function FacturacionTab() {
   const { token } = useAuth();
-  const [personas, setPersonas] = useState<Persona[]>([]);
-  const [facturas, setFacturas] = useState<Factura[]>([]);
-  const [personaId, setPersonaId] = useState("");
+  const [vista, setVista] = useState<Vista>("cobrar");
   const [mes, setMes] = useState(mesActualISO());
-  const [error, setError] = useState<string | null>(null);
-  const [generando, setGenerando] = useState(false);
-  const [detalleAbierto, setDetalleAbierto] = useState<string | null>(null);
+  const [facturas, setFacturas] = useState<Factura[]>([]);
+  const [liquidaciones, setLiquidaciones] = useState<Liquidacion[]>([]);
+  const [remesas, setRemesas] = useState<Remesa[]>([]);
+  const [personas, setPersonas] = useState<Persona[]>([]);
   const [busqueda, setBusqueda] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [facturaAbierta, setFacturaAbierta] = useState<Factura | null>(null);
+  const [liquidacionAbierta, setLiquidacionAbierta] = useState<Liquidacion | null>(null);
+  const [rectificando, setRectificando] = useState<Factura | null>(null);
+  const [motivoRectificacion, setMotivoRectificacion] = useState("");
+  const [personaNueva, setPersonaNueva] = useState("");
 
   async function cargar() {
-    const [pers, facs] = await Promise.all([
-      api.get<Persona[]>("/personas", token),
+    const [f, l, r, p] = await Promise.all([
       api.get<Factura[]>("/facturas", token),
+      api.get<Liquidacion[]>("/liquidaciones", token).catch(() => []),
+      api.get<Remesa[]>("/cobros/remesas", token).catch(() => []),
+      api.get<Persona[]>("/personas", token).catch(() => []),
     ]);
-    setPersonas(pers);
-    setFacturas(facs);
-    if (!personaId && pers[0]) setPersonaId(pers[0].id);
+    setFacturas(f);
+    setLiquidaciones(l);
+    setRemesas(r);
+    setPersonas(p);
   }
 
   useEffect(() => {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
-  async function generar(e: FormEvent) {
-    e.preventDefault();
+  async function accion(clave: string, fn: () => Promise<unknown>, exito?: string) {
+    setOcupado(clave);
     setError(null);
-    setGenerando(true);
+    setAviso(null);
     try {
-      await api.post("/facturas/generar", { personaId, mes }, token);
+      await fn();
       await cargar();
-    } catch (err) {
-      // El backend explica el motivo concreto (no hay nada que facturar, ya
-      // existe la factura de ese mes...): se muestra tal cual en vez de un
-      // mensaje genérico que no dice qué ha pasado.
-      setError(err instanceof ApiError ? err.message.replace(/^"|"$/g, "") : "Error al generar la factura.");
+      if (exito) setAviso(exito);
+    } catch (e) {
+      setError(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido completar");
     } finally {
-      setGenerando(false);
+      setOcupado(null);
     }
   }
 
-  async function avanzarEstado(factura: Factura) {
-    const siguiente = SIGUIENTE_FACTURA[factura.estado];
-    if (!siguiente) return;
-    await api.post(`/facturas/${factura.id}/estado`, { estado: siguiente }, token);
-    await cargar();
-  }
-
-  const facturasFiltradas = facturas.filter((f) => {
-    const q = busqueda.trim().toLowerCase();
-    if (!q) return true;
-    return `${f.persona.nombre} ${f.persona.apellidos} ${f.codigo} ${f.mes}`.toLowerCase().includes(q);
-  });
-  const ordenFacturas = useOrdenacion(
-    facturasFiltradas,
-    {
-      mes: (f) => f.mes,
-      persona: (f) => `${f.persona.apellidos} ${f.persona.nombre}`,
-      total: (f) => Number(f.totalConIva ?? f.importeTotal),
-      estado: (f) => f.estado,
-      codigo: (f) => f.codigo,
-    },
-    "mes",
+  const q = busqueda.trim().toLowerCase();
+  const facturasVisibles = useMemo(
+    () =>
+      facturas.filter((f) =>
+        !q
+          ? true
+          : [f.codigo, referenciaFactura(f), `${f.persona.nombre} ${f.persona.apellidos}`, f.titularNombre ?? "", f.mes]
+              .join(" ")
+              .toLowerCase()
+              .includes(q),
+      ),
+    [facturas, q],
   );
-  const seleccionFacturas = useSeleccion(facturasFiltradas);
+  const liquidacionesVisibles = useMemo(
+    () =>
+      liquidaciones.filter((l) =>
+        !q ? true : [l.codigo, `${l.profesional.nombre} ${l.profesional.apellidos}`, l.mes].join(" ").toLowerCase().includes(q),
+      ),
+    [liquidaciones, q],
+  );
 
-  function exportarFacturas() {
-    const filas = seleccionFacturas.seleccionadas.length > 0 ? seleccionFacturas.seleccionadas : facturasFiltradas;
-    exportarCSV(
-      filas,
-      [
-        { encabezado: "Código", valor: (f) => f.codigo },
-        { encabezado: "Persona", valor: (f) => `${f.persona.nombre} ${f.persona.apellidos}` },
-        { encabezado: "Mes", valor: (f) => f.mes },
-        { encabezado: "Base imponible", valor: (f) => Number(f.importeTotal) },
-        { encabezado: "IVA", valor: (f) => Number(f.ivaTotal ?? 0) },
-        { encabezado: "Total", valor: (f) => Number(f.totalConIva ?? f.importeTotal) },
-        { encabezado: "Comisión CUIDA", valor: (f) => Number(f.comisionTotal) },
-        { encabezado: "A profesionales", valor: (f) => Number(f.importeProfesionales) },
-        { encabezado: "Estado", valor: (f) => f.estado },
-      ],
-      "facturas",
-    );
-  }
+  const totales = useMemo(() => {
+    const pendiente = facturas.filter((f) => ["EMITIDA", "IMPAGADA"].includes(f.estado));
+    return {
+      borradores: facturas.filter((f) => f.estado === "BORRADOR").length,
+      porCobrar: pendiente.reduce((a, f) => a + Number(f.totalConIva), 0),
+      vencidas: facturas.filter(estaVencida),
+      impagadas: facturas.filter((f) => f.estado === "IMPAGADA"),
+      cobrado: facturas.filter((f) => f.estado === "PAGADA").reduce((a, f) => a + Number(f.totalConIva), 0),
+      comision: facturas.filter((f) => f.estado !== "BORRADOR").reduce((a, f) => a + Number(f.comisionTotal), 0),
+      porPagar: liquidaciones.filter((l) => l.estado !== "PAGADA").reduce((a, l) => a + Number(l.neto), 0),
+      pagado: liquidaciones.filter((l) => l.estado === "PAGADA").reduce((a, l) => a + Number(l.neto), 0),
+    };
+  }, [facturas, liquidaciones]);
 
   return (
-    <div>
-      <Card title="Generar factura mensual">
-        <form onSubmit={generar} className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <select value={personaId} onChange={(e) => setPersonaId(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
-            {personas.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombre} {p.apellidos}
-              </option>
-            ))}
-          </select>
-          <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          <button type="submit" disabled={generando || !personaId} className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50">
-            {generando ? "Generando…" : "Generar factura"}
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {([
+          ["cobrar", "A cobrar", facturas.length],
+          ["pagar", "A pagar", liquidaciones.length],
+          ["remesas", "Remesas", remesas.length],
+        ] as const).map(([clave, etiqueta, valor]) => (
+          <button
+            key={clave}
+            onClick={() => setVista(clave)}
+            className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+              vista === clave ? "border-brand bg-brand text-white" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            {etiqueta} ({valor})
           </button>
-        </form>
-        {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
-        <p className="mt-2 text-xs text-slate-400">
-          Agrupa los servicios pagados, cerrados o validados de esa persona en ese mes que todavía no estén facturados.
-        </p>
-      </Card>
+        ))}
+        <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar…" className="ml-auto w-full sm:w-56" />
+      </div>
 
-      <Card title="Facturas">
-        {facturas.length === 0 && <p className="text-sm text-slate-500">Todavía no se ha generado ninguna factura.</p>}
-        {facturas.length > 0 && (
-          <>
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por persona, código o mes…" className="flex-1 sm:max-w-xs" />
-              <select
-                value={ordenFacturas.campo ?? ""}
-                onChange={(e) => e.target.value && ordenFacturas.ordenarPor(e.target.value)}
-                className="rounded-md border border-slate-300 px-2 py-2 text-xs"
-              >
-                <option value="mes">Ordenar por mes</option>
-                <option value="persona">Persona</option>
-                <option value="total">Importe total</option>
-                <option value="estado">Estado</option>
-                <option value="codigo">Código</option>
-              </select>
-            </div>
-            <ExportarBarra
-              total={facturasFiltradas.length}
-              seleccionadas={seleccionFacturas.seleccionadas.length}
-              onExportar={exportarFacturas}
-              onSeleccionarTodo={seleccionFacturas.seleccionarTodo}
-              onLimpiarSeleccion={seleccionFacturas.limpiar}
+      {error && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
+      {aviso && <p className="rounded-md border border-brand-green-200 bg-brand-green-50 px-3 py-2 text-xs text-brand-green-700">{aviso}</p>}
+
+      {/* ------------------------------------------------------------ COBRAR */}
+      {vista === "cobrar" && (
+        <>
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <Cifra etiqueta="Por cobrar" valor={euros(totales.porCobrar)} />
+            <Cifra etiqueta="Cobrado" valor={euros(totales.cobrado)} tono="verde" />
+            <Cifra etiqueta="Comisión de CUIDA" valor={euros(totales.comision)} />
+            <Cifra
+              etiqueta={totales.impagadas.length > 0 ? "Impagadas" : "Vencidas sin cobrar"}
+              valor={String(totales.impagadas.length > 0 ? totales.impagadas.length : totales.vencidas.length)}
+              tono={totales.impagadas.length + totales.vencidas.length > 0 ? "rojo" : undefined}
             />
-          </>
-        )}
-        <ul className="divide-y divide-slate-100">
-          {ordenFacturas.ordenadas.map((f) => (
-            <li key={f.id} className="py-3 text-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    checked={seleccionFacturas.ids.has(f.id)}
-                    onChange={() => seleccionFacturas.toggle(f.id)}
-                    className="mt-1"
-                  />
-                  <div>
-                    <p className="font-medium">
-                      {f.persona.nombre} {f.persona.apellidos} · {f.mes}
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      {f.codigo} · {f.servicios.length} servicio(s)
-                    </p>
-                  </div>
-                </div>
-                <span
-                  className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    f.estado === "BORRADOR" ? "bg-amber-100 text-amber-700" : f.estado === "EMITIDA" ? "bg-blue-100 text-blue-700" : "bg-brand-green-100 text-brand-green-700"
-                  }`}
-                >
-                  {ETIQUETA_ESTADO_FACTURA[f.estado] ?? f.estado}
-                </span>
-              </div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-3 pl-1 text-xs text-slate-600">
-                <span>
-                  Base imponible: <strong>{Number(f.importeTotal).toFixed(2)} €</strong>
-                </span>
-                <span>
-                  + IVA: <strong>{Number(f.ivaTotal ?? 0).toFixed(2)} €</strong>
-                </span>
-                <span>
-                  = Total: <strong>{Number(f.totalConIva ?? f.importeTotal).toFixed(2)} €</strong>
-                </span>
-                <span className="text-slate-400">Comisión CUIDA: {Number(f.comisionTotal).toFixed(2)} €</span>
-                <span className="text-slate-400">A profesionales/empresas: {Number(f.importeProfesionales).toFixed(2)} €</span>
-                <button
-                  onClick={() => setDetalleAbierto(detalleAbierto === f.id ? null : f.id)}
-                  className="rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-100"
-                >
-                  {detalleAbierto === f.id ? "Ocultar detalle" : "Ver detalle"}
-                </button>
-                {SIGUIENTE_FACTURA[f.estado] && (
-                  <button onClick={() => avanzarEstado(f)} className="ml-auto rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-100">
-                    {ETIQUETA_ACCION_FACTURA[f.estado]}
-                  </button>
-                )}
-              </div>
+          </div>
 
-              {/* Factura itemizada por línea de servicio (sección "acceder
-                  a la factura y ver la información completa... por ítems
-                  datos servicios coste etc."): un desglose legible, no solo
-                  el total agregado. */}
-              {detalleAbierto === f.id && (
-                <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
-                  <table className="min-w-full divide-y divide-slate-100 text-xs">
-                    <thead className="bg-slate-50 text-left font-semibold uppercase tracking-wide text-slate-500">
-                      <tr>
-                        <th className="px-3 py-2">Concepto</th>
-                        <th className="px-3 py-2">Profesional</th>
-                        <th className="px-3 py-2">Base</th>
-                        <th className="px-3 py-2">IVA</th>
-                        <th className="px-3 py-2">Total línea</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {f.servicios.map((s) => (
-                        <tr key={s.id}>
-                          <td className="px-3 py-2">
-                            {s.solicitud?.necesidad.nombre ?? "—"} <span className="text-slate-400">· {s.codigo}</span>
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">{s.profesional ? `${s.profesional.nombre} ${s.profesional.apellidos}` : "—"}</td>
-                          <td className="px-3 py-2 text-slate-600">{s.tarifaImporte != null ? `${Number(s.tarifaImporte).toFixed(2)} €` : "—"}</td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {s.ivaPorcentaje != null ? `${Number(s.ivaPorcentaje)}% (${Number(s.ivaImporte ?? 0).toFixed(2)} €)` : "—"}
-                          </td>
-                          <td className="px-3 py-2 font-medium text-slate-800">{s.totalConIva != null ? `${Number(s.totalConIva).toFixed(2)} €` : "—"}</td>
-                        </tr>
-                      ))}
-                      {lineasPorHoras(f.visitas ?? []).map((l) => (
-                        <tr key={l.servicioId}>
-                          <td className="px-3 py-2">
-                            {l.concepto}{" "}
-                            <span className="text-slate-400">
-                              · {l.horas.toFixed(2)} h × {l.precioHora.toFixed(2)} €/h
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">{l.profesional}</td>
-                          <td className="px-3 py-2 text-slate-600">{l.base.toFixed(2)} €</td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {l.ivaPct}% ({l.iva.toFixed(2)} €)
-                          </td>
-                          <td className="px-3 py-2 font-medium text-slate-800">{l.total.toFixed(2)} €</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="border-t border-slate-200 bg-slate-50 font-medium text-slate-700">
-                      <tr>
-                        <td className="px-3 py-2" colSpan={2}>
-                          Totales
-                        </td>
-                        <td className="px-3 py-2">{Number(f.importeTotal).toFixed(2)} €</td>
-                        <td className="px-3 py-2">{Number(f.ivaTotal ?? 0).toFixed(2)} €</td>
-                        <td className="px-3 py-2">{Number(f.totalConIva ?? f.importeTotal).toFixed(2)} €</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      </Card>
+          <div className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3">
+            <label className="text-xs text-slate-500">
+              Mes
+              <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="mt-0.5 block rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+            </label>
+            <label className="min-w-[12rem] flex-1 text-xs text-slate-500">
+              Persona
+              <select value={personaNueva} onChange={(e) => setPersonaNueva(e.target.value)} className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+                <option value="">Elige a quién facturar…</option>
+                {personas.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre} {p.apellidos}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              onClick={() =>
+                accion("generar", () => api.post("/facturas/generar", { personaId: personaNueva, mes }, token), "Factura creada en borrador")
+              }
+              disabled={!personaNueva || ocupado === "generar"}
+              className="flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+            >
+              <IconPlus className="h-3.5 w-3.5" />
+              {ocupado === "generar" ? "Creando…" : "Crear factura del mes"}
+            </button>
+            {facturasVisibles.length > 0 && (
+              <button
+                onClick={() =>
+                  exportarCSV(
+                    facturasVisibles,
+                    [
+                      { encabezado: "Referencia", valor: (f) => referenciaFactura(f) },
+                      { encabezado: "Código", valor: (f) => f.codigo },
+                      { encabezado: "Cliente", valor: (f) => f.titularNombre ?? `${f.persona.nombre} ${f.persona.apellidos}` },
+                      { encabezado: "NIF", valor: (f) => f.titularNif ?? "" },
+                      { encabezado: "Periodo", valor: (f) => f.mes },
+                      { encabezado: "Emitida", valor: (f) => fechaCorta(f.fechaEmision) },
+                      { encabezado: "Vence", valor: (f) => fechaCorta(f.fechaVencimiento) },
+                      { encabezado: "Base", valor: (f) => Number(f.importeTotal).toFixed(2) },
+                      { encabezado: "IVA", valor: (f) => Number(f.ivaTotal).toFixed(2) },
+                      { encabezado: "Total", valor: (f) => Number(f.totalConIva).toFixed(2) },
+                      { encabezado: "Estado", valor: (f) => ESTADO_FACTURA[f.estado]?.etiqueta ?? f.estado },
+                    ],
+                    "facturas",
+                  )
+                }
+                className="text-xs font-medium text-brand hover:text-brand-800"
+              >
+                Exportar CSV ({facturasVisibles.length})
+              </button>
+            )}
+          </div>
+
+          {facturasVisibles.length === 0 ? (
+            <p className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
+              Todavía no hay ninguna factura.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {facturasVisibles.map((f) => {
+                const info = ESTADO_FACTURA[f.estado] ?? { etiqueta: f.estado, clase: "bg-slate-200 text-slate-700" };
+                const vencida = estaVencida(f);
+                return (
+                  <li key={f.id} className={`rounded-lg border bg-white p-3 ${vencida || f.estado === "IMPAGADA" ? "border-rose-200" : "border-slate-200"}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <button onClick={() => setFacturaAbierta(f)} className="min-w-0 flex-1 text-left">
+                        <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-800 hover:underline">
+                          {referenciaFactura(f)}
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${info.clase}`}>{info.etiqueta}</span>
+                          {f.tipo === "RECTIFICATIVA" && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">Rectificativa</span>
+                          )}
+                          {vencida && <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-700">Vencida</span>}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {f.titularNombre ?? `${f.persona.nombre} ${f.persona.apellidos}`} · {f.mes}
+                          {f.fechaVencimiento && ` · vence ${fechaCorta(f.fechaVencimiento)}`}
+                          {f.remesaId && " · en remesa"}
+                        </p>
+                        {f.motivoImpago && <p className="mt-0.5 text-xs text-rose-600">Devuelta: {f.motivoImpago}</p>}
+                      </button>
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <p className="text-base font-semibold tabular-nums text-slate-900">{euros(f.totalConIva)}</p>
+                        <div className="flex flex-wrap justify-end gap-1.5">
+                          {f.estado === "BORRADOR" && (
+                            <button
+                              onClick={() => accion(f.id, () => api.post(`/facturas/${f.id}/emitir`, {}, token), "Factura emitida")}
+                              disabled={ocupado === f.id}
+                              className="rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+                            >
+                              {ocupado === f.id ? "…" : "Emitir"}
+                            </button>
+                          )}
+                          {["EMITIDA", "IMPAGADA"].includes(f.estado) && (
+                            <>
+                              <button
+                                onClick={() => accion(f.id, () => api.post(`/facturas/${f.id}/cobrar`, {}, token), "Factura cobrada")}
+                                disabled={ocupado === f.id}
+                                className="flex items-center gap-1 rounded-md bg-brand-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-green-700 disabled:opacity-50"
+                              >
+                                <IconCheck className="h-3.5 w-3.5" /> Cobrada
+                              </button>
+                              {f.estado === "EMITIDA" && (
+                                <button
+                                  onClick={() => {
+                                    const motivo = window.prompt("¿Por qué se ha devuelto el recibo?");
+                                    if (motivo) accion(f.id, () => api.post(`/facturas/${f.id}/impago`, { motivo }, token), "Marcada como impagada");
+                                  }}
+                                  className="flex items-center gap-1 rounded-md border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                                >
+                                  <IconAlert className="h-3.5 w-3.5" /> Devuelta
+                                </button>
+                              )}
+                            </>
+                          )}
+                          {f.estado !== "BORRADOR" && f.tipo === "ORDINARIA" && (
+                            <button
+                              onClick={() => {
+                                setRectificando(f);
+                                setMotivoRectificacion("");
+                              }}
+                              className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                            >
+                              Rectificar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
+      )}
+
+      {/* ------------------------------------------------------------- PAGAR */}
+      {vista === "pagar" && (
+        <>
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <Cifra etiqueta="Por pagar" valor={euros(totales.porPagar)} tono={totales.porPagar > 0 ? "rojo" : undefined} />
+            <Cifra etiqueta="Pagado" valor={euros(totales.pagado)} tono="verde" />
+            <Cifra etiqueta="En nómina" valor={String(liquidaciones.filter((l) => l.tipoRelacion === "LABORAL").length)} />
+            <Cifra etiqueta="Autónomas" valor={String(liquidaciones.filter((l) => l.tipoRelacion === "AUTONOMO").length)} />
+          </div>
+
+          <div className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3">
+            <label className="text-xs text-slate-500">
+              Mes
+              <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="mt-0.5 block rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+            </label>
+            <button
+              onClick={() => accion("liq", () => api.post("/liquidaciones/generar", { mes }, token), "Liquidaciones calculadas")}
+              disabled={ocupado === "liq"}
+              className="flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+            >
+              <IconEuro className="h-3.5 w-3.5" />
+              {ocupado === "liq" ? "Calculando…" : "Calcular el mes"}
+            </button>
+            <p className="text-xs text-slate-400">Sólo entran las jornadas verificadas.</p>
+            {liquidacionesVisibles.length > 0 && (
+              <button
+                onClick={() =>
+                  exportarCSV(
+                    liquidacionesVisibles,
+                    [
+                      { encabezado: "Liquidación", valor: (l) => l.codigo },
+                      { encabezado: "Mes", valor: (l) => l.mes },
+                      { encabezado: "Profesional", valor: (l) => `${l.profesional.nombre} ${l.profesional.apellidos}` },
+                      { encabezado: "DNI", valor: (l) => l.profesional.dni ?? "" },
+                      { encabezado: "Cuenta", valor: (l) => l.profesional.numeroCuenta ?? "" },
+                      { encabezado: "Relación", valor: (l) => (l.tipoRelacion === "LABORAL" ? "Laboral" : "Autónoma") },
+                      { encabezado: "Horas", valor: (l) => (l.minutos / 60).toFixed(2) },
+                      { encabezado: "Bruto", valor: (l) => Number(l.bruto).toFixed(2) },
+                      { encabezado: "IRPF %", valor: (l) => Number(l.irpfPorcentaje).toFixed(2) },
+                      { encabezado: "IRPF", valor: (l) => Number(l.irpfImporte).toFixed(2) },
+                      { encabezado: "Neto", valor: (l) => Number(l.neto).toFixed(2) },
+                      { encabezado: "Estado", valor: (l) => ESTADO_LIQUIDACION[l.estado]?.etiqueta ?? l.estado },
+                    ],
+                    "liquidaciones",
+                  )
+                }
+                className="ml-auto flex items-center gap-1 text-xs font-medium text-brand hover:text-brand-800"
+              >
+                <IconDownload className="h-3.5 w-3.5" /> Exportar para la gestoría
+              </button>
+            )}
+          </div>
+
+          {liquidacionesVisibles.length === 0 ? (
+            <p className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
+              Todavía no hay liquidaciones. Elige un mes y pulsa «Calcular el mes».
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {liquidacionesVisibles.map((l) => {
+                const info = ESTADO_LIQUIDACION[l.estado] ?? { etiqueta: l.estado, clase: "bg-slate-200 text-slate-700" };
+                return (
+                  <li key={l.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <button onClick={() => setLiquidacionAbierta(l)} className="min-w-0 flex-1 text-left">
+                        <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-800 hover:underline">
+                          {l.profesional.nombre} {l.profesional.apellidos}
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${info.clase}`}>{info.etiqueta}</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                            {l.tipoRelacion === "LABORAL" ? "En nómina" : "Autónoma"}
+                          </span>
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {l.codigo} · {l.mes} · {duracion(l.minutos)} en {l.lineas.length} jornada{l.lineas.length === 1 ? "" : "s"}
+                          {Number(l.irpfImporte) > 0 && ` · IRPF ${Number(l.irpfPorcentaje)}% (−${euros(l.irpfImporte)})`}
+                        </p>
+                      </button>
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <p className="text-base font-semibold tabular-nums text-slate-900">{euros(l.neto)}</p>
+                        <div className="flex gap-1.5">
+                          {l.estado === "BORRADOR" && (
+                            <button
+                              onClick={() => accion(l.id, () => api.post(`/liquidaciones/${l.id}/aprobar`, {}, token), "Liquidación aprobada")}
+                              disabled={ocupado === l.id}
+                              className="rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+                            >
+                              {ocupado === l.id ? "…" : "Aprobar"}
+                            </button>
+                          )}
+                          {l.estado === "APROBADA" && (
+                            <button
+                              onClick={() => accion(l.id, () => api.post(`/liquidaciones/${l.id}/pagar`, {}, token), "Liquidación pagada")}
+                              disabled={ocupado === l.id}
+                              className="flex items-center gap-1 rounded-md bg-brand-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-green-700 disabled:opacity-50"
+                            >
+                              <IconCheck className="h-3.5 w-3.5" /> Pagada
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
+      )}
+
+      {/* ----------------------------------------------------------- REMESAS */}
+      {vista === "remesas" && (
+        <>
+          <div className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3">
+            <label className="text-xs text-slate-500">
+              Mes
+              <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="mt-0.5 block rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+            </label>
+            <button
+              onClick={() => accion("rem", () => api.post("/cobros/remesas", { mes }, token), "Remesa generada")}
+              disabled={ocupado === "rem"}
+              className="flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+            >
+              <IconFile className="h-3.5 w-3.5" />
+              {ocupado === "rem" ? "Generando…" : "Generar remesa del mes"}
+            </button>
+            <p className="text-xs text-slate-400">Agrupa las facturas emitidas que se cobran por domiciliación.</p>
+          </div>
+
+          {remesas.length === 0 ? (
+            <p className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
+              Todavía no has generado ninguna remesa.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {remesas.map((r) => (
+                <li key={r.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800">
+                        {r.codigo} · {r.mes}
+                        <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{r.estado.toLowerCase()}</span>
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Cargo el {fechaCorta(r.fechaCargo)} · {r.facturas.length} recibo{r.facturas.length === 1 ? "" : "s"}
+                      </p>
+                      <ul className="mt-1 text-xs text-slate-400">
+                        {r.facturas.slice(0, 4).map((f) => (
+                          <li key={f.id}>
+                            {f.persona.nombre} {f.persona.apellidos} · {euros(f.totalConIva)}
+                          </li>
+                        ))}
+                        {r.facturas.length > 4 && <li>y {r.facturas.length - 4} más</li>}
+                      </ul>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <p className="text-base font-semibold tabular-nums text-slate-900">
+                        {euros(r.facturas.reduce((a, f) => a + Number(f.totalConIva), 0))}
+                      </p>
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        <a
+                          href={`${import.meta.env.VITE_API_URL ?? "http://localhost:4000"}/cobros/remesas/${r.id}/fichero`}
+                          onClick={async (e) => {
+                            // El enlace directo no lleva el token, así que se
+                            // descarga con fetch y se entrega como archivo.
+                            e.preventDefault();
+                            const res = await fetch(e.currentTarget.href, { headers: { Authorization: `Bearer ${token}` } });
+                            const texto = await res.text();
+                            const url = URL.createObjectURL(new Blob([texto], { type: "application/xml" }));
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `${r.codigo}.xml`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          }}
+                          className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                        >
+                          <IconDownload className="h-3.5 w-3.5" /> Fichero para el banco
+                        </a>
+                        {r.estado !== "COBRADA" && (
+                          <button
+                            onClick={() => accion(r.id, () => api.post(`/cobros/remesas/${r.id}/estado`, { estado: "COBRADA" }, token), "Remesa cobrada")}
+                            disabled={ocupado === r.id}
+                            className="rounded-md bg-brand-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-green-700 disabled:opacity-50"
+                          >
+                            Dar por cobrada
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+
+      {facturaAbierta && (
+        <Modal title={referenciaFactura(facturaAbierta)} onClose={() => setFacturaAbierta(null)} size="lg">
+          <div className="mb-3 flex justify-end print:hidden">
+            <button onClick={() => window.print()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+              Imprimir o guardar en PDF
+            </button>
+          </div>
+          <FacturaDocumento factura={facturaAbierta} />
+        </Modal>
+      )}
+
+      {liquidacionAbierta && (
+        <Modal title={`${liquidacionAbierta.codigo} · ${liquidacionAbierta.mes}`} onClose={() => setLiquidacionAbierta(null)} size="lg">
+          <div className="mb-3 flex justify-end print:hidden">
+            <button onClick={() => window.print()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+              Imprimir o guardar en PDF
+            </button>
+          </div>
+          <LiquidacionDocumento liquidacion={liquidacionAbierta} />
+        </Modal>
+      )}
+
+      {rectificando && (
+        <Modal title={`Rectificar ${referenciaFactura(rectificando)}`} onClose={() => setRectificando(null)}>
+          <p className="mb-3 text-sm text-slate-600">
+            La factura original no se toca: se emite otra que la referencia y la compensa. Es lo que hace que el número de
+            una factura ya entregada signifique siempre lo mismo.
+          </p>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Motivo
+            <input
+              type="text"
+              autoFocus
+              value={motivoRectificacion}
+              onChange={(e) => setMotivoRectificacion(e.target.value)}
+              placeholder="Se facturaron horas que no se hicieron"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case"
+            />
+          </label>
+          <div className="mt-4 flex justify-end gap-2">
+            <button onClick={() => setRectificando(null)} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+              Cancelar
+            </button>
+            <button
+              onClick={() => {
+                const f = rectificando;
+                setRectificando(null);
+                accion(f.id, () => api.post(`/facturas/${f.id}/rectificar`, { motivo: motivoRectificacion }, token), "Rectificativa emitida");
+              }}
+              disabled={!motivoRectificacion.trim()}
+              className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+            >
+              Emitir rectificativa
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

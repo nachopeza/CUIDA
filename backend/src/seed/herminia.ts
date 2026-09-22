@@ -112,7 +112,24 @@ async function main() {
   // 1. Organización piloto
   const orgCodigo = await generarCodigo("organizacion");
   const organizacion = await prisma.organizacion.create({
-    data: { codigo: orgCodigo, nombre: NOMBRE_ORG_DEMO, estado: "ACTIVA" },
+    data: {
+      codigo: orgCodigo,
+      nombre: NOMBRE_ORG_DEMO,
+      estado: "ACTIVA",
+      // Identidad fiscal de quien emite: sin esto una factura no se puede
+      // entregar a nadie. Datos de demostración, no de una empresa real.
+      razonSocial: "CUIDA Servicios a Domicilio S.L.",
+      cif: "B12345678",
+      direccionFiscal: "Calle Mayor 14, 2º",
+      codigoPostal: "39001",
+      municipio: "Santander",
+      provincia: "Cantabria",
+      telefono: "942 000 000",
+      emailFacturacion: "facturacion@cuida.demo",
+      serieFactura: "A",
+      ibanCobro: "ES9121000418450200051332",
+      identificadorAcreedor: "ES12ZZZB12345678",
+    },
   });
 
   // 2. Catálogo de servicios (sección "Servicios son lo que ofrecemos:
@@ -1052,6 +1069,64 @@ async function main() {
       entidadId: solicitud.id,
     },
   });
+
+  // 14. Cobro y pago: a quién se factura, con qué cuenta y cómo trabaja cada
+  // profesional. Sin esto el módulo de facturación arranca vacío y no se
+  // puede ver funcionando.
+  const clientes = [
+    { personaId: herminia.id, titular: "Isabel Ruiz Campos", nif: "20304050K", iban: "ES7921000813610123456789", email: "hija.herminia@cuida.demo", parentesco: "la hija" },
+    { personaId: manuel.persona.id, titular: "Manuel Prats Soler", nif: "13579246B", iban: "ES6000491500051234567892", email: "manuel@cuida.demo", parentesco: "él mismo" },
+    { personaId: dolores.persona.id, titular: "Carmen Aguirre Vega", nif: "86420975N", iban: "ES1000492352082414205416", email: "hija.dolores@cuida.demo", parentesco: "la hija" },
+  ];
+  for (const cliente of clientes) {
+    const datos = await prisma.datosFacturacion.create({
+      data: {
+        personaId: cliente.personaId,
+        titular: cliente.titular,
+        nif: cliente.nif,
+        direccionFiscal: "Domicilio particular (demo)",
+        codigoPostal: "39001",
+        municipio: "Santander",
+        provincia: "Cantabria",
+        email: cliente.email,
+        formaPago: "DOMICILIACION",
+        diaCobro: 5,
+        notas: `Paga ${cliente.parentesco}`,
+      },
+    });
+    await prisma.mandatoSepa.create({
+      data: {
+        referencia: await generarCodigo("mandato"),
+        datosFacturacionId: datos.id,
+        titular: cliente.titular,
+        iban: cliente.iban,
+        fechaFirma: fechaEn(-60),
+      },
+    });
+  }
+
+  // Amadeo paga por transferencia: sirve para ver que no todo se domicilia y
+  // que la remesa lo deja fuera.
+  await prisma.datosFacturacion.create({
+    data: {
+      personaId: amadeo.persona.id,
+      titular: "Amadeo Costa Riera",
+      nif: "45678912C",
+      direccionFiscal: "Domicilio particular (demo) — Centro",
+      codigoPostal: "39002",
+      municipio: "Santander",
+      provincia: "Cantabria",
+      formaPago: "TRANSFERENCIA",
+      diasVencimiento: 15,
+      notas: "Prefiere pagar por transferencia, sin domiciliar",
+    },
+  });
+
+  // Plantilla mixta: dos en nómina y dos autónomas, que es como está montada
+  // casi cualquier empresa del sector.
+  await prisma.profesional.update({ where: { id: profesional.id }, data: { tipoRelacion: "LABORAL", horasSemanales: 30 } });
+  await prisma.profesional.update({ where: { id: rosa.id }, data: { tipoRelacion: "LABORAL", horasSemanales: 20 } });
+  await prisma.profesional.update({ where: { id: javier.id }, data: { tipoRelacion: "AUTONOMO", irpfPorcentaje: 15 } });
 
   console.log("\nSeed completado. Cadena PERSONA → NECESIDAD → SOLICITUD → SERVICIO → VISITA → ACTUACIÓN → SEGUIMIENTO creada.");
   console.log(`Organización: ${organizacion.codigo} · Persona: ${herminia.codigo} · Solicitud: ${solicitud.codigo} · Servicio: ${servicio.codigo} · Visita: ${visita.codigo}`);

@@ -233,6 +233,10 @@ export interface Profesional {
   foto?: string | null;
   biografia?: string | null;
   disponibilidad?: string | null;
+  // Cómo trabaja: de aquí sale si se le retiene IRPF al liquidarle.
+  tipoRelacion?: TipoRelacionProfesional;
+  irpfPorcentaje?: string | number | null;
+  horasSemanales?: number | null;
   estado: string;
   empresaColaboradoraId?: string | null;
   empresaColaboradora?: EmpresaColaboradora | null;
@@ -246,20 +250,128 @@ export interface Documento {
   createdAt: string;
 }
 
+export type FormaPago = "DOMICILIACION" | "TRANSFERENCIA" | "EFECTIVO" | "TARJETA";
+export type EstadoFactura = "BORRADOR" | "EMITIDA" | "PAGADA" | "IMPAGADA" | "ANULADA";
+
+// Las líneas se escriben al emitir y ya no cambian: son lo que dice la copia
+// que tiene el cliente.
+export interface LineaFactura {
+  id: string;
+  orden: number;
+  concepto: string;
+  minutos?: number | null;
+  cantidad: string | number;
+  precioUnitario: string | number;
+  importe: string | number;
+  ivaPorcentaje: string | number;
+  ivaImporte: string | number;
+}
+
+export interface MandatoSepa {
+  id: string;
+  referencia: string;
+  titular: string;
+  iban: string;
+  bic?: string | null;
+  fechaFirma: string;
+  estado: "ACTIVO" | "REVOCADO";
+  primerCobroHecho: boolean;
+}
+
+export interface DatosFacturacion {
+  id: string;
+  titular: string;
+  nif?: string | null;
+  direccionFiscal?: string | null;
+  codigoPostal?: string | null;
+  municipio?: string | null;
+  provincia?: string | null;
+  email?: string | null;
+  formaPago: FormaPago;
+  diaCobro: number;
+  diasVencimiento: number;
+  notas?: string | null;
+  mandatos?: MandatoSepa[];
+}
+
 export interface Factura {
   id: string;
   codigo: string;
   mes: string;
+  // Identidad fiscal: serie + número dentro del ejercicio es lo que
+  // identifica la factura, no el código interno.
+  serie: string;
+  numero: number;
+  ejercicio: number;
+  tipo: "ORDINARIA" | "RECTIFICATIVA";
+  fechaEmision?: string | null;
+  fechaVencimiento?: string | null;
+  fechaCobro?: string | null;
+  formaPago: FormaPago;
+  // Copia congelada de las dos partes en el momento de emitir.
+  titularNombre?: string | null;
+  titularNif?: string | null;
+  titularDireccion?: string | null;
+  emisorNombre?: string | null;
+  emisorCif?: string | null;
+  emisorDireccion?: string | null;
+  facturaRectificadaId?: string | null;
+  facturaRectificada?: { id: string; codigo: string; serie: string; numero: number; ejercicio: number } | null;
+  rectificativas?: { id: string; codigo: string; serie: string; numero: number; ejercicio: number; totalConIva: string | number }[];
+  motivoRectificacion?: string | null;
+  motivoImpago?: string | null;
+  mandatoSepa?: MandatoSepa | null;
+  remesaId?: string | null;
   importeTotal: string | number;
   ivaTotal: string | number;
   totalConIva: string | number;
   comisionTotal: string | number;
   importeProfesionales: string | number;
-  estado: "BORRADOR" | "EMITIDA" | "PAGADA";
+  estado: EstadoFactura;
   createdAt: string;
-  persona: Persona;
+  persona: Persona & { datosFacturacion?: DatosFacturacion | null };
+  lineas?: LineaFactura[];
   servicios: Servicio[];
   visitas?: Visita[];
+}
+
+export interface Remesa {
+  id: string;
+  codigo: string;
+  mes: string;
+  fechaCargo: string;
+  estado: "BORRADOR" | "GENERADA" | "ENVIADA" | "COBRADA";
+  createdAt: string;
+  facturas: Factura[];
+}
+
+export type TipoRelacionProfesional = "LABORAL" | "AUTONOMO";
+
+export interface LineaLiquidacion {
+  id: string;
+  fecha: string;
+  concepto: string;
+  minutos: number;
+  importe: string | number;
+  visitaId?: string | null;
+}
+
+export interface Liquidacion {
+  id: string;
+  codigo: string;
+  mes: string;
+  tipoRelacion: TipoRelacionProfesional;
+  minutos: number;
+  bruto: string | number;
+  irpfPorcentaje: string | number;
+  irpfImporte: string | number;
+  neto: string | number;
+  estado: "BORRADOR" | "APROBADA" | "PAGADA";
+  fechaPago?: string | null;
+  referenciaPago?: string | null;
+  createdAt: string;
+  profesional: Pick<Profesional, "id" | "codigo" | "nombre" | "apellidos" | "dni" | "numeroCuenta"> & { tipoRelacion: TipoRelacionProfesional };
+  lineas: LineaLiquidacion[];
 }
 
 export interface Mensaje {

@@ -39,6 +39,25 @@ model Organizacion {
   // porcentaje"): comisión que se retiene de la tarifa cobrada a la familia
   // antes de liquidar al profesional/empresa colaboradora.
   comisionPorcentaje Decimal            @default(15) @db.Decimal(5, 2)
+
+  // Quién emite las facturas. Sin esto la factura era un número en pantalla
+  // sin identidad: no se puede entregar a nadie.
+  razonSocial     String?
+  cif             String?
+  direccionFiscal String?
+  codigoPostal    String?
+  municipio       String?
+  provincia       String?
+  telefono        String?
+  emailFacturacion String?
+  // Serie de facturación y contador. La numeración debe ser correlativa y sin
+  // huecos dentro de cada serie y ejercicio.
+  serieFactura    String  @default("A")
+  // Acreedor SEPA: el IBAN donde entra el dinero y el identificador que el
+  // banco asigna a la empresa para poder girar recibos.
+  ibanCobro       String?
+  identificadorAcreedor String?
+
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -49,6 +68,8 @@ model Organizacion {
   solicitudes           Solicitud[]
   servicios             Servicio[]
   facturas              Factura[]
+  remesas               Remesa[]
+  liquidaciones         Liquidacion[]
   auditLogs             AuditLog[]
 
   @@map("organizaciones")
@@ -144,8 +165,68 @@ model Persona {
   documentos  Documento[]
   facturas    Factura[]
   mensajes    Mensaje[]
+  datosFacturacion DatosFacturacion?
 
   @@map("personas")
+}
+
+// A quién se le factura y cómo se le cobra. Va aparte de Persona a propósito:
+// quien recibe el cuidado y quien paga rara vez son la misma persona — la
+// factura suele ir a nombre de la hija, con su NIF y su cuenta. Meterlo en
+// Persona habría obligado a falsear los datos de la persona atendida.
+model DatosFacturacion {
+  id        String   @id @default(cuid())
+  personaId String   @unique
+  persona   Persona  @relation(fields: [personaId], references: [id], onDelete: Cascade)
+
+  // Titular de la factura: nombre o razón social, y su NIF/CIF.
+  titular         String
+  nif             String?
+  direccionFiscal String?
+  codigoPostal    String?
+  municipio       String?
+  provincia       String?
+  email           String? // a dónde se envía la factura
+
+  formaPago FormaPago @default(DOMICILIACION)
+  // Día del mes en que se gira el recibo. Las empresas del sector suelen
+  // cobrar todas el mismo día para poder mandar una sola remesa.
+  diaCobro  Int       @default(5)
+  // Días desde la emisión hasta el vencimiento cuando no se domicilia.
+  diasVencimiento Int @default(30)
+
+  notas     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  mandatos MandatoSepa[]
+
+  @@map("datos_facturacion")
+}
+
+// Autorización firmada por el cliente para que la empresa gire recibos a su
+// cuenta. Sin mandato en vigor no se puede domiciliar: la remesa lo exige.
+model MandatoSepa {
+  id                 String           @id @default(cuid())
+  // Referencia única del mandato que viaja en el fichero SEPA.
+  referencia         String           @unique // MND-000012
+  datosFacturacionId String
+  datosFacturacion   DatosFacturacion @relation(fields: [datosFacturacionId], references: [id], onDelete: Cascade)
+
+  titular     String
+  iban        String
+  bic         String?
+  fechaFirma  DateTime
+  estado      EstadoMandato @default(ACTIVO)
+  // Un mandato es "primero" hasta que se cobra la primera vez; después es
+  // recurrente. El banco lo necesita para tratar el adeudo.
+  primerCobroHecho Boolean @default(false)
+  revocadoAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  facturas Factura[]
+
+  @@map("mandatos_sepa")
 }
 
 // Relación autorizada de un familiar/representante sobre una persona atendida.
@@ -215,6 +296,15 @@ model Profesional {
   // Se conserva el texto anterior para no perder lo que ya había escrito y
   // para poder afinar ("barrio de la Inmobiliaria", "zona rural").
   zona         String?
+  // Cómo trabaja. De aquí sale todo lo económico: a un autónomo se le retiene
+  // IRPF y él emite su factura; a un empleado se le resume la jornada para la
+  // nómina, que hace la gestoría fuera de aquí.
+  tipoRelacion    TipoRelacionProfesional @default(AUTONOMO)
+  irpfPorcentaje  Decimal?                @db.Decimal(5, 2)
+  // Horas semanales de contrato, sólo para los laborales: sirve para ver si
+  // se están cubriendo o se están pasando.
+  horasSemanales  Int?
+
   // Lo que hace falta saber para mandarle según qué servicio: si puede
   // conducir, si tiene coche y qué ha estudiado.
   carneConducir   CarneConducir @default(NO)
@@ -255,6 +345,8 @@ model Profesional {
   interesEn  ServicioInteres[]
   documentos Documento[]
   visitas    Visita[]
+  liquidaciones Liquidacion[]
+
 
   @@map("profesionales")
 }
@@ -510,6 +602,50 @@ model ServicioInteres {
 enum EstadoFactura {
   BORRADOR
   EMITIDA
+  // Cobrada de verdad: el dinero ha entrado. "PAGADA" se mantiene como
+  // sinónimo histórico para no romper las facturas ya creadas.
+  PAGADA
+  IMPAGADA
+  ANULADA
+}
+
+// Una rectificativa no corrige la original: la referencia y la compensa. La
+// factura emitida nunca se toca, que es justamente lo que la hace fiable.
+enum TipoFactura {
+  ORDINARIA
+  RECTIFICATIVA
+}
+
+enum FormaPago {
+  DOMICILIACION
+  TRANSFERENCIA
+  EFECTIVO
+  TARJETA
+}
+
+enum EstadoMandato {
+  ACTIVO
+  REVOCADO
+}
+
+enum EstadoRemesa {
+  BORRADOR
+  GENERADA
+  ENVIADA
+  COBRADA
+}
+
+// Cómo trabaja quien presta el servicio. Cambia todo lo que viene detrás: a
+// un autónomo se le liquida con retención de IRPF y él factura; a un
+// empleado se le resume la jornada para que la gestoría haga la nómina.
+enum TipoRelacionProfesional {
+  LABORAL
+  AUTONOMO
+}
+
+enum EstadoLiquidacion {
+  BORRADOR
+  APROBADA
   PAGADA
 }
 
@@ -520,6 +656,43 @@ enum EstadoFactura {
 model Factura {
   id                   String        @id @default(cuid())
   codigo               String        @unique // FAC-000012
+
+  // Identidad fiscal del documento. El código interno sirve para buscar; lo
+  // que identifica la factura ante Hacienda y ante el cliente es serie +
+  // número dentro del ejercicio, correlativo y sin huecos.
+  serie                String        @default("A")
+  numero               Int           @default(0)
+  ejercicio            Int           @default(2026)
+  tipo                 TipoFactura   @default(ORDINARIA)
+  fechaEmision         DateTime?
+  fechaVencimiento     DateTime?
+  fechaCobro           DateTime?
+  formaPago            FormaPago     @default(DOMICILIACION)
+
+  // Datos del cliente CONGELADOS en el momento de emitir. Si mañana la hija
+  // cambia de dirección, la factura que ya se entregó no puede cambiar con
+  // ella: dejaría de coincidir con la copia del cliente y con lo declarado.
+  titularNombre     String?
+  titularNif        String?
+  titularDireccion  String?
+  // Lo mismo con quien emite.
+  emisorNombre      String?
+  emisorCif         String?
+  emisorDireccion   String?
+
+  // Una rectificativa apunta a la que corrige y no la modifica.
+  facturaRectificadaId String?
+  facturaRectificada   Factura?  @relation("Rectificativas", fields: [facturaRectificadaId], references: [id])
+  rectificativas       Factura[] @relation("Rectificativas")
+  motivoRectificacion  String?
+  motivoImpago         String?
+
+  mandatoSepaId String?
+  mandatoSepa   MandatoSepa? @relation(fields: [mandatoSepaId], references: [id])
+
+  remesaId String?
+  remesa   Remesa? @relation(fields: [remesaId], references: [id])
+
   mes                  String // "2026-09"
   // importeTotal es la base imponible (suma de tarifas sin IVA); ivaTotal y
   // totalConIva se añaden aparte para poder emitir una factura con IVA
@@ -541,9 +714,57 @@ model Factura {
 
   servicios Servicio[]
   visitas   Visita[]
+  lineas    LineaFactura[]
 
   @@unique([personaId, mes])
+  // La numeración es única dentro de su serie y ejercicio: es lo que impide
+  // que dos facturas compartan número.
+  @@unique([organizacionId, serie, ejercicio, numero])
   @@map("facturas")
+}
+
+// Las líneas se escriben al emitir y ya no se recalculan. Antes la factura se
+// derivaba de las visitas cada vez que se pintaba, así que verificar una
+// jornada más tarde cambiaba una factura ya entregada.
+model LineaFactura {
+  id        String  @id @default(cuid())
+  facturaId String
+  factura   Factura @relation(fields: [facturaId], references: [id], onDelete: Cascade)
+
+  orden       Int     @default(0)
+  concepto    String
+  // Se factura tiempo: la cantidad son horas y el precio, el de la hora.
+  minutos     Int?
+  cantidad    Decimal @default(1) @db.Decimal(10, 2)
+  precioUnitario Decimal @db.Decimal(10, 2)
+  importe     Decimal @db.Decimal(10, 2)
+  ivaPorcentaje Decimal @default(0) @db.Decimal(5, 2)
+  ivaImporte  Decimal @default(0) @db.Decimal(10, 2)
+
+  visitaId String?
+
+  @@map("lineas_factura")
+}
+
+// Un envío de recibos domiciliados al banco: agrupa las facturas de un mes
+// que se cobran por domiciliación y produce el fichero que se sube.
+model Remesa {
+  id        String       @id @default(cuid())
+  codigo    String       @unique // REM-000003
+  mes       String // "2026-09"
+  fechaCargo DateTime
+  estado    EstadoRemesa @default(BORRADOR)
+  // El fichero SEPA generado, guardado tal cual se entregó al banco.
+  ficheroXml String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
+
+  facturas Factura[]
+
+  @@map("remesas")
 }
 
 // Chat entre la persona/familia y un profesional (sección "el panel de
@@ -793,4 +1014,55 @@ model AuditLog {
   organizacion   Organizacion? @relation(fields: [organizacionId], references: [id])
 
   @@map("audit_logs")
+}
+
+// Lo que se le debe a un profesional por un mes. Hasta ahora sólo existía un
+// sí/no de pagado colgando del servicio: no había manera de decirle "esto es
+// lo que has hecho y esto es lo que cobras", ni de darle un papel.
+model Liquidacion {
+  id     String @id @default(cuid())
+  codigo String @unique // LIQ-000007
+  mes    String // "2026-09"
+
+  profesionalId String
+  profesional   Profesional @relation(fields: [profesionalId], references: [id])
+
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
+
+  // La relación laboral queda congelada en la liquidación: si mañana pasa de
+  // autónoma a contratada, lo ya liquidado siguió sus reglas.
+  tipoRelacion TipoRelacionProfesional
+  minutos      Int     @default(0)
+  bruto        Decimal @default(0) @db.Decimal(10, 2)
+  // Retención de IRPF: sólo tiene sentido en los autónomos.
+  irpfPorcentaje Decimal @default(0) @db.Decimal(5, 2)
+  irpfImporte    Decimal @default(0) @db.Decimal(10, 2)
+  neto           Decimal @default(0) @db.Decimal(10, 2)
+
+  estado     EstadoLiquidacion @default(BORRADOR)
+  fechaPago  DateTime?
+  referenciaPago String?
+  notas      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  lineas LineaLiquidacion[]
+
+  @@unique([profesionalId, mes])
+  @@map("liquidaciones")
+}
+
+model LineaLiquidacion {
+  id            String      @id @default(cuid())
+  liquidacionId String
+  liquidacion   Liquidacion @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+
+  visitaId String?
+  fecha    DateTime
+  concepto String
+  minutos  Int
+  importe  Decimal @db.Decimal(10, 2)
+
+  @@map("lineas_liquidacion")
 }

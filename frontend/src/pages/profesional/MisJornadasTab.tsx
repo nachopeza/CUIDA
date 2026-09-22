@@ -1,10 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { IconCheck, IconChevronLeft, IconChevronRight, IconClock, IconEuro } from "../../components/icons.js";
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
 import { exportarCSV } from "../../lib/csv.js";
 import { cobroDeJornada as cobroDe, duracion, euros, horaDe, minutosEntre, minutosFichados } from "../../lib/economia.js";
-import type { Visita } from "../../lib/types.js";
+import { useAuth } from "../../lib/auth.js";
+import { api } from "../../lib/api.js";
+import { Modal } from "../../components/Modal.js";
+import { LiquidacionDocumento } from "../../components/LiquidacionDocumento.js";
+import type { Liquidacion, Visita } from "../../lib/types.js";
 
 const DIAS = ["L", "M", "X", "J", "V", "S", "D"];
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -18,6 +22,19 @@ function clave(f: Date) {
 // qué ha hecho y qué va a ingresar.
 export function MisJornadasTab({ visitas }: { visitas: Visita[] }) {
   const [mesRef, setMesRef] = useState(() => new Date());
+  const { token } = useAuth();
+  const [liquidaciones, setLiquidaciones] = useState<Liquidacion[]>([]);
+  const [abierta, setAbierta] = useState<Liquidacion | null>(null);
+
+  // Lo que ya está cerrado y cobrado: hasta ahora el profesional veía lo que
+  // había trabajado, pero no si la empresa se lo había liquidado ni tenía
+  // ningún papel que lo dijera.
+  useEffect(() => {
+    api
+      .get<Liquidacion[]>("/liquidaciones", token)
+      .then(setLiquidaciones)
+      .catch(() => setLiquidaciones([]));
+  }, [token]);
 
   const mes = `${mesRef.getFullYear()}-${String(mesRef.getMonth() + 1).padStart(2, "0")}`;
   const delMes = useMemo(
@@ -47,6 +64,7 @@ export function MisJornadasTab({ visitas }: { visitas: Visita[] }) {
   const hoy = clave(new Date());
 
   return (
+    <>
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <button onClick={() => setMesRef(new Date(mesRef.getFullYear(), mesRef.getMonth() - 1, 1))} aria-label="Mes anterior" className="rounded-md border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-50">
@@ -189,5 +207,52 @@ export function MisJornadasTab({ visitas }: { visitas: Visita[] }) {
         )}
       </div>
     </div>
+
+      {/* Lo que la empresa ya ha cerrado contigo. Hasta ahora sólo se veía lo
+          trabajado; si te habían liquidado o no, no se sabía. */}
+      {liquidaciones.length > 0 && (
+        <section className="mt-4 rounded-lg border border-slate-200 bg-white p-3">
+          <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+            <IconEuro className="h-4 w-4 text-slate-400" /> Mis liquidaciones
+          </h3>
+          <ul className="divide-y divide-slate-100">
+            {liquidaciones.map((l) => (
+              <li key={l.id}>
+                <button onClick={() => setAbierta(l)} className="flex w-full items-center justify-between gap-3 py-2 text-left hover:bg-slate-50">
+                  <span className="min-w-0">
+                    <span className="block text-sm text-slate-800">
+                      {l.mes}
+                      <span
+                        className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          l.estado === "PAGADA" ? "bg-brand-green-100 text-brand-green-700" : "bg-blue-100 text-blue-700"
+                        }`}
+                      >
+                        {l.estado === "PAGADA" ? "Pagada" : "Aprobada, pendiente de pago"}
+                      </span>
+                    </span>
+                    <span className="block text-xs text-slate-400">
+                      {l.codigo} · {duracion(l.minutos)} en {l.lineas.length} jornada{l.lineas.length === 1 ? "" : "s"}
+                      {Number(l.irpfImporte) > 0 && ` · IRPF ${Number(l.irpfPorcentaje)}%`}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-base font-semibold tabular-nums text-brand-green-700">{euros(l.neto)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {abierta && (
+        <Modal title={`${abierta.codigo} · ${abierta.mes}`} onClose={() => setAbierta(null)} size="lg">
+          <div className="mb-3 flex justify-end print:hidden">
+            <button onClick={() => window.print()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+              Imprimir o guardar en PDF
+            </button>
+          </div>
+          <LiquidacionDocumento liquidacion={abierta} />
+        </Modal>
+      )}
+    </>
   );
 }

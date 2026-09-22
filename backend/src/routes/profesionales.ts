@@ -21,6 +21,11 @@ const crearProfesionalSchema = z.object({
   zona: z.string().optional(),
   carneConducir: z.enum(["NO", "B", "A", "C", "D"]).optional(),
   vehiculoPropio: z.boolean().optional(),
+  // Cómo trabaja: de esto depende su liquidación (retención de IRPF si es
+  // autónoma) y, más adelante, su nómina y su cuadrante.
+  tipoRelacion: z.enum(["LABORAL", "AUTONOMO"]).optional(),
+  irpfPorcentaje: z.number().min(0).max(60).nullable().optional(),
+  horasSemanales: z.number().int().min(0).max(60).nullable().optional(),
   titulacion: z
     .enum(["SIN_TITULACION", "ATENCION_SOCIOSANITARIA", "AUXILIAR_ENFERMERIA", "ENFERMERIA", "TRABAJO_SOCIAL", "FISIOTERAPIA", "TERAPIA_OCUPACIONAL", "PSICOLOGIA", "OTRA"])
     .nullable()
@@ -47,6 +52,11 @@ const editarProfesionalSchema = z.object({
   zona: z.string().optional(),
   carneConducir: z.enum(["NO", "B", "A", "C", "D"]).optional(),
   vehiculoPropio: z.boolean().optional(),
+  // Cómo trabaja: de esto depende su liquidación (retención de IRPF si es
+  // autónoma) y, más adelante, su nómina y su cuadrante.
+  tipoRelacion: z.enum(["LABORAL", "AUTONOMO"]).optional(),
+  irpfPorcentaje: z.number().min(0).max(60).nullable().optional(),
+  horasSemanales: z.number().int().min(0).max(60).nullable().optional(),
   titulacion: z
     .enum(["SIN_TITULACION", "ATENCION_SOCIOSANITARIA", "AUXILIAR_ENFERMERIA", "ENFERMERIA", "TRABAJO_SOCIAL", "FISIOTERAPIA", "TERAPIA_OCUPACIONAL", "PSICOLOGIA", "OTRA"])
     .nullable()
@@ -82,6 +92,9 @@ profesionalesRouter.post("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"
       zona: parsed.data.zona,
       carneConducir: parsed.data.carneConducir,
       vehiculoPropio: parsed.data.vehiculoPropio,
+      tipoRelacion: parsed.data.tipoRelacion,
+      irpfPorcentaje: parsed.data.irpfPorcentaje,
+      horasSemanales: parsed.data.horasSemanales,
       titulacion: parsed.data.titulacion,
       dni: parsed.data.dni,
       numeroCuenta: parsed.data.numeroCuenta,

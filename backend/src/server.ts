@@ -15,6 +15,8 @@ import { empresasColaboradorasRouter } from "./routes/empresasColaboradoras.js";
 import { agendaRouter } from "./routes/agenda.js";
 import { conversacionesRouter } from "./routes/conversaciones.js";
 import { facturasRouter } from "./routes/facturas.js";
+import { cobrosRouter } from "./routes/cobros.js";
+import { liquidacionesRouter } from "./routes/liquidaciones.js";
 import { cuentaRouter } from "./routes/cuenta.js";
 import { conErroresAsincronos } from "./lib/asincrono.js";
 
@@ -39,6 +41,8 @@ app.use("/empresas-colaboradoras", conErroresAsincronos(empresasColaboradorasRou
 app.use("/agenda", conErroresAsincronos(agendaRouter));
 app.use("/conversaciones", conErroresAsincronos(conversacionesRouter));
 app.use("/facturas", conErroresAsincronos(facturasRouter));
+app.use("/cobros", conErroresAsincronos(cobrosRouter));
+app.use("/liquidaciones", conErroresAsincronos(liquidacionesRouter));
 app.use("/cuenta", conErroresAsincronos(cuentaRouter));
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
