@@ -28,11 +28,13 @@ import {
   IconTag,
   IconUsers,
   IconIdCard,
+  IconShield,
+  IconUsersGroup,
   IconX,
 } from "../components/icons.js";
 import { ResumenTab } from "./coordinador/ResumenTab.js";
 import { GlobalSearch } from "./coordinador/GlobalSearch.js";
-import { Navegacion } from "../components/Navegacion.js";
+import { Navegacion, type AreaNav } from "../components/Navegacion.js";
 import { duracion, minutosEntre } from "../lib/economia.js";
 import { PersonasTab } from "./coordinador/PersonasTab.js";
 import { NuevoUsuarioModal } from "./coordinador/NuevoUsuarioModal.js";
@@ -49,6 +51,8 @@ import { SolicitudFichaModal } from "../components/SolicitudFichaModal.js";
 import { IncidenciaFichaModal } from "./coordinador/IncidenciaFichaModal.js";
 import { IncidenciasTab } from "./coordinador/IncidenciasTab.js";
 import { EquipoTab } from "./coordinador/EquipoTab.js";
+import { PersonalTab } from "./coordinador/PersonalTab.js";
+import { CoberturaTab } from "./coordinador/CoberturaTab.js";
 import type { EmpresaColaboradora, Incidencia, Necesidad, Persona, Profesional, Servicio, Solicitud } from "../lib/types.js";
 
 type Tab =
@@ -63,22 +67,59 @@ type Tab =
   | "empresas"
   | "calendario"
   | "facturacion"
+  | "personal"
+  | "cobertura"
   | "actividad";
 
-const NAV: { key: Tab; label: string; icon: typeof IconHome }[] = [
-  { key: "escritorio", label: "Escritorio", icon: IconHome },
-  { key: "solicitudes", label: "Solicitudes", icon: IconClipboard },
-  { key: "verificacion", label: "Verificación", icon: IconCheckCircle },
-  { key: "servicios", label: "Servicios", icon: IconTag },
-  { key: "incidencias", label: "Incidencias", icon: IconAlert },
-  { key: "personas", label: "Usuarios", icon: IconUsers },
-  { key: "profesionales", label: "Profesionales", icon: IconBriefcase },
-  { key: "equipo", label: "Equipo", icon: IconIdCard },
-  { key: "empresas", label: "Empresas colaboradoras", icon: IconBuilding },
-  { key: "calendario", label: "Calendario", icon: IconCalendar },
-  { key: "facturacion", label: "Facturación", icon: IconReceipt },
-  { key: "actividad", label: "Actividad", icon: IconActivity },
+// Doce entradas sueltas obligaban a leérselas todas para encontrar una. Se
+// agrupan por aquello de lo que tratan, que es también el orden en que se
+// trabaja: primero lo que ocurre hoy, luego a quién atiendes, con quién,
+// cómo va, cuánto se cobra y, al final, la casa.
+//
+// Profesionales y Equipo son cosas distintas y por eso están en áreas
+// distintas: profesional es quien hace el servicio en casa de la persona
+// —trabaje para la empresa o por su cuenta—; el equipo es quien está en la
+// oficina.
+const AREAS: AreaNav[] = [
+  { titulo: "Inicio", items: [{ key: "escritorio", label: "Centro de coordinación", icon: IconHome }] },
+  {
+    titulo: "Operaciones",
+    items: [
+      { key: "solicitudes", label: "Solicitudes", icon: IconClipboard },
+      { key: "calendario", label: "Calendario", icon: IconCalendar },
+    ],
+  },
+  { titulo: "Personas", items: [{ key: "personas", label: "Personas atendidas", icon: IconUsers }] },
+  {
+    titulo: "Profesionales",
+    items: [
+      { key: "profesionales", label: "Profesionales", icon: IconBriefcase },
+      { key: "personal", label: "Expedientes y jornada", icon: IconIdCard },
+      { key: "cobertura", label: "Cobertura", icon: IconShield },
+    ],
+  },
+  {
+    titulo: "Seguimiento",
+    items: [
+      { key: "verificacion", label: "Verificación", icon: IconCheckCircle },
+      { key: "incidencias", label: "Incidencias", icon: IconAlert },
+    ],
+  },
+  { titulo: "Finanzas", items: [{ key: "facturacion", label: "Cobros y pagos", icon: IconReceipt }] },
+  {
+    titulo: "Administración",
+    items: [
+      { key: "equipo", label: "Equipo", icon: IconUsersGroup },
+      { key: "empresas", label: "Empresas colaboradoras", icon: IconBuilding },
+      { key: "servicios", label: "Catálogo de servicios", icon: IconTag },
+      { key: "actividad", label: "Actividad", icon: IconActivity },
+    ],
+  },
 ];
+
+// Para el título de la página en móvil y para el buscador: la lista plana
+// sigue haciendo falta aunque la navegación esté agrupada.
+const NAV = AREAS.flatMap((a) => a.items) as { key: Tab; label: string; icon: typeof IconHome }[];
 
 // El filtro de la lista usa el mismo vocabulario que los badges y las
 // casillas de conteo (estadoUnificado.ts): una fase de trabajo, o bien el
@@ -311,7 +352,7 @@ export function CoordinadorPage() {
   return (
     <div className="flex flex-col gap-4 md:flex-row">
       <Navegacion
-        items={NAV}
+        areas={AREAS}
         activo={tab}
         onIr={irA}
         badges={badges}
@@ -418,8 +459,10 @@ export function CoordinadorPage() {
                     }`}
                   >
                     <p className={`text-xl font-semibold leading-tight ${activo ? e.texto : "text-slate-800"}`}>{valor}</p>
+                    {/* Icono además del punto de color: en la casilla el
+                        color era lo único que distinguía una fase de otra. */}
                     <p className={`flex items-center gap-1 text-[11px] font-medium ${activo ? e.texto : "text-slate-500"}`}>
-                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${e.dot}`} /> {e.etiqueta}
+                      <e.Icono className={`h-3 w-3 shrink-0 ${activo ? e.texto : "text-slate-400"}`} aria-hidden /> {e.etiqueta}
                     </p>
                   </button>
                 );
@@ -648,6 +691,10 @@ export function CoordinadorPage() {
 
         {tab === "personas" && <PersonasTab onAbrirFicha={abrirPersona} refreshKey={personasRefreshKey} />}
         {tab === "profesionales" && <ProfesionalesTab />}
+        {tab === "personal" && <PersonalTab />}
+        {tab === "cobertura" && (
+          <CoberturaTab solicitudes={solicitudes} servicios={servicios} onAbrirSolicitud={(id) => setFichaAbierta(id)} />
+        )}
         {tab === "equipo" && <EquipoTab />}
         {tab === "empresas" && <EmpresasTab />}
         {tab === "calendario" && <CalendarioTab onAbrirSolicitud={(id) => setFichaAbierta(id)} />}

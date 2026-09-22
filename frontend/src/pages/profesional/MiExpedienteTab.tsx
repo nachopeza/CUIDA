@@ -5,7 +5,7 @@ import { Card } from "../../components/Layout.js";
 import { Modal } from "../../components/Modal.js";
 import { duracion } from "../../lib/economia.js";
 import { ETIQUETA_AUSENCIA, ETIQUETA_DOCUMENTO, TONO_VIGENCIA, textoVigencia, vigenciaDe } from "../../lib/personal.js";
-import { RegistroDetalle } from "../coordinador/EquipoTab.js";
+import { RegistroDetalle } from "../coordinador/PersonalTab.js";
 import { IconAlert, IconCalendar, IconCheck, IconClock, IconFile } from "../../components/icons.js";
 import type { Ausencia, DocumentoProfesional, RegistroJornada, TipoAusencia } from "../../lib/types.js";
 
@@ -36,9 +36,9 @@ export function MiExpedienteTab({ profesionalId }: { profesionalId: string }) {
 
   async function cargar() {
     const [d, a, r] = await Promise.all([
-      api.get<DocumentoProfesional[]>(`/equipo/${profesionalId}/documentos`, token).catch(() => []),
-      api.get<Ausencia[]>("/equipo/ausencias", token).catch(() => []),
-      api.get<RegistroJornada[]>("/equipo/registros", token).catch(() => []),
+      api.get<DocumentoProfesional[]>(`/personal/${profesionalId}/documentos`, token).catch(() => []),
+      api.get<Ausencia[]>("/personal/ausencias", token).catch(() => []),
+      api.get<RegistroJornada[]>("/personal/registros", token).catch(() => []),
     ]);
     setDocumentos(d);
     setAusencias(a);
@@ -57,7 +57,7 @@ export function MiExpedienteTab({ profesionalId }: { profesionalId: string }) {
     setError(null);
     setAviso(null);
     try {
-      await api.post(`/equipo/${profesionalId}/ausencias`, form, token);
+      await api.post(`/personal/${profesionalId}/ausencias`, form, token);
       setForm({ tipo: "VACACIONES", desde: "", hasta: "", motivo: "" });
       await cargar();
       setAviso("Petición enviada. Coordinación te responderá.");
@@ -71,7 +71,7 @@ export function MiExpedienteTab({ profesionalId }: { profesionalId: string }) {
   async function darConformidad(r: RegistroJornada) {
     setError(null);
     try {
-      await api.post(`/equipo/registros/${r.id}/conforme`, {}, token);
+      await api.post(`/personal/registros/${r.id}/conforme`, {}, token);
       await cargar();
       setAviso("Conformidad registrada.");
     } catch (e) {

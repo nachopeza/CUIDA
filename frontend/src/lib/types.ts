@@ -72,6 +72,10 @@ export interface Servicio {
   id: string;
   codigo: string;
   estado: string;
+  // Cuándo se creó y cuándo se tocó por última vez: sirve para saber cuánto
+  // lleva un servicio esperando a que alguien lo cubra o lo confirme.
+  createdAt?: string;
+  updatedAt?: string;
   tipoServicio?: "PUNTUAL" | "RECURRENTE";
   // CUIDA cobra por tiempo: el precio se fija por hora y el importe sale de
   // los minutos acordados.
@@ -493,7 +497,9 @@ export interface Carencia {
   fechaCaducidad?: string | null;
 }
 
-export interface MiembroEquipo extends Profesional {
+// La ficha laboral de un profesional. Se llamaba MiembroEquipo, y "equipo"
+// en CUIDA es otra cosa: el personal interno de la oficina.
+export interface FichaProfesional extends Profesional {
   tipoContrato?: TipoContrato | null;
   fechaAlta?: string | null;
   fechaBaja?: string | null;
@@ -506,6 +512,22 @@ export interface MiembroEquipo extends Profesional {
 }
 
 // Un día del registro de jornada, tal y como quedó congelado al cerrar el mes.
+// Personal interno: coordinación, administración y demás puestos de oficina.
+// No prestan servicios.
+export interface MiembroEquipo {
+  id: string;
+  nombre: string | null;
+  email: string;
+  rol: string;
+  puesto?: string | null;
+  telefono?: string | null;
+  fechaAlta?: string | null;
+  fechaBaja?: string | null;
+  activo: boolean;
+  createdAt: string;
+  esTu?: boolean;
+}
+
 export interface DiaDeJornada {
   fecha: string;
   entrada: string | null;

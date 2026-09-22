@@ -5,11 +5,12 @@ import { ActividadFeed } from "./ActividadTab.js";
 import { CargaTrabajo } from "./CargaTrabajo.js";
 import { Cronometro, horasTrabajadas } from "../../components/Cronometro.js";
 import { Novedades } from "../../components/Novedades.js";
-import { compararConAcordado, duracion, euros, minutosFichados } from "../../lib/economia.js";
+import { INFO_PRIORIDAD, calcularPendientes, hace, type Asunto } from "../../lib/pendientes.js";
+import { compararConAcordado, duracion, euros, minutosFichados, conMayusculaInicial } from "../../lib/economia.js";
 import { IconAlert, IconArrowDown, IconArrowUp, IconBriefcase, IconCalendar, IconCheck, IconClipboard, IconReceipt, IconRefresh, IconUsers } from "../../components/icons.js";
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
 import { IncidenciaFormModal } from "./IncidenciaFormModal.js";
-import type { Factura, Incidencia, Profesional, Servicio, Solicitud, Visita, Ausencia, MiembroEquipo } from "../../lib/types.js";
+import type { Factura, Incidencia, Profesional, Servicio, Solicitud, Visita, Ausencia, FichaProfesional } from "../../lib/types.js";
 
 interface Props {
   solicitudes: Solicitud[];
@@ -97,7 +98,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const { token } = useAuth();
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [profesionales, setProfesionales] = useState<Profesional[]>([]);
-  const [equipo, setEquipo] = useState<MiembroEquipo[]>([]);
+  const [plantilla, setPlantilla] = useState<FichaProfesional[]>([]);
   const [ausencias, setAusencias] = useState<Ausencia[]>([]);
   const [nombre, setNombre] = useState<string | null>(null);
   const [ultimaCarga, setUltimaCarga] = useState(() => Date.now());
@@ -112,13 +113,13 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
       api.get<Factura[]>("/facturas", token),
       api.get<Profesional[]>("/profesionales", token),
       api.get<{ nombre: string | null }>("/cuenta/me", token),
-      api.get<MiembroEquipo[]>("/equipo", token).catch(() => []),
-      api.get<Ausencia[]>("/equipo/ausencias", token).catch(() => []),
+      api.get<FichaProfesional[]>("/personal", token).catch(() => []),
+      api.get<Ausencia[]>("/personal/ausencias", token).catch(() => []),
     ]);
     setFacturas(facs);
     setProfesionales(pros);
     setNombre(me.nombre);
-    setEquipo(eq);
+    setPlantilla(eq);
     setAusencias(aus);
   }, [token]);
 
@@ -311,7 +312,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
     // descubría el día que había que asignarle a alguien.
     {
       clave: "sin_papeles",
-      valor: equipo.filter((m) => m.bloqueado).length,
+      valor: plantilla.filter((m) => m.bloqueado).length,
       singular: "persona del equipo no puede trabajar: le falta documentación",
       plural: "personas del equipo no pueden trabajar: les falta documentación",
       detalle: "Sin el certificado de delitos sexuales o el DNI no se les puede asignar ningún servicio",
@@ -381,16 +382,40 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
 
   const totalBandeja = nuevas.length + visitasPorVerificar.length + cancelacionesPendientes.length;
 
+  // Todo lo que requiere una decisión, con un único criterio de prioridad.
+  // Antes cada bloque del escritorio decidía por su cuenta qué era urgente y
+  // no había forma de saber por dónde empezar.
+  const pendientes = useMemo(
+    () => calcularPendientes({ solicitudes, servicios, incidencias, facturas, plantilla }),
+    [solicitudes, servicios, incidencias, facturas, plantilla],
+  );
+  const criticos = pendientes.filter((a) => a.prioridad === "critico");
+
+  function irAsunto(a: Asunto) {
+    if (a.destino.tipo === "solicitud") onAbrirSolicitud(a.destino.id);
+    else if (a.destino.tipo === "incidencia") onAbrirIncidencia(a.destino.id);
+    else onIrA(a.destino.tab);
+  }
+
   return (
     <div className="space-y-4">
+      {/* Mi día: la primera línea responde a "¿qué requiere atención?" y la
+          segunda a "¿cómo va la jornada?". Es lo que se mira al entrar. */}
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-slate-800">
             {saludo()}
             {nombre ? `, ${nombre.split(" ")[0]}` : ""}
+            {pendientes.length > 0 && (
+              <span className="ml-2 text-base font-normal text-slate-500">
+                · {pendientes.length} {pendientes.length === 1 ? "asunto requiere" : "asuntos requieren"} atención
+              </span>
+            )}
           </h2>
           <p className="text-sm text-slate-500">
-            {new Date().toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })} ·{" "}
+            {conMayusculaInicial(new Date().toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" }))}
+            {criticos.length > 0 && <span className="font-medium text-rose-700"> · {criticos.length} urgente{criticos.length === 1 ? "" : "s"}</span>}
+            {" · "}
             {agendaHoy.length === 0 ? "sin visitas hoy" : `${agendaHoy.length} ${agendaHoy.length === 1 ? "visita" : "visitas"} hoy`}
             {enMarcha.length > 0 && <span className="font-medium text-brand-green-700"> · {enMarcha.length} en marcha ahora</span>}
           </p>
@@ -528,105 +553,59 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
             )}
           </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-3">
-            <div className="mb-2 flex items-center justify-between">
+          {/* Pendiente de ti. Una tabla de prioridad, asunto, persona y una
+              acción por fila: es la pregunta "¿qué tengo que hacer?" y su
+              respuesta, sin que haya que deducirla de cuatro bloques sueltos.
+              La prioridad lleva punto y palabra, no sólo color. */}
+          <section className="rounded-lg border border-slate-200 bg-white">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2.5">
               <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
                 <IconClipboard className="h-4 w-4 text-slate-400" /> Pendiente de ti
               </h3>
-              <span className="text-xs text-slate-400">{totalBandeja === 0 ? "bandeja vacía" : `${totalBandeja} por resolver`}</span>
+              <span className="text-xs text-slate-400">
+                {pendientes.length === 0 ? "nada pendiente" : `${pendientes.length} por resolver`}
+              </span>
             </div>
-            {totalBandeja === 0 ? (
-              <p className="py-3 text-center text-xs text-slate-400">No queda nada esperando una decisión tuya.</p>
+
+            {pendientes.length === 0 ? (
+              <p className="px-3 py-6 text-center text-sm text-slate-400">No queda nada esperando una decisión tuya.</p>
             ) : (
               <ul className="divide-y divide-slate-100">
-                {nuevas.slice(0, 4).map((s) => (
-                  <li key={s.id} className="flex items-center gap-3 py-2">
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700">Nueva</span>
-                    {/* El nombre y el código también entran: el aviso se leía
-                        pero no se podía pinchar para mirarlo antes de decidir. */}
-                    <button onClick={() => onAbrirSolicitud(s.id)} className="min-w-0 flex-1 text-left">
-                      <p className="truncate text-sm text-slate-800 hover:underline">
-                        {s.persona.nombre} {s.persona.apellidos} · {s.necesidad.nombre}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {s.codigo} · recibida el {new Date(s.createdAt).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })}
-                      </p>
-                    </button>
-                    <button
-                      onClick={() => onAbrirSolicitud(s.id)}
-                      className="shrink-0 rounded-md border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white"
-                    >
-                      Revisar
-                    </button>
-                  </li>
-                ))}
-
-                {cancelacionesPendientes.slice(0, 3).map((i) => (
-                  <li key={i.id} className="flex items-center gap-3 py-2">
-                    <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-700">Cancelar</span>
-                    <button onClick={() => onAbrirIncidencia(i.id)} className="min-w-0 flex-1 text-left">
-                      <p className="truncate text-sm text-slate-800 hover:underline">
-                        {i.servicio?.solicitud ? `${i.servicio.solicitud.persona.nombre} ${i.servicio.solicitud.persona.apellidos}` : i.codigo}
-                      </p>
-                      <p className="truncate text-xs text-slate-400">
-                        {i.codigo} · {i.descripcion}
-                      </p>
-                    </button>
-                    <button
-                      onClick={() => onAbrirIncidencia(i.id)}
-                      className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-                    >
-                      Corroborar
-                    </button>
-                  </li>
-                ))}
-
-                {visitasPorVerificar.slice(0, 4).map(({ visita, servicio }) => {
-                  const fichados = minutosFichados(visita.horaInicioReal, visita.horaFinReal);
-                  const acordados = servicio.minutosPrevistos ?? null;
-                  const comparacion = fichados != null && acordados != null ? compararConAcordado(fichados, acordados) : null;
-                  const solicitudId = servicio.solicitud?.id;
+                {pendientes.slice(0, 12).map((a) => {
+                  const info = INFO_PRIORIDAD[a.prioridad];
                   return (
-                    <li key={visita.id} className="flex items-center gap-3 py-2">
-                      <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700">Verificar</span>
-                      {/* Toda la fila entra en la solicitud: antes solo había
-                          un botón de verificar y no se podía mirar nada antes
-                          de decidir. */}
-                      <button
-                        onClick={() => solicitudId && onAbrirSolicitud(solicitudId)}
-                        disabled={!solicitudId}
-                        className="min-w-0 flex-1 text-left"
-                      >
-                        <p className="truncate text-sm text-slate-800 hover:underline">{nombrePersona(servicio)}</p>
-                        <p className="text-xs text-slate-400">
-                          {new Date(visita.fecha).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })} ·{" "}
-                          {fichados != null ? (
-                            <>
-                              {duracion(fichados)} fichados
-                              {comparacion && comparacion.desvio !== "exacto" && (
-                                <span className={comparacion.desvio === "de_mas" ? "text-amber-600" : "text-rose-600"}>
-                                  {" "}
-                                  ({comparacion.diferencia > 0 ? "+" : ""}
-                                  {duracion(comparacion.diferencia)})
-                                </span>
-                              )}
-                            </>
-                          ) : (
-                            <span className="font-medium text-amber-600">sin fichaje</span>
-                          )}
+                    <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+                      <span className={`flex shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide ${info.texto}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${info.punto}`} aria-hidden />
+                        {info.etiqueta}
+                      </span>
+                      <button onClick={() => irAsunto(a)} className="min-w-0 flex-1 text-left">
+                        <p className="truncate text-sm text-slate-800">
+                          <span className="font-medium hover:underline">{a.tipo}</span>
+                          <span className="text-slate-400"> · </span>
+                          {a.persona}
+                        </p>
+                        <p className="truncate text-xs text-slate-500">
+                          {a.detalle}
+                          {a.desde > 0 && <span className="text-slate-400"> · hace {hace(a.desde)}</span>}
                         </p>
                       </button>
                       <button
-                        onClick={() => verificar({ visita, servicio })}
-                        disabled={verificando === visita.id}
-                        className="shrink-0 rounded-md border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white disabled:opacity-60"
+                        onClick={() => irAsunto(a)}
+                        className="shrink-0 rounded-md border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white"
                       >
-                        {verificando === visita.id ? "…" : "Verificar"}
+                        {a.accion}
                       </button>
                     </li>
                   );
                 })}
               </ul>
+            )}
+
+            {pendientes.length > 12 && (
+              <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-400">
+                y {pendientes.length - 12} asuntos más
+              </p>
             )}
           </section>
 

@@ -8,7 +8,7 @@ import { registrarAuditoria } from "../services/audit.js";
 import { puedeAccederPersona, esGestorOrganizacion, ocultarTarifaSiProcede, puedeVerImportes } from "../services/permisos.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
-import { sincronizarSesionesConPlan } from "../services/sesiones.js";
+import { asegurarSesiones, sincronizarSesionesConPlan } from "../services/sesiones.js";
 
 export const solicitudesRouter = Router();
 solicitudesRouter.use(autenticar);
@@ -303,6 +303,18 @@ solicitudesRouter.post("/:id/plan", async (req, res) => {
     },
   });
 
+  // Qué clase de servicio es lo dice el plan, no un desplegable aparte. Si
+  // alguien pasa una solicitud de un día suelto a "los lunes, indefinido",
+  // el servicio tiene que dejar de ser puntual solo: si no, el generador de
+  // jornadas sigue creyendo que es de una sola vez y no programa nada más.
+  function tipoSegunPlan(p: { recurrencia: string | null; fechaInicio: Date; fechaFin: Date | null }) {
+    if (p.recurrencia && p.recurrencia.trim()) return "RECURRENTE" as const;
+    // Sin fecha de fin es indefinido; con una posterior al inicio, dura
+    // varios días. En los dos casos hay más de una jornada.
+    if (!p.fechaFin) return "RECURRENTE" as const;
+    return p.fechaFin.getTime() > p.fechaInicio.getTime() ? ("RECURRENTE" as const) : ("PUNTUAL" as const);
+  }
+
   // El precio se fija por hora, así que cambiar el horario cambia el importe:
   // pasar de 2 h a 3 h con el mismo precio/hora son 13 € más. Se recalcula
   // aquí para que no haya que volver a entrar en la tarifa a mano.
@@ -338,8 +350,40 @@ solicitudesRouter.post("/:id/plan", async (req, res) => {
   // y la hora viejos, así que coordinación veía el cambio en su ficha y el
   // profesional seguía con lo de antes en su panel. Se mueve lo que aún no ha
   // empezado y se le avisa de lo que le ha cambiado.
+  //
+  // Lo que ha pasado con la agenda se devuelve para poder decirlo en
+  // pantalla: "se han programado dos jornadas" o "falta asignar profesional
+  // para poder programarlas". Hacerlo en silencio dejaba a coordinación sin
+  // saber si el cambio había servido de algo.
+  let resultadoJornadas: { creadas: string[]; movidas: string[]; retiradas: string[]; motivo?: string } = {
+    creadas: [],
+    movidas: [],
+    retiradas: [],
+  };
   if (servicio) {
+    const tipo = tipoSegunPlan(plan);
+    if (servicio.tipoServicio !== tipo) {
+      await prisma.servicio.update({ where: { id: servicio.id }, data: { tipoServicio: tipo } });
+      await registrarHistorial({
+        entidadTipo: "Servicio",
+        estadoAnterior: servicio.estado,
+        estadoNuevo: servicio.estado,
+        motivo: `El plan pasa a ${tipo === "RECURRENTE" ? "recurrente" : "puntual"}`,
+        servicioId: servicio.id,
+      });
+    }
+
     const sincronizado = await sincronizarSesionesConPlan(servicio.id);
+    // Y se generan las que falten. Hasta ahora había que esperar a la
+    // siguiente transición de estado para que apareciera nada en la agenda.
+    const generadas = await asegurarSesiones(servicio.id);
+    resultadoJornadas = {
+      creadas: generadas.creadas,
+      movidas: sincronizado.movidas,
+      retiradas: sincronizado.retiradas,
+      // El motivo sólo interesa cuando no se ha creado nada: explica por qué.
+      motivo: generadas.creadas.length === 0 ? generadas.motivo : undefined,
+    };
     if (sincronizado.cambios.length > 0 && servicio.profesionalId) {
       const cuenta = await prisma.usuario.findFirst({ where: { profesionalId: servicio.profesionalId }, select: { id: true } });
       if (cuenta) {
@@ -353,7 +397,7 @@ solicitudesRouter.post("/:id/plan", async (req, res) => {
     }
   }
 
-  res.status(201).json(plan);
+  res.status(201).json({ ...plan, jornadas: resultadoJornadas });
 });
 
 const estadoSchema = z.object({

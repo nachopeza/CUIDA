@@ -99,6 +99,13 @@ model Usuario {
   email        String     @unique
   passwordHash String
   rol          RolUsuario
+  // Qué hace dentro de la empresa. El rol dice qué puede tocar en la
+  // aplicación; el puesto, a qué se dedica — coordinación, administración,
+  // calidad… No todo el personal interno coordina servicios.
+  puesto       String?
+  telefono     String?
+  fechaAlta    DateTime?
+  fechaBaja    DateTime?
   activo       Boolean    @default(true)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt

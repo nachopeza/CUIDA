@@ -1,3 +1,5 @@
+import type { SVGProps } from "react";
+import { IconAlert, IconCheck, IconCheckCircle, IconClock, IconPlay, IconSearch, IconX } from "../components/icons.js";
 import type { Solicitud } from "./types.js";
 
 // Un único vocabulario de estado para toda la coordinación (sección
@@ -12,6 +14,10 @@ export type ClaveEstado = "nueva" | "buscando" | "por_confirmar" | "en_curso" | 
 export interface InfoEstado {
   clave: ClaveEstado;
   etiqueta: string;
+  // Un icono propio por estado. El color ayuda pero no puede ser lo único
+  // que distinga una cosa de otra: hay quien no lo ve, y en una impresión o
+  // una captura en blanco y negro desaparece.
+  Icono: (p: SVGProps<SVGSVGElement>) => JSX.Element;
   // Qué tiene que hacer coordinación en esta fase: es lo que convierte el
   // color en algo accionable en vez de decorativo.
   ayuda: string;
@@ -26,6 +32,7 @@ export const ESTADOS: InfoEstado[] = [
   {
     clave: "nueva",
     etiqueta: "Nueva",
+    Icono: IconClock,
     ayuda: "Pendiente de revisar y aceptar",
     badge: "bg-blue-100 text-blue-700",
     dot: "bg-blue-400",
@@ -36,6 +43,7 @@ export const ESTADOS: InfoEstado[] = [
   {
     clave: "buscando",
     etiqueta: "Buscando",
+    Icono: IconSearch,
     ayuda: "Aceptada, falta cerrar profesional",
     badge: "bg-amber-100 text-amber-700",
     dot: "bg-amber-400",
@@ -50,6 +58,7 @@ export const ESTADOS: InfoEstado[] = [
     // sólo hay que esperar (o recordárselo).
     clave: "por_confirmar",
     etiqueta: "Por confirmar",
+    Icono: IconAlert,
     ayuda: "Asignada a un profesional, pendiente de que la confirme",
     badge: "bg-violet-100 text-violet-700",
     dot: "bg-violet-400",
@@ -60,6 +69,7 @@ export const ESTADOS: InfoEstado[] = [
   {
     clave: "en_curso",
     etiqueta: "En curso",
+    Icono: IconPlay,
     ayuda: "Con profesional, en marcha",
     badge: "bg-brand-green-100 text-brand-green-700",
     dot: "bg-brand-green-500",
@@ -70,6 +80,7 @@ export const ESTADOS: InfoEstado[] = [
   {
     clave: "por_verificar",
     etiqueta: "Por verificar",
+    Icono: IconCheck,
     ayuda: "Terminada, falta tu visto bueno",
     badge: "bg-orange-100 text-orange-700",
     dot: "bg-orange-400",
@@ -83,6 +94,7 @@ export const ESTADOS: InfoEstado[] = [
     // confundía con el verde de "en curso" y las finalizadas parecían seguir
     // en marcha; el gris grafito se lee como "esto ya está cerrado".
     etiqueta: "Finalizada",
+    Icono: IconCheckCircle,
     ayuda: "Verificada y lista para facturar",
     badge: "bg-slate-700 text-white",
     dot: "bg-slate-600",
@@ -95,6 +107,7 @@ export const ESTADOS: InfoEstado[] = [
     // La cancelación no es un cierre normal: era gris, igual que cualquier
     // cosa apagada, y no decía que algo se había caído.
     etiqueta: "Cancelada",
+    Icono: IconX,
     ayuda: "Anulada por la familia o por coordinación",
     badge: "bg-rose-100 text-rose-700",
     dot: "bg-rose-400",

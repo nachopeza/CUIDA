@@ -50,8 +50,12 @@ export function EstadoBadge({ estado }: { estado: string }) {
 // nunca el enum en crudo de la base de datos.
 export function EstadoUnificadoBadge({ clave }: { clave: ClaveEstado }) {
   const info = infoEstado(clave);
+  // Icono + palabra + color. Las tres cosas dicen lo mismo, así que quitar
+  // una no deja el estado ilegible: impreso en gris, o para quien no
+  // distingue el ámbar del verde, la etiqueta sigue funcionando.
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${info.badge}`} title={info.ayuda}>
+    <span className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${info.badge}`} title={info.ayuda}>
+      <info.Icono className="h-3 w-3 shrink-0" aria-hidden />
       {info.etiqueta}
     </span>
   );

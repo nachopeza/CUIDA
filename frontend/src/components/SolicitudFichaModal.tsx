@@ -140,6 +140,9 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   });
   const [errorPlan, setErrorPlan] = useState<string | null>(null);
   const [guardandoPlan, setGuardandoPlan] = useState(false);
+  // Qué ha pasado con la agenda al guardar: las jornadas se crean y se
+  // mueven solas, y sin decirlo parece que el cambio no ha hecho nada.
+  const [avisoPlan, setAvisoPlan] = useState<string | null>(null);
   const [tarifa, setTarifa] = useState({
     empresaColaboradoraId: "",
     precioHora: "",
@@ -219,6 +222,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   // llegar a la petición, así que el botón no hacía nada y no decía por qué.
   async function guardarPlan() {
     setErrorPlan(null);
+    setAvisoPlan(null);
     if (!plan.fechaInicio) {
       setErrorPlan("Pon al menos la fecha de inicio: es lo que dice cuándo empieza el servicio.");
       return;
@@ -234,7 +238,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
 
     setGuardandoPlan(true);
     try {
-      await api.post(
+      const respuesta = await api.post<{ jornadas?: { creadas: string[]; movidas: string[]; retiradas: string[]; motivo?: string } }>(
         `/solicitudes/${solicitudId}/plan`,
         {
           fechaInicio: new Date(`${plan.fechaInicio}T00:00:00`).toISOString(),
@@ -247,6 +251,23 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
         },
         token,
       );
+      // Guardar el plan mueve y crea jornadas. Decir lo que ha pasado evita
+      // que parezca que no ha servido de nada: pasar una solicitud a
+      // indefinida programa la siguiente jornada, y eso hay que verlo.
+      const j = respuesta?.jornadas;
+      if (j) {
+        const partes: string[] = [];
+        if (j.creadas.length > 0) partes.push(`programada${j.creadas.length === 1 ? "" : "s"} ${j.creadas.join(", ")}`);
+        if (j.movidas.length > 0) partes.push(`${j.movidas.length} jornada${j.movidas.length === 1 ? "" : "s"} recolocada${j.movidas.length === 1 ? "" : "s"}`);
+        if (j.retiradas.length > 0) partes.push(`${j.retiradas.length} retirada${j.retiradas.length === 1 ? "" : "s"} por quedar fuera del plan`);
+        setAvisoPlan(
+          partes.length > 0
+            ? `Plan guardado · ${partes.join(" · ")}.`
+            : j.motivo
+              ? `Plan guardado. No se ha programado ninguna jornada nueva: ${j.motivo.toLowerCase()}.`
+              : "Plan guardado.",
+        );
+      }
       await recargar();
     } catch (e) {
       setErrorPlan(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido guardar");
@@ -283,7 +304,8 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   async function cambiarTipoServicio(t: "PUNTUAL" | "RECURRENTE") {
     if (!s?.servicio) return;
     setTarifa((v) => ({ ...v, tipoServicio: t }));
-    await api.post(
+    setAvisoPlan(null);
+    const respuesta = await api.post<{ jornadas?: { creadas: string[]; motivo?: string } }>(
       `/servicios/${s.servicio.id}/tarifa`,
       {
         empresaColaboradoraId: tarifa.empresaColaboradoraId || null,
@@ -296,6 +318,23 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
       },
       token,
     );
+    // El mismo aviso que al guardar el plan: cambiar el interruptor a
+    // recurrente programa la siguiente jornada, y eso hay que verlo abajo
+    // sin tener que recargar la ficha a mano.
+    const palabra = t === "RECURRENTE" ? "recurrente" : "puntual";
+    const j = respuesta?.jornadas;
+    if (j) {
+      // El aviso vive dentro del desplegable del plan, y el interruptor está
+      // fuera: si no se abre, el cambio parece no haber hecho nada.
+      setDatosAbiertos(true);
+      setAvisoPlan(
+        j.creadas.length > 0
+          ? `Ahora es ${palabra} · programada${j.creadas.length === 1 ? "" : "s"} ${j.creadas.join(", ")}.`
+          : j.motivo
+            ? `Ahora es ${palabra}. No se ha programado ninguna jornada nueva: ${j.motivo.toLowerCase()}.`
+            : `Ahora es ${palabra}.`,
+      );
+    }
     await recargar();
   }
 
@@ -632,6 +671,9 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             </div>
 
             {errorPlan && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{errorPlan}</p>}
+            {avisoPlan && (
+              <p className="rounded-md border border-brand-green-200 bg-brand-green-50 px-3 py-2 text-xs text-brand-green-700">{avisoPlan}</p>
+            )}
 
             <button
               onClick={guardarPlan}

@@ -170,8 +170,13 @@ export async function asegurarSesiones(servicioId: string): Promise<ResultadoSes
   // Recurrente: siempre una jornada por delante y ninguna más. Se genera al
   // confirmar y se vuelve a generar cada vez que se verifica la anterior.
   const hoy = aMedianoche(new Date());
-  const pendiente = servicio.visitas.some((v) => aMedianoche(v.fecha) >= hoy && v.estado !== "REVISADA");
-  if (pendiente) return { creadas: [], motivo: "Ya tiene una jornada por delante" };
+  // Por delante significa por hacer, no "con fecha de hoy o posterior": una
+  // jornada de hoy ya finalizada y esperando verificación es trabajo hecho,
+  // y contarla como pendiente dejaba al servicio sin programar la siguiente.
+  const porHacer = servicio.visitas.some(
+    (v) => aMedianoche(v.fecha) >= hoy && ["PROGRAMADA", "CONFIRMADA", "EN_CURSO"].includes(v.estado),
+  );
+  if (porHacer) return { creadas: [], motivo: "Ya tiene una jornada por delante" };
 
   const ultima = servicio.visitas.reduce<Date | null>((max, v) => (max === null || v.fecha > max ? v.fecha : max), null);
   // Arranca desde el día siguiente a la última jornada, nunca antes de hoy ni

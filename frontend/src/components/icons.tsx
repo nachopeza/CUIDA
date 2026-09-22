@@ -464,3 +464,14 @@ export const IconIdCard = (p: SVGProps<SVGSVGElement>) => (
     <path d="M14.5 10.5h4M14.5 13.5h4" />
   </svg>
 );
+
+// Un grupo de personas: el equipo de la oficina, frente al carné del
+// expediente y el maletín del profesional que va a los domicilios.
+export const IconUsersGroup = (p: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <circle cx="9" cy="8" r="3" />
+    <path d="M3.5 19c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5" />
+    <path d="M16.5 6.2a3 3 0 0 1 0 5.6" />
+    <path d="M18 14.8c1.8.6 3 2 3.4 4.2" />
+  </svg>
+);

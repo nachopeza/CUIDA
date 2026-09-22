@@ -258,7 +258,17 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
     detalle: reparto ? `${reparto.precioHora} €/h × ${reparto.minutos} min = ${reparto.base} €` : "voluntario",
   });
 
-  res.json(actualizado);
+  // Pasar un servicio a recurrente cambia lo que hay que programar: deja de
+  // ser una jornada suelta y pasa a generar la siguiente. Hacerlo aquí evita
+  // que el cambio se quede en una etiqueta sin efecto hasta que alguien
+  // toque otra cosa.
+  let jornadas: { creadas: string[]; motivo?: string } = { creadas: [] };
+  if (parsed.data.tipoServicio && parsed.data.tipoServicio !== servicio.tipoServicio) {
+    const resultado = await asegurarSesiones(servicio.id);
+    jornadas = { creadas: resultado.creadas, motivo: resultado.creadas.length === 0 ? resultado.motivo : undefined };
+  }
+
+  res.json({ ...actualizado, jornadas });
 });
 
 const asignarSchema = z.object({ profesionalId: z.string().min(1) });

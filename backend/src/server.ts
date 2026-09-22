@@ -17,6 +17,7 @@ import { conversacionesRouter } from "./routes/conversaciones.js";
 import { facturasRouter } from "./routes/facturas.js";
 import { cobrosRouter } from "./routes/cobros.js";
 import { liquidacionesRouter } from "./routes/liquidaciones.js";
+import { personalRouter } from "./routes/personal.js";
 import { equipoRouter } from "./routes/equipo.js";
 import { cuentaRouter } from "./routes/cuenta.js";
 import { conErroresAsincronos } from "./lib/asincrono.js";
@@ -44,6 +45,7 @@ app.use("/conversaciones", conErroresAsincronos(conversacionesRouter));
 app.use("/facturas", conErroresAsincronos(facturasRouter));
 app.use("/cobros", conErroresAsincronos(cobrosRouter));
 app.use("/liquidaciones", conErroresAsincronos(liquidacionesRouter));
+app.use("/personal", conErroresAsincronos(personalRouter));
 app.use("/equipo", conErroresAsincronos(equipoRouter));
 app.use("/cuenta", conErroresAsincronos(cuentaRouter));
 

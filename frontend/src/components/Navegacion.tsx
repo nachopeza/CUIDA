@@ -7,13 +7,23 @@ export interface ItemNav {
   icon: (p: SVGProps<SVGSVGElement>) => JSX.Element;
 }
 
+// Un área agrupa varias pestañas bajo un mismo encabezado. Doce entradas
+// sueltas obligaban a leérselas todas para encontrar una; agrupadas por
+// aquello de lo que tratan, se va directo.
+export interface AreaNav {
+  titulo: string;
+  items: ItemNav[];
+}
+
 export interface BadgeNav {
   valor: number;
   tono: "rose" | "amber";
 }
 
 interface Props {
-  items: ItemNav[];
+  // O una lista plana (paneles simples) o áreas con título (coordinación).
+  items?: ItemNav[];
+  areas?: AreaNav[];
   activo: string;
   onIr: (key: string) => void;
   badges?: Record<string, BadgeNav | undefined>;
@@ -24,14 +34,14 @@ interface Props {
   onCerrar: () => void;
 }
 
-function Lista({
+function Botones({
   items,
   activo,
   onIr,
   badges,
-}: Pick<Props, "items" | "activo" | "onIr" | "badges">) {
+}: { items: ItemNav[] } & Pick<Props, "activo" | "onIr" | "badges">) {
   return (
-    <nav className="space-y-0.5">
+    <>
       {items.map((n) => {
         const badge = badges?.[n.key];
         const seleccionado = activo === n.key;
@@ -64,6 +74,30 @@ function Lista({
           </button>
         );
       })}
+    </>
+  );
+}
+
+function Lista({ items, areas, activo, onIr, badges }: Pick<Props, "items" | "areas" | "activo" | "onIr" | "badges">) {
+  if (areas && areas.length > 0) {
+    return (
+      <nav className="space-y-4">
+        {areas.map((area) => (
+          <div key={area.titulo}>
+            {/* El título del área no es pulsable a propósito: es un rótulo
+                que ordena, no un sitio al que ir. */}
+            <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{area.titulo}</p>
+            <div className="space-y-0.5">
+              <Botones items={area.items} activo={activo} onIr={onIr} badges={badges} />
+            </div>
+          </div>
+        ))}
+      </nav>
+    );
+  }
+  return (
+    <nav className="space-y-0.5">
+      <Botones items={items ?? []} activo={activo} onIr={onIr} badges={badges} />
     </nav>
   );
 }
@@ -72,7 +106,7 @@ function Lista({
 // de siempre; en móvil es un cajón que entra desde la izquierda sobre un
 // fondo atenuado, en vez de la rejilla de botones sueltos que se colaba
 // entre la cabecera y el contenido y empujaba la página hacia abajo.
-export function Navegacion({ items, activo, onIr, badges, cabecera, abierto, onCerrar }: Props) {
+export function Navegacion({ items, areas, activo, onIr, badges, cabecera, abierto, onCerrar }: Props) {
   // Mientras el cajón está abierto la página de detrás no se mueve: en móvil
   // es lo que distingue un panel de una sección más que se ha desplegado.
   useEffect(() => {
@@ -94,7 +128,7 @@ export function Navegacion({ items, activo, onIr, badges, cabecera, abierto, onC
       <aside className="hidden shrink-0 md:block md:w-56">
         <div className="sticky top-6">
           {cabecera && <div className="mb-3">{cabecera}</div>}
-          <Lista items={items} activo={activo} onIr={onIr} badges={badges} />
+          <Lista items={items} areas={areas} activo={activo} onIr={onIr} badges={badges} />
         </div>
       </aside>
 
@@ -121,7 +155,7 @@ export function Navegacion({ items, activo, onIr, badges, cabecera, abierto, onC
           </div>
           <div className="flex-1 overflow-y-auto p-3">
             {cabecera && <div className="mb-3">{cabecera}</div>}
-            <Lista items={items} activo={activo} onIr={onIr} badges={badges} />
+            <Lista items={items} areas={areas} activo={activo} onIr={onIr} badges={badges} />
           </div>
         </div>
       </div>
