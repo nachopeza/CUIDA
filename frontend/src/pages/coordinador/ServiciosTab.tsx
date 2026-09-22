@@ -6,6 +6,8 @@ import { useSeleccion } from "../../lib/useSeleccion.js";
 import { exportarCSV } from "../../lib/csv.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
 import { SearchBox } from "../../components/SearchBox.js";
+import { ThOrdenable } from "../../components/ThOrdenable.js";
+import { useOrdenacion } from "../../lib/useOrdenacion.js";
 import type { Necesidad } from "../../lib/types.js";
 
 const VACIO = { nombre: "", descripcion: "", ivaPorcentaje: "4", precioBase: "" };
@@ -90,7 +92,31 @@ export function ServiciosTab() {
     if (q && !`${s.nombre} ${s.codigo} ${s.descripcion ?? ""}`.toLowerCase().includes(q)) return false;
     return true;
   });
+  const orden = useOrdenacion(visibles, {
+    nombre: (s) => s.nombre,
+    iva: (s) => Number(s.ivaPorcentaje),
+    precio: (s) => (s.precioBase != null ? Number(s.precioBase) : null),
+    codigo: (s) => s.codigo,
+  });
   const seleccion = useSeleccion(visibles);
+
+  async function eliminarSeleccionados() {
+    const filas = seleccion.seleccionadas;
+    if (filas.length === 0) return;
+    if (!confirm(`¿Eliminar ${filas.length} servicio(s) del catálogo? Los que ya se hayan pedido alguna vez no se pueden borrar.`)) return;
+    const resultados = await Promise.all(
+      filas.map((s) =>
+        api
+          .delete(`/necesidades/${s.id}`, token)
+          .then(() => true)
+          .catch(() => false),
+      ),
+    );
+    const bloqueados = resultados.filter((r) => !r).length;
+    seleccion.limpiar();
+    await cargar();
+    if (bloqueados > 0) alert(`${bloqueados} no se han podido eliminar porque ya se han usado en alguna solicitud. Desactívalos en su lugar.`);
+  }
 
   function exportar() {
     const filas = seleccion.seleccionadas.length > 0 ? seleccion.seleccionadas : visibles;
@@ -155,7 +181,15 @@ export function ServiciosTab() {
         </label>
       </div>
 
-      <ExportarBarra total={visibles.length} seleccionadas={seleccion.seleccionadas.length} onExportar={exportar} />
+      <ExportarBarra
+        total={visibles.length}
+        seleccionadas={seleccion.seleccionadas.length}
+        onExportar={exportar}
+        onSeleccionarTodo={seleccion.seleccionarTodo}
+        onLimpiarSeleccion={seleccion.limpiar}
+        onEliminar={eliminarSeleccionados}
+        etiquetaEliminar="Eliminar servicios"
+      />
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-100 text-sm">
@@ -164,15 +198,23 @@ export function ServiciosTab() {
               <th className="w-8 px-4 py-2.5">
                 <input type="checkbox" checked={seleccion.todasMarcadas} onChange={seleccion.toggleTodos} />
               </th>
-              <th className="px-4 py-2.5">Servicio</th>
-              <th className="px-4 py-2.5">IVA</th>
-              <th className="px-4 py-2.5">Precio base</th>
-              <th className="px-4 py-2.5">Código</th>
+              <ThOrdenable campo="nombre" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
+                Servicio
+              </ThOrdenable>
+              <ThOrdenable campo="iva" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
+                IVA
+              </ThOrdenable>
+              <ThOrdenable campo="precio" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
+                Precio base
+              </ThOrdenable>
+              <ThOrdenable campo="codigo" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
+                Código
+              </ThOrdenable>
               <th className="px-4 py-2.5"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {visibles.map((s) =>
+            {orden.ordenadas.map((s) =>
               editandoId === s.id ? (
                 <tr key={s.id} className="bg-brand-50">
                   <td className="px-4 py-2">

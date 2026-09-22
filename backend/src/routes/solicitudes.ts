@@ -110,6 +110,40 @@ solicitudesRouter.post("/", async (req, res) => {
   res.status(201).json(solicitudCompleta);
 });
 
+// Eliminar (sección "si selecciono todas las solicitudes pueda
+// eliminarlo"): solo mientras todavía no exista un Servicio — en cuanto se
+// acepta y se lanza la búsqueda de profesional, ya hay historial operativo
+// (y potencialmente facturación) que no debe poder desaparecer; a partir de
+// ahí la vía correcta es cancelarla, no borrarla.
+solicitudesRouter.delete("/:id", async (req, res) => {
+  const usuario = req.usuario!;
+  if (!esGestorOrganizacion(usuario)) return res.status(403).json({ error: "Sin permiso" });
+
+  const solicitud = await prisma.solicitud.findUnique({ where: { id: req.params.id }, include: { servicio: true } });
+  if (!solicitud) return res.status(404).json({ error: "No encontrada" });
+  if (solicitud.organizacionId !== usuario.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+  if (solicitud.servicio) {
+    return res.status(409).json({ error: "Ya tiene un servicio en marcha; cancélala en vez de eliminarla" });
+  }
+
+  await prisma.$transaction([
+    prisma.estadoHistorial.deleteMany({ where: { solicitudId: solicitud.id } }),
+    prisma.plan.deleteMany({ where: { solicitudId: solicitud.id } }),
+    prisma.solicitud.delete({ where: { id: solicitud.id } }),
+  ]);
+
+  await registrarAuditoria({
+    usuarioId: usuario.sub,
+    organizacionId: usuario.organizacionId,
+    accion: "eliminar_solicitud",
+    entidadTipo: "Solicitud",
+    entidadId: solicitud.id,
+    detalle: solicitud.codigo,
+  });
+
+  res.status(204).send();
+});
+
 solicitudesRouter.get("/", async (req, res) => {
   const usuario = req.usuario!;
   let where: Record<string, unknown> = {};

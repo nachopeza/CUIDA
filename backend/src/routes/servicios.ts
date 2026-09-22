@@ -74,9 +74,17 @@ serviciosRouter.get("/disponibles", requiereRol("PROFESIONAL"), async (req, res)
     include: INCLUDE_SERVICIO,
     orderBy: { createdAt: "desc" },
   });
-  // Nunca ve tarifa ni empresa: solo necesita saber qué se pide y cuándo
-  // para decidir si le interesa.
-  res.json(servicios.map((s) => ocultarTarifaSiProcede(s, false)));
+  // El profesional necesita ver todo lo relevante para decidir si le
+  // interesa y le encaja con su perfil (sección "debe ver lugar del
+  // servicio, salario, días, tipo de trabajo, horas... súper completo"):
+  // sí ve lo que cobraría él (importeProfesional), pero nunca la tarifa que
+  // se le cobra a la familia, la comisión de CUIDA ni con qué empresa
+  // colaboradora se factura eso.
+  const resultado = servicios.map((s) => {
+    const { tarifaImporte, comisionImporte, tarifaNotas, empresaColaboradora, empresaColaboradoraId, facturaId, ivaPorcentaje, ivaImporte, totalConIva, pagoProfesionalEstado, ...visible } = s;
+    return visible;
+  });
+  res.json(resultado);
 });
 
 const interesSchema = z.object({ mensaje: z.string().optional() });
@@ -286,6 +294,69 @@ serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", 
   res.json(actualizado);
 });
 
+// Reemplazo de profesional en marcha (sección "debo poder cambiar de
+// profesional si este se enferma o deja el trabajo y que pueda tener un
+// reemplazo"): a diferencia de /asignar (que es la propuesta inicial y pasa
+// por ASIGNADO en espera de aceptación), esto sustituye al profesional de un
+// servicio ya CONFIRMADO o EN_CURSO sin reiniciar ese progreso. Las visitas
+// ya creadas conservan su profesionalId original (snapshot), así que la
+// facturación por horas no se ve afectada retroactivamente.
+serviciosRouter.post("/:id/reemplazar-profesional", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const parsed = asignarSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id } });
+  if (!servicio) return res.status(404).json({ error: "No encontrado" });
+  if (servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+  if (!["CONFIRMADO", "EN_CURSO"].includes(servicio.estado)) {
+    return res.status(409).json({ error: "Solo se puede reemplazar el profesional de un servicio confirmado o en curso" });
+  }
+
+  const profesional = await prisma.profesional.findUnique({ where: { id: parsed.data.profesionalId }, include: { usuario: true } });
+  if (!profesional || profesional.organizacionId !== servicio.organizacionId) {
+    return res.status(400).json({ error: "Profesional no válido para esta organización" });
+  }
+  if (profesional.id === servicio.profesionalId) {
+    return res.status(400).json({ error: "Ese profesional ya está asignado a este servicio" });
+  }
+
+  const anterior = servicio.profesionalId ? await prisma.profesional.findUnique({ where: { id: servicio.profesionalId } }) : null;
+
+  const actualizado = await prisma.servicio.update({
+    where: { id: servicio.id },
+    data: { profesionalId: profesional.id },
+    include: INCLUDE_SERVICIO,
+  });
+
+  await registrarHistorial({
+    entidadTipo: "Servicio",
+    estadoAnterior: servicio.estado,
+    estadoNuevo: servicio.estado,
+    motivo: `Reemplazo de profesional: ${anterior?.codigo ?? "sin asignar"} → ${profesional.codigo}`,
+    servicioId: servicio.id,
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: servicio.organizacionId,
+    accion: "reemplazar_profesional_servicio",
+    entidadTipo: "Servicio",
+    entidadId: servicio.id,
+    detalle: `${anterior?.codigo ?? "sin asignar"} → ${profesional.codigo}`,
+  });
+
+  if (profesional.usuario) {
+    await notificarUsuario(
+      profesional.usuario.id,
+      "propuesta_servicio",
+      `Te han asignado el servicio ${servicio.codigo} como reemplazo. Revísalo.`,
+      servicio.solicitudId,
+    );
+  }
+
+  res.json(actualizado);
+});
+
 // Aceptación explícita (sección: "espera que la cuidadora o empresa la
 // acepte"). Solo el propio profesional asignado puede confirmar — la
 // coordinación propone, pero no puede aceptar en su nombre.
@@ -477,6 +548,11 @@ serviciosRouter.post("/:id/visitas", requiereRol("COORDINADOR", "ORGANIZACION", 
       horaInicioProg: parsed.data.horaInicioProg,
       horaFinProg: parsed.data.horaFinProg,
       servicioId: servicio.id,
+      // Snapshot de quién la hace en este momento (sección "cambiar de
+      // profesional... que esto se tenga en cuenta en su facturación"): si
+      // el servicio se reasigna después, esta visita ya creada conserva el
+      // profesional que de verdad la va a hacer.
+      profesionalId: servicio.profesionalId,
       estado: "PROGRAMADA",
       tareas: { create: parsed.data.tareas.map((descripcion) => ({ descripcion })) },
     },

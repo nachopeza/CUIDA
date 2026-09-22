@@ -162,6 +162,39 @@ profesionalesRouter.patch("/:id", async (req, res) => {
   res.json(actualizado);
 });
 
+// Eliminar (sección "si selecciono... pueda eliminarlo"): solo si no tiene
+// historial operativo; en cuanto ha hecho servicios, la vía correcta es
+// desactivarlo, no borrar el rastro de quién atendió a quién.
+profesionalesRouter.delete("/:id", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const usuario = req.usuario!;
+  const profesional = await prisma.profesional.findUnique({
+    where: { id: req.params.id },
+    include: { servicios: { take: 1 }, visitas: { take: 1 }, usuario: true },
+  });
+  if (!profesional || profesional.organizacionId !== usuario.organizacionId) return res.status(404).json({ error: "No encontrado" });
+  if (profesional.servicios.length > 0 || profesional.visitas.length > 0) {
+    return res.status(409).json({ error: "Ya ha realizado servicios; desactívalo en vez de eliminarlo" });
+  }
+
+  await prisma.$transaction([
+    prisma.documento.deleteMany({ where: { profesionalId: profesional.id } }),
+    prisma.servicioInteres.deleteMany({ where: { profesionalId: profesional.id } }),
+    ...(profesional.usuario ? [prisma.usuario.delete({ where: { id: profesional.usuario.id } })] : []),
+    prisma.profesional.delete({ where: { id: profesional.id } }),
+  ]);
+
+  await registrarAuditoria({
+    usuarioId: usuario.sub,
+    organizacionId: profesional.organizacionId,
+    accion: "eliminar_profesional",
+    entidadTipo: "Profesional",
+    entidadId: profesional.id,
+    detalle: profesional.codigo,
+  });
+
+  res.status(204).send();
+});
+
 // Resetear la contraseña de la cuenta de acceso del profesional (sección
 // "cambios de datos, contraseñas, usuarios"): mismo patrón que en personas,
 // solo coordinación puede hacerlo, se muestra una sola vez.

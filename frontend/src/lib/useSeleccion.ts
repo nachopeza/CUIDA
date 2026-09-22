@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 
-// Selección de filas para listados (sección "en todos los listados incluye
-// selección"): un Set de ids, con toggle individual y "todos"/"ninguno" —
-// suficiente para marcar qué exportar sin inventar acciones masivas que
-// nadie ha pedido todavía.
+// Selección de filas para listados (secciones "en todos los listados incluye
+// selección" y "alguien me tiene que dar la opción de seleccionar todo"): un
+// Set de ids, con toggle individual, "todos"/"ninguno" y selección completa
+// del conjunto filtrado, para poder exportar o eliminar en bloque.
 export function useSeleccion<T extends { id: string }>(filas: T[]) {
   const [ids, setIds] = useState<Set<string>>(new Set());
 
@@ -20,6 +20,10 @@ export function useSeleccion<T extends { id: string }>(filas: T[]) {
     setIds((prev) => (prev.size === filas.length ? new Set() : new Set(filas.map((f) => f.id))));
   }
 
+  function seleccionarTodo() {
+    setIds(new Set(filas.map((f) => f.id)));
+  }
+
   function limpiar() {
     setIds(new Set());
   }
@@ -27,5 +31,5 @@ export function useSeleccion<T extends { id: string }>(filas: T[]) {
   const seleccionadas = useMemo(() => filas.filter((f) => ids.has(f.id)), [filas, ids]);
   const todasMarcadas = filas.length > 0 && ids.size === filas.length;
 
-  return { ids, toggle, toggleTodos, limpiar, seleccionadas, todasMarcadas };
+  return { ids, toggle, toggleTodos, seleccionarTodo, limpiar, seleccionadas, todasMarcadas };
 }

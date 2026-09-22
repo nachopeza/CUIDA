@@ -3,8 +3,10 @@ import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { Modal } from "./Modal.js";
 import { EstadoBadge } from "./EstadoBadge.js";
+import { Cronometro, horasTrabajadas } from "./Cronometro.js";
 import { PersonaDetalleModal } from "../pages/coordinador/PersonaDetalleModal.js";
 import { ProfesionalFormModal } from "../pages/coordinador/ProfesionalFormModal.js";
+import { IncidenciaFichaModal } from "../pages/coordinador/IncidenciaFichaModal.js";
 import { parsearDisponibilidad } from "../lib/disponibilidad.js";
 import { resumenDisponibilidad } from "./DisponibilidadPicker.js";
 import type { EmpresaColaboradora, Necesidad, Profesional, Solicitud } from "../lib/types.js";
@@ -69,6 +71,8 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   const [perfilProfesionalAbierto, setPerfilProfesionalAbierto] = useState(false);
   const [editarPersonaAbierto, setEditarPersonaAbierto] = useState(false);
   const [editarProfesionalAbierto, setEditarProfesionalAbierto] = useState(false);
+  const [incidenciaAbierta, setIncidenciaAbierta] = useState<string | null>(null);
+  const [reemplazoAbierto, setReemplazoAbierto] = useState(false);
   const [tarifaAbierta, setTarifaAbierta] = useState(false);
   const [modoAsignacion, setModoAsignacion] = useState<"mercado" | "directo">("mercado");
 
@@ -195,6 +199,17 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
       },
       token,
     );
+    await recargar();
+  }
+
+  // Reemplazo por baja/enfermedad (sección "debo poder cambiar de
+  // profesional si este se enferma o deja el trabajo"): las visitas ya
+  // hechas conservan su profesional, así que la facturación de cada uno
+  // sigue siendo correcta.
+  async function reemplazarProfesional(profesionalId: string) {
+    if (!s?.servicio || !profesionalId) return;
+    await api.post(`/servicios/${s.servicio.id}/reemplazar-profesional`, { profesionalId }, token);
+    setReemplazoAbierto(false);
     await recargar();
   }
 
@@ -326,10 +341,21 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
           </div>
         )}
 
+        {/* Acceso directo a la incidencia (sección "si entro en una ficha de
+            una solicitud y tiene una incidencia, debo poder acceder a la
+            incidencia"): antes solo se avisaba, sin poder abrirla. */}
         {incidenciaGeneralAbierta && (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            ⚠ Incidencia {incidenciaGeneralAbierta.codigo} abierta ({incidenciaGeneralAbierta.descripcion}) — resuélvela antes de finalizar/validar/cerrar el servicio.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            <span>
+              ⚠ Incidencia {incidenciaGeneralAbierta.codigo} abierta ({incidenciaGeneralAbierta.descripcion}) — resuélvela antes de finalizar/validar/cerrar el servicio.
+            </span>
+            <button
+              onClick={() => setIncidenciaAbierta(incidenciaGeneralAbierta.id)}
+              className="shrink-0 rounded-md border border-amber-300 bg-white px-2.5 py-1 font-medium hover:bg-amber-100"
+            >
+              Abrir ticket
+            </button>
+          </div>
         )}
 
         {/* Contacto directo (sección "desde la ficha se debe poder
@@ -413,13 +439,35 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                   {srv.profesional.nombre} {srv.profesional.apellidos}
                 </p>
               </button>
-              <div className="mt-1 flex flex-wrap gap-2 text-xs">
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                 {srv.profesional.telefono && (
                   <a href={`tel:${srv.profesional.telefono}`} className="rounded-md border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50">
                     📞 {srv.profesional.telefono}
                   </a>
                 )}
+                {["CONFIRMADO", "EN_CURSO"].includes(srv.estado) && (
+                  <button onClick={() => setReemplazoAbierto((v) => !v)} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-amber-700 hover:bg-amber-100">
+                    🔄 Reemplazar
+                  </button>
+                )}
               </div>
+              {reemplazoAbierto && (
+                <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2">
+                  <p className="mb-1 text-xs text-amber-800">Si se ha puesto enfermo o deja el trabajo, elige quién lo sustituye. Las visitas ya hechas siguen contando para él.</p>
+                  <select defaultValue="" onChange={(e) => reemplazarProfesional(e.target.value)} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+                    <option value="" disabled>
+                      Elegir sustituto…
+                    </option>
+                    {profesionales
+                      .filter((p) => p.id !== srv.profesionalId)
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nombre} {p.apellidos} · {p.zona ?? "Cantabria"}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
               {perfilProfesionalAbierto && (
                 <dl className="mt-2 space-y-1 border-t border-slate-100 pt-2 text-xs text-slate-600">
                   <div>
@@ -689,15 +737,26 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 que se verifica el trabajo. */}
             {["CONFIRMADO", "EN_CURSO", "FINALIZADO", "VALIDADO", "CERRADO"].includes(srv.estado) && (
               <div>
-                <p className="mb-1 text-xs font-medium text-slate-500">Visitas</p>
+                <div className="mb-1 flex items-center justify-between">
+                  <p className="text-xs font-medium text-slate-500">Visitas</p>
+                  {(() => {
+                    const total = (srv.visitas ?? []).reduce((acc, v) => acc + horasTrabajadas(v.horaInicioReal, v.horaFinReal), 0);
+                    if (total === 0) return null;
+                    return <p className="text-xs text-slate-500">Tiempo total trabajado: <strong>{total.toFixed(2)} h</strong></p>;
+                  })()}
+                </div>
                 {srv.visitas && srv.visitas.length > 0 && (
                   <ul className="mb-2 space-y-1">
                     {srv.visitas.map((v) => (
                       <li key={v.id} className="flex items-center justify-between rounded-md bg-slate-50 px-2 py-1.5 text-xs">
                         <span>
                           {new Date(v.fecha).toLocaleDateString("es-ES")} {v.horaInicioProg && `· ${v.horaInicioProg}-${v.horaFinProg}`}
+                          {v.profesional && <span className="text-slate-400"> · {v.profesional.nombre}</span>}
                         </span>
                         <div className="flex items-center gap-2">
+                          {/* Tiempo real trabajado: es lo que se factura en
+                              los servicios recurrentes. */}
+                          <Cronometro inicio={v.horaInicioReal} fin={v.horaFinReal} />
                           <EstadoBadge estado={v.estado} />
                           {v.estado === "FINALIZADA" && (
                             <button onClick={() => revisarVisita(v.id)} className="rounded-md border border-slate-300 px-2 py-0.5 hover:bg-slate-100">
@@ -786,8 +845,13 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                         <option value="VOLUNTARIO">Voluntario</option>
                       </select>
                     </label>
+                    {/* En un servicio recurrente el importe es el precio por
+                        hora: el servicio no se cierra nunca, se factura cada
+                        mes por las horas reales trabajadas (sección "basar el
+                        sistema de facturación en el tiempo"). En uno puntual
+                        sigue siendo el importe total del servicio. */}
                     <label className="text-slate-500">
-                      Importe €
+                      {tarifa.tipoServicio === "RECURRENTE" ? "Precio por hora €" : "Importe €"}
                       <input
                         type="number"
                         min="0"
@@ -825,7 +889,10 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                         const ivaPct = tarifa.ivaPorcentaje ? Number(tarifa.ivaPorcentaje) : Number(s.necesidad.ivaPorcentaje);
                         const importe = Number(tarifa.tarifaImporte) || 0;
                         const iva = Math.round(importe * (ivaPct / 100) * 100) / 100;
-                        return `Base ${importe.toFixed(2)} € + IVA ${ivaPct}% (${iva.toFixed(2)} €) = ${(importe + iva).toFixed(2)} € total`;
+                        const porHora = tarifa.tipoServicio === "RECURRENTE" ? "/hora" : "";
+                        return `Base ${importe.toFixed(2)} €${porHora} + IVA ${ivaPct}% (${iva.toFixed(2)} €${porHora}) = ${(importe + iva).toFixed(2)} €${porHora}${
+                          porHora ? " — se factura cada mes por las horas reales trabajadas" : " total"
+                        }`;
                       })()}
                     </p>
                   )}
@@ -881,6 +948,10 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
           onClose={() => setEditarProfesionalAbierto(false)}
           onSaved={recargar}
         />
+      )}
+
+      {incidenciaAbierta && (
+        <IncidenciaFichaModal incidenciaId={incidenciaAbierta} onClose={() => setIncidenciaAbierta(null)} onChanged={recargar} />
       )}
     </Modal>
   );

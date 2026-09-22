@@ -91,3 +91,30 @@ necesidadesRouter.patch("/:id", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
 
   res.json(actualizado);
 });
+
+// Eliminar del catálogo: solo si ninguna solicitud lo ha usado nunca; si ya
+// se ha pedido alguna vez se desactiva (PATCH activo:false) para no romper
+// el histórico de esas solicitudes.
+necesidadesRouter.delete("/:id", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const necesidad = await prisma.necesidadCatalogo.findUnique({
+    where: { id: req.params.id },
+    include: { solicitudes: { take: 1 } },
+  });
+  if (!necesidad) return res.status(404).json({ error: "No encontrado" });
+  if (necesidad.solicitudes.length > 0) {
+    return res.status(409).json({ error: "Ya se ha usado en alguna solicitud; desactívalo en vez de eliminarlo" });
+  }
+
+  await prisma.necesidadCatalogo.delete({ where: { id: necesidad.id } });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: req.usuario!.organizacionId,
+    accion: "eliminar_servicio_catalogo",
+    entidadTipo: "NecesidadCatalogo",
+    entidadId: necesidad.id,
+    detalle: necesidad.nombre,
+  });
+
+  res.status(204).send();
+});

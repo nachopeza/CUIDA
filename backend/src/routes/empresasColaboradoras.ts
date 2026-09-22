@@ -73,3 +73,31 @@ empresasColaboradorasRouter.patch("/:id", async (req, res) => {
 
   res.json(actualizada);
 });
+
+// Eliminar: solo si nadie depende de ella todavía (sección "que me dé la
+// opción de eliminar el conjunto seleccionado"); si ya tiene profesionales o
+// servicios asociados, lo correcto es marcarla inactiva.
+empresasColaboradorasRouter.delete("/:id", async (req, res) => {
+  const empresa = await prisma.empresaColaboradora.findUnique({
+    where: { id: req.params.id },
+    include: { profesionales: { take: 1 }, servicios: { take: 1 } },
+  });
+  if (!empresa) return res.status(404).json({ error: "No encontrada" });
+  if (empresa.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+  if (empresa.profesionales.length > 0 || empresa.servicios.length > 0) {
+    return res.status(409).json({ error: "Tiene profesionales o servicios asociados; márcala inactiva en vez de eliminarla" });
+  }
+
+  await prisma.empresaColaboradora.delete({ where: { id: empresa.id } });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: empresa.organizacionId,
+    accion: "eliminar_empresa_colaboradora",
+    entidadTipo: "EmpresaColaboradora",
+    entidadId: empresa.id,
+    detalle: empresa.codigo,
+  });
+
+  res.status(204).send();
+});

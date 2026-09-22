@@ -139,11 +139,27 @@ export interface Visita {
   fecha: string;
   horaInicioProg: string | null;
   horaFinProg: string | null;
+  // Tiempo real trabajado (sección "los profesionales los contabiliza con
+  // un temporizador"): se guardan al pulsar "He llegado"/"Cerrar tarea".
+  horaInicioReal?: string | null;
+  horaFinReal?: string | null;
   estado: string;
+  // Snapshot del profesional que hizo la visita — no cambia si el servicio
+  // se reasigna después (sección "cambiar de profesional... que esto se
+  // tenga en cuenta en su facturación").
+  profesionalId?: string | null;
+  profesional?: Profesional | null;
+  facturaId?: string | null;
   tareas: Tarea[];
   actuaciones?: Actuacion[];
   incidencias?: Incidencia[];
-  servicio?: { id: string; profesionalId?: string | null; solicitud: { persona: Persona; necesidad: Necesidad } };
+  servicio?: {
+    id: string;
+    profesionalId?: string | null;
+    tarifaImporte?: string | number | null;
+    ivaPorcentaje?: string | number | null;
+    solicitud: { persona: Persona; necesidad: Necesidad };
+  };
 }
 
 export interface Profesional {
@@ -185,6 +201,7 @@ export interface Factura {
   createdAt: string;
   persona: Persona;
   servicios: Servicio[];
+  visitas?: Visita[];
 }
 
 export interface Mensaje {

@@ -220,6 +220,7 @@ model Profesional {
   mensajes   Mensaje[]
   interesEn  ServicioInteres[]
   documentos Documento[]
+  visitas    Visita[]
 
   @@map("profesionales")
 }
@@ -488,6 +489,7 @@ model Factura {
   persona   Persona @relation(fields: [personaId], references: [id])
 
   servicios Servicio[]
+  visitas   Visita[]
 
   @@unique([personaId, mes])
   @@map("facturas")
@@ -539,6 +541,21 @@ model Visita {
 
   servicioId String
   servicio   Servicio @relation(fields: [servicioId], references: [id])
+
+  // Snapshot del profesional que hizo la visita (sección "poder cambiar de
+  // profesional si este se enferma... y que esto se tenga en cuenta en su
+  // facturación"): se copia de servicio.profesionalId al crear la visita, y
+  // ya no cambia aunque el servicio se reasigne después — así el historial
+  // de horas por profesional no se corrompe con una reasignación posterior.
+  profesionalId String?
+  profesional   Profesional? @relation(fields: [profesionalId], references: [id])
+
+  // Facturación por horas de servicios recurrentes (sección "las que son
+  // recurrentes... se facturan"): un servicio RECURRENTE nunca se cierra,
+  // así que se factura por periodo a partir de las horas reales de sus
+  // visitas de ese mes, no a partir del propio Servicio como en PUNTUAL.
+  facturaId String?
+  factura   Factura? @relation(fields: [facturaId], references: [id])
 
   tareas          Tarea[]
   actuaciones     Actuacion[]

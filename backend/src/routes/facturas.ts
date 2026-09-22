@@ -44,6 +44,9 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
   }
 
   const { desde, hasta } = rangoMes(parsed.data.mes);
+
+  // PUNTUAL: el servicio completo ya validado/cerrado dentro del mes — el
+  // flujo original, sin cambios.
   const servicios = await prisma.servicio.findMany({
     where: {
       organizacionId: usuario.organizacionId!,
@@ -55,15 +58,69 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
     },
   });
 
-  if (servicios.length === 0) {
-    return res.status(409).json({ error: "No hay servicios pendientes de facturar para esa persona en ese mes" });
+  // RECURRENTE: el servicio nunca se cierra (sección "las que son
+  // recurrentes... se facturan mensualmente"), así que se factura por las
+  // horas reales de las visitas verificadas dentro del mes que todavía no
+  // se hayan facturado — tarifaImporte se interpreta aquí como precio/hora.
+  const visitasRecurrentes = await prisma.visita.findMany({
+    where: {
+      facturaId: null,
+      estado: { in: ["FINALIZADA", "REVISADA"] },
+      horaInicioReal: { not: null },
+      horaFinReal: { not: null },
+      fecha: { gte: desde, lt: hasta },
+      servicio: {
+        organizacionId: usuario.organizacionId!,
+        solicitud: { personaId: persona.id },
+        tarifaTipo: "PAGADO",
+        tipoServicio: "RECURRENTE",
+      },
+    },
+    include: { servicio: { include: { solicitud: { include: { necesidad: true } } } } },
+  });
+
+  if (servicios.length === 0 && visitasRecurrentes.length === 0) {
+    return res.status(409).json({ error: "No hay servicios ni visitas pendientes de facturar para esa persona en ese mes" });
   }
 
-  const importeTotal = servicios.reduce((acc, s) => acc + Number(s.tarifaImporte ?? 0), 0);
-  const ivaTotal = servicios.reduce((acc, s) => acc + Number(s.ivaImporte ?? 0), 0);
-  const totalConIva = servicios.reduce((acc, s) => acc + Number(s.totalConIva ?? s.tarifaImporte ?? 0), 0);
-  const comisionTotal = servicios.reduce((acc, s) => acc + Number(s.comisionImporte ?? 0), 0);
-  const importeProfesionales = servicios.reduce((acc, s) => acc + Number(s.importeProfesional ?? 0), 0);
+  const organizacion = await prisma.organizacion.findUnique({ where: { id: usuario.organizacionId! } });
+  const comisionPorcentaje = Number(organizacion?.comisionPorcentaje ?? 15);
+
+  let importeTotal = servicios.reduce((acc, s) => acc + Number(s.tarifaImporte ?? 0), 0);
+  let ivaTotal = servicios.reduce((acc, s) => acc + Number(s.ivaImporte ?? 0), 0);
+  let totalConIva = servicios.reduce((acc, s) => acc + Number(s.totalConIva ?? s.tarifaImporte ?? 0), 0);
+  let comisionTotal = servicios.reduce((acc, s) => acc + Number(s.comisionImporte ?? 0), 0);
+  let importeProfesionales = servicios.reduce((acc, s) => acc + Number(s.importeProfesional ?? 0), 0);
+
+  // Una línea por servicio recurrente (horas totales del mes × precio/hora),
+  // no una por visita: más legible en la factura.
+  const horasPorServicio = new Map<string, { horas: number; servicio: (typeof visitasRecurrentes)[number]["servicio"] }>();
+  for (const v of visitasRecurrentes) {
+    const horas = (v.horaFinReal!.getTime() - v.horaInicioReal!.getTime()) / 3600000;
+    const actual = horasPorServicio.get(v.servicioId) ?? { horas: 0, servicio: v.servicio };
+    actual.horas += horas;
+    horasPorServicio.set(v.servicioId, actual);
+  }
+  for (const { horas, servicio } of horasPorServicio.values()) {
+    const precioHora = Number(servicio.tarifaImporte ?? 0);
+    const base = Math.round(horas * precioHora * 100) / 100;
+    const ivaPct = servicio.ivaPorcentaje != null ? Number(servicio.ivaPorcentaje) : Number(servicio.solicitud.necesidad.ivaPorcentaje);
+    const iva = Math.round(base * (ivaPct / 100) * 100) / 100;
+    const comision = Math.round(base * (comisionPorcentaje / 100) * 100) / 100;
+    importeTotal += base;
+    ivaTotal += iva;
+    totalConIva += base + iva;
+    comisionTotal += comision;
+    importeProfesionales += base - comision;
+  }
+
+  // Solo puede haber una factura por persona y mes: si ya se generó (por
+  // ejemplo antes de verificar las últimas visitas del mes), se avisa en vez
+  // de reventar con el error de unicidad de la base de datos.
+  const yaExiste = await prisma.factura.findUnique({ where: { personaId_mes: { personaId: persona.id, mes: parsed.data.mes } } });
+  if (yaExiste) {
+    return res.status(409).json({ error: `Ya existe la factura ${yaExiste.codigo} para esa persona y ese mes` });
+  }
 
   const codigo = await generarCodigo("factura");
   const factura = await prisma.factura.create({
@@ -78,8 +135,9 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
       organizacionId: usuario.organizacionId!,
       personaId: persona.id,
       servicios: { connect: servicios.map((s) => ({ id: s.id })) },
+      visitas: { connect: visitasRecurrentes.map((v) => ({ id: v.id })) },
     },
-    include: { servicios: true, persona: true },
+    include: { servicios: true, visitas: true, persona: true },
   });
 
   await registrarAuditoria({
@@ -113,7 +171,11 @@ facturasRouter.get("/", async (req, res) => {
 
   const facturas = await prisma.factura.findMany({
     where,
-    include: { persona: true, servicios: { include: { solicitud: { include: { necesidad: true } }, profesional: true } } },
+    include: {
+      persona: true,
+      servicios: { include: { solicitud: { include: { necesidad: true } }, profesional: true } },
+      visitas: { include: { profesional: true, servicio: { include: { solicitud: { include: { necesidad: true } } } } } },
+    },
     orderBy: [{ mes: "desc" }, { createdAt: "desc" }],
   });
   res.json(facturas);

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Pagination, usePaginacion } from "../../components/Pagination.js";
+import { ThOrdenable } from "../../components/ThOrdenable.js";
+import { useOrdenacion } from "../../lib/useOrdenacion.js";
 import { IconPlus } from "../../components/icons.js";
 import { EmpresaFormModal } from "./EmpresaFormModal.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
@@ -32,8 +34,33 @@ export function EmpresasTab() {
     return empresas.filter((e) => `${e.nombre} ${e.codigo} ${e.cif ?? ""}`.toLowerCase().includes(q));
   }, [empresas, busqueda]);
 
-  const { items: pagina, pagina: paginaActual, totalPaginas, setPagina } = usePaginacion(filtradas);
+  const orden = useOrdenacion(filtradas, {
+    nombre: (e) => e.nombre,
+    contacto: (e) => e.contacto,
+    cif: (e) => e.cif,
+    codigo: (e) => e.codigo,
+  });
+
+  const { items: pagina, pagina: paginaActual, totalPaginas, setPagina } = usePaginacion(orden.ordenadas);
   const seleccion = useSeleccion(filtradas);
+
+  async function eliminarSeleccionadas() {
+    const filas = seleccion.seleccionadas;
+    if (filas.length === 0) return;
+    if (!confirm(`¿Eliminar ${filas.length} empresa(s)? Las que tengan profesionales o servicios asociados no se pueden borrar.`)) return;
+    const resultados = await Promise.all(
+      filas.map((e) =>
+        api
+          .delete(`/empresas-colaboradoras/${e.id}`, token)
+          .then(() => true)
+          .catch(() => false),
+      ),
+    );
+    const bloqueadas = resultados.filter((r) => !r).length;
+    seleccion.limpiar();
+    await cargar();
+    if (bloqueadas > 0) alert(`${bloqueadas} no se han podido eliminar porque tienen profesionales o servicios asociados.`);
+  }
 
   function exportar() {
     const filas = seleccion.seleccionadas.length > 0 ? seleccion.seleccionadas : filtradas;
@@ -63,7 +90,15 @@ export function EmpresasTab() {
         <p className="text-sm text-slate-500">Todavía no hay empresas colaboradoras dadas de alta.</p>
       ) : (
         <div>
-          <ExportarBarra total={filtradas.length} seleccionadas={seleccion.seleccionadas.length} onExportar={exportar} />
+          <ExportarBarra
+            total={filtradas.length}
+            seleccionadas={seleccion.seleccionadas.length}
+            onExportar={exportar}
+            onSeleccionarTodo={seleccion.seleccionarTodo}
+            onLimpiarSeleccion={seleccion.limpiar}
+            onEliminar={eliminarSeleccionadas}
+            etiquetaEliminar="Eliminar empresas"
+          />
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -71,10 +106,18 @@ export function EmpresasTab() {
                   <th className="w-8 px-4 py-2.5">
                     <input type="checkbox" checked={seleccion.todasMarcadas} onChange={seleccion.toggleTodos} />
                   </th>
-                  <th className="px-4 py-2.5">Nombre</th>
-                  <th className="px-4 py-2.5">Contacto</th>
-                  <th className="px-4 py-2.5">CIF</th>
-                  <th className="px-4 py-2.5">Código</th>
+                  <ThOrdenable campo="nombre" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
+                    Nombre
+                  </ThOrdenable>
+                  <ThOrdenable campo="contacto" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
+                    Contacto
+                  </ThOrdenable>
+                  <ThOrdenable campo="cif" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
+                    CIF
+                  </ThOrdenable>
+                  <ThOrdenable campo="codigo" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
+                    Código
+                  </ThOrdenable>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

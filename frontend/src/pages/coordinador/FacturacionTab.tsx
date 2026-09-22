@@ -4,9 +4,10 @@ import { api, ApiError } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
 import { SearchBox } from "../../components/SearchBox.js";
+import { useOrdenacion } from "../../lib/useOrdenacion.js";
 import { useSeleccion } from "../../lib/useSeleccion.js";
 import { exportarCSV } from "../../lib/csv.js";
-import type { Factura, Persona } from "../../lib/types.js";
+import type { Factura, Persona, Visita } from "../../lib/types.js";
 
 const SIGUIENTE_FACTURA: Record<string, string> = { BORRADOR: "EMITIDA", EMITIDA: "PAGADA" };
 // "Se debe generar una nota de pago para luego emitir la factura": el
@@ -18,6 +19,36 @@ const ETIQUETA_ACCION_FACTURA: Record<string, string> = { BORRADOR: "Emitir fact
 
 function mesActualISO() {
   return new Date().toISOString().slice(0, 7);
+}
+
+function horasDeVisita(v: Visita): number {
+  if (!v.horaInicioReal || !v.horaFinReal) return 0;
+  return (new Date(v.horaFinReal).getTime() - new Date(v.horaInicioReal).getTime()) / 3600000;
+}
+
+// Las visitas de un servicio recurrente se facturan por horas y se agrupan
+// en una sola línea por servicio (sección "basar el sistema de facturación
+// en el tiempo... lo que vale es el tiempo que pasan los profesionales con
+// los usuarios"): mismo cálculo que hace el backend al generar la factura.
+function lineasPorHoras(visitas: Visita[]) {
+  const grupos = new Map<string, { concepto: string; profesional: string; horas: number; precioHora: number; ivaPct: number }>();
+  for (const v of visitas) {
+    const servicioId = v.servicio?.id ?? v.id;
+    const actual = grupos.get(servicioId) ?? {
+      concepto: v.servicio?.solicitud.necesidad.nombre ?? "Servicio recurrente",
+      profesional: v.profesional ? `${v.profesional.nombre} ${v.profesional.apellidos}` : "—",
+      horas: 0,
+      precioHora: Number(v.servicio?.tarifaImporte ?? 0),
+      ivaPct: Number(v.servicio?.ivaPorcentaje ?? 0),
+    };
+    actual.horas += horasDeVisita(v);
+    grupos.set(servicioId, actual);
+  }
+  return Array.from(grupos.entries()).map(([servicioId, g]) => {
+    const base = Math.round(g.horas * g.precioHora * 100) / 100;
+    const iva = Math.round(base * (g.ivaPct / 100) * 100) / 100;
+    return { servicioId, ...g, base, iva, total: Math.round((base + iva) * 100) / 100 };
+  });
 }
 
 // Facturación mensual (sección "función es cobrar por gestión un pequeño
@@ -58,7 +89,10 @@ export function FacturacionTab() {
       await api.post("/facturas/generar", { personaId, mes }, token);
       await cargar();
     } catch (err) {
-      setError(err instanceof ApiError ? "No hay servicios pagados sin facturar para esa persona en ese mes." : "Error al generar la factura.");
+      // El backend explica el motivo concreto (no hay nada que facturar, ya
+      // existe la factura de ese mes...): se muestra tal cual en vez de un
+      // mensaje genérico que no dice qué ha pasado.
+      setError(err instanceof ApiError ? err.message.replace(/^"|"$/g, "") : "Error al generar la factura.");
     } finally {
       setGenerando(false);
     }
@@ -76,6 +110,17 @@ export function FacturacionTab() {
     if (!q) return true;
     return `${f.persona.nombre} ${f.persona.apellidos} ${f.codigo} ${f.mes}`.toLowerCase().includes(q);
   });
+  const ordenFacturas = useOrdenacion(
+    facturasFiltradas,
+    {
+      mes: (f) => f.mes,
+      persona: (f) => `${f.persona.apellidos} ${f.persona.nombre}`,
+      total: (f) => Number(f.totalConIva ?? f.importeTotal),
+      estado: (f) => f.estado,
+      codigo: (f) => f.codigo,
+    },
+    "mes",
+  );
   const seleccionFacturas = useSeleccion(facturasFiltradas);
 
   function exportarFacturas() {
@@ -123,12 +168,31 @@ export function FacturacionTab() {
         {facturas.length === 0 && <p className="text-sm text-slate-500">Todavía no se ha generado ninguna factura.</p>}
         {facturas.length > 0 && (
           <>
-            <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por persona, código o mes…" className="mb-2 w-full sm:max-w-xs" />
-            <ExportarBarra total={facturasFiltradas.length} seleccionadas={seleccionFacturas.seleccionadas.length} onExportar={exportarFacturas} />
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por persona, código o mes…" className="flex-1 sm:max-w-xs" />
+              <select
+                value={ordenFacturas.campo ?? ""}
+                onChange={(e) => e.target.value && ordenFacturas.ordenarPor(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-2 text-xs"
+              >
+                <option value="mes">Ordenar por mes</option>
+                <option value="persona">Persona</option>
+                <option value="total">Importe total</option>
+                <option value="estado">Estado</option>
+                <option value="codigo">Código</option>
+              </select>
+            </div>
+            <ExportarBarra
+              total={facturasFiltradas.length}
+              seleccionadas={seleccionFacturas.seleccionadas.length}
+              onExportar={exportarFacturas}
+              onSeleccionarTodo={seleccionFacturas.seleccionarTodo}
+              onLimpiarSeleccion={seleccionFacturas.limpiar}
+            />
           </>
         )}
         <ul className="divide-y divide-slate-100">
-          {facturasFiltradas.map((f) => (
+          {ordenFacturas.ordenadas.map((f) => (
             <li key={f.id} className="py-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-start gap-2">
@@ -208,6 +272,22 @@ export function FacturacionTab() {
                             {s.ivaPorcentaje != null ? `${Number(s.ivaPorcentaje)}% (${Number(s.ivaImporte ?? 0).toFixed(2)} €)` : "—"}
                           </td>
                           <td className="px-3 py-2 font-medium text-slate-800">{s.totalConIva != null ? `${Number(s.totalConIva).toFixed(2)} €` : "—"}</td>
+                        </tr>
+                      ))}
+                      {lineasPorHoras(f.visitas ?? []).map((l) => (
+                        <tr key={l.servicioId}>
+                          <td className="px-3 py-2">
+                            {l.concepto}{" "}
+                            <span className="text-slate-400">
+                              · {l.horas.toFixed(2)} h × {l.precioHora.toFixed(2)} €/h
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">{l.profesional}</td>
+                          <td className="px-3 py-2 text-slate-600">{l.base.toFixed(2)} €</td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {l.ivaPct}% ({l.iva.toFixed(2)} €)
+                          </td>
+                          <td className="px-3 py-2 font-medium text-slate-800">{l.total.toFixed(2)} €</td>
                         </tr>
                       ))}
                     </tbody>

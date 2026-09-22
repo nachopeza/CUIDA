@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Pagination, usePaginacion } from "../../components/Pagination.js";
+import { ThOrdenable } from "../../components/ThOrdenable.js";
+import { useOrdenacion } from "../../lib/useOrdenacion.js";
 import { IconPlus } from "../../components/icons.js";
 import { ProfesionalFormModal } from "./ProfesionalFormModal.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
@@ -47,8 +49,34 @@ export function ProfesionalesTab() {
     });
   }, [profesionales, busqueda, empresaFiltro]);
 
-  const { items: pagina, pagina: paginaActual, totalPaginas, setPagina } = usePaginacion(filtrados);
+  const orden = useOrdenacion(filtrados, {
+    codigo: (p) => p.codigo,
+    nombre: (p) => `${p.apellidos} ${p.nombre}`,
+    zona: (p) => p.zona ?? ZONA_POR_DEFECTO,
+    empresa: (p) => p.empresaColaboradora?.nombre ?? "Independiente",
+    telefono: (p) => p.telefono,
+  });
+
+  const { items: pagina, pagina: paginaActual, totalPaginas, setPagina } = usePaginacion(orden.ordenadas);
   const seleccion = useSeleccion(filtrados);
+
+  async function eliminarSeleccionados() {
+    const filas = seleccion.seleccionadas;
+    if (filas.length === 0) return;
+    if (!confirm(`¿Eliminar ${filas.length} profesional(es)? Los que ya hayan hecho servicios no se pueden borrar.`)) return;
+    const resultados = await Promise.all(
+      filas.map((p) =>
+        api
+          .delete(`/profesionales/${p.id}`, token)
+          .then(() => true)
+          .catch(() => false),
+      ),
+    );
+    const bloqueados = resultados.filter((r) => !r).length;
+    seleccion.limpiar();
+    await cargar();
+    if (bloqueados > 0) alert(`${bloqueados} no se han podido eliminar porque ya tienen servicios realizados.`);
+  }
 
   function exportar() {
     const filas = seleccion.seleccionadas.length > 0 ? seleccion.seleccionadas : filtrados;
@@ -89,7 +117,15 @@ export function ProfesionalesTab() {
         <p className="text-sm text-slate-500">Sin profesionales que mostrar.</p>
       ) : (
         <div>
-          <ExportarBarra total={filtrados.length} seleccionadas={seleccion.seleccionadas.length} onExportar={exportar} />
+          <ExportarBarra
+            total={filtrados.length}
+            seleccionadas={seleccion.seleccionadas.length}
+            onExportar={exportar}
+            onSeleccionarTodo={seleccion.seleccionarTodo}
+            onLimpiarSeleccion={seleccion.limpiar}
+            onEliminar={eliminarSeleccionados}
+            etiquetaEliminar="Eliminar profesionales"
+          />
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -97,12 +133,22 @@ export function ProfesionalesTab() {
                   <th className="w-8 px-4 py-2.5">
                     <input type="checkbox" checked={seleccion.todasMarcadas} onChange={seleccion.toggleTodos} />
                   </th>
-                  <th className="px-4 py-2.5">Nombre</th>
-                  <th className="px-4 py-2.5">Zona</th>
-                  <th className="px-4 py-2.5">Empresa</th>
+                  <ThOrdenable campo="nombre" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
+                    Nombre
+                  </ThOrdenable>
+                  <ThOrdenable campo="zona" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
+                    Zona
+                  </ThOrdenable>
+                  <ThOrdenable campo="empresa" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
+                    Empresa
+                  </ThOrdenable>
                   <th className="px-4 py-2.5">Disponibilidad</th>
-                  <th className="px-4 py-2.5">Teléfono</th>
-                  <th className="px-4 py-2.5">Código</th>
+                  <ThOrdenable campo="telefono" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
+                    Teléfono
+                  </ThOrdenable>
+                  <ThOrdenable campo="codigo" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
+                    Código
+                  </ThOrdenable>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

@@ -6,7 +6,10 @@ import { EstadoBadge, EstadoUnificadoBadge } from "../components/EstadoBadge.js"
 import { estadoUnificadoDeSolicitud, ESTADOS_UNIFICADOS } from "../lib/estadoUnificado.js";
 import { Pagination, usePaginacion } from "../components/Pagination.js";
 import { ExportarBarra } from "../components/ExportarBarra.js";
+import { SearchBox } from "../components/SearchBox.js";
+import { ThOrdenable } from "../components/ThOrdenable.js";
 import { useSeleccion } from "../lib/useSeleccion.js";
+import { useOrdenacion } from "../lib/useOrdenacion.js";
 import { exportarCSV } from "../lib/csv.js";
 import {
   IconActivity,
@@ -39,10 +42,10 @@ import { SolicitudFichaModal } from "../components/SolicitudFichaModal.js";
 import { IncidenciaFichaModal } from "./coordinador/IncidenciaFichaModal.js";
 import type { EmpresaColaboradora, Incidencia, Necesidad, Persona, Profesional, Servicio, Solicitud } from "../lib/types.js";
 
-type Tab = "resumen" | "solicitudes" | "servicios" | "incidencias" | "personas" | "profesionales" | "empresas" | "calendario" | "facturacion" | "actividad";
+type Tab = "escritorio" | "solicitudes" | "servicios" | "incidencias" | "personas" | "profesionales" | "empresas" | "calendario" | "facturacion" | "actividad";
 
 const NAV: { key: Tab; label: string; icon: typeof IconHome }[] = [
-  { key: "resumen", label: "Resumen", icon: IconHome },
+  { key: "escritorio", label: "Escritorio", icon: IconHome },
   { key: "solicitudes", label: "Solicitudes", icon: IconClipboard },
   { key: "servicios", label: "Servicios", icon: IconTag },
   { key: "incidencias", label: "Incidencias", icon: IconAlert },
@@ -104,11 +107,18 @@ const PRIORIDAD_BORDE: Record<string, string> = { ALTA: "border-l-rose-500", MED
 export function CoordinadorPage() {
   const { token } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [tab, setTab] = useState<Tab>("resumen");
+  const [tab, setTab] = useState<Tab>("escritorio");
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
   const [filtro, setFiltro] = useState<Filtro>(null);
   const [estadoFiltro, setEstadoFiltro] = useState("");
   const [tipoFiltro, setTipoFiltro] = useState("");
+  const [profesionalFiltro, setProfesionalFiltro] = useState("");
+  const [busquedaSolicitudes, setBusquedaSolicitudes] = useState("");
+  const [busquedaIncidencias, setBusquedaIncidencias] = useState("");
+  const [prioridadFiltro, setPrioridadFiltro] = useState("");
+  const [incidenciaEstadoFiltro, setIncidenciaEstadoFiltro] = useState("");
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const [profesionales, setProfesionales] = useState<Profesional[]>([]);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
@@ -122,18 +132,20 @@ export function CoordinadorPage() {
   const [personasRefreshKey, setPersonasRefreshKey] = useState(0);
 
   async function cargar() {
-    const [sols, servs, incs, pers, necs] = await Promise.all([
+    const [sols, servs, incs, pers, necs, pros] = await Promise.all([
       api.get<Solicitud[]>("/solicitudes", token),
       api.get<Servicio[]>("/servicios", token),
       api.get<Incidencia[]>("/incidencias", token),
       api.get<Persona[]>("/personas", token),
       api.get<Necesidad[]>("/necesidades", token),
+      api.get<Profesional[]>("/profesionales", token),
     ]);
     setSolicitudes(sols);
     setServicios(servs);
     setIncidencias(incs);
     setPersonas(pers);
     setNecesidades(necs);
+    setProfesionales(pros);
   }
 
   useEffect(() => {
@@ -204,31 +216,71 @@ export function CoordinadorPage() {
   // aparte en vez de perderse mezclado con "confirmado"/"en curso".
   const porVerificarCount = useMemo(() => solicitudes.filter((s) => s.servicio?.estado === "FINALIZADO").length, [solicitudes]);
 
-  const kpis: { label: string; valor: number; onClick: () => void }[] = [
-    { label: "Solicitudes", valor: solicitudes.length, onClick: () => irA("solicitudes") },
-    { label: "Gestión", valor: gruposCount.gestion, onClick: () => irA("solicitudes", "gestion") },
-    { label: "En proceso", valor: gruposCount.en_proceso, onClick: () => irA("solicitudes", "en_proceso") },
-    { label: "Incidencias", valor: gruposCount.incidencias, onClick: () => irA("solicitudes", "incidencias") },
-    { label: "Canceladas", valor: gruposCount.canceladas, onClick: () => irA("solicitudes", "canceladas") },
-    { label: "Finalizadas", valor: gruposCount.finalizadas, onClick: () => irA("solicitudes", "finalizadas") },
-  ];
-
   const badges: Partial<Record<Tab, { valor: number; tono: "rose" | "amber" }>> = {
     incidencias: { valor: incidencias.filter((i) => !["RESUELTA", "CERRADA"].includes(i.estado)).length, tono: "rose" },
     solicitudes: { valor: gruposCount.gestion, tono: "amber" },
   };
 
   const solicitudesFiltradas = useMemo(() => {
+    const q = busquedaSolicitudes.trim().toLowerCase();
     return solicitudes.filter((s) => {
       if (filtro && grupoDeSolicitud(s) !== filtro) return false;
       if (estadoFiltro && (s.servicio ? s.servicio.estado : s.estado) !== estadoFiltro) return false;
       if (tipoFiltro && (s.servicio?.tipoServicio ?? "PUNTUAL") !== tipoFiltro) return false;
+      if (profesionalFiltro) {
+        if (profesionalFiltro === "__sin__" && s.servicio?.profesionalId) return false;
+        if (profesionalFiltro !== "__sin__" && s.servicio?.profesionalId !== profesionalFiltro) return false;
+      }
+      if (q) {
+        const texto = `${s.codigo} ${s.persona.nombre} ${s.persona.apellidos} ${s.necesidad.nombre} ${s.descripcionLibre} ${
+          s.servicio?.profesional ? `${s.servicio.profesional.nombre} ${s.servicio.profesional.apellidos}` : ""
+        }`;
+        if (!texto.toLowerCase().includes(q)) return false;
+      }
       return true;
     });
-  }, [solicitudes, filtro, estadoFiltro, tipoFiltro]);
+  }, [solicitudes, filtro, estadoFiltro, tipoFiltro, profesionalFiltro, busquedaSolicitudes]);
 
-  const { items: solicitudesPagina, pagina: solicitudesPaginaActual, totalPaginas: solicitudesTotalPaginas, setPagina: setSolicitudesPagina } = usePaginacion(solicitudesFiltradas);
+  const ordenSolicitudes = useOrdenacion(solicitudesFiltradas, {
+    codigo: (s) => s.codigo,
+    fecha: (s) => s.createdAt,
+    persona: (s) => `${s.persona.apellidos} ${s.persona.nombre}`,
+    servicio: (s) => s.necesidad.nombre,
+    estado: (s) => estadoUnificadoDeSolicitud(s),
+    profesional: (s) => (s.servicio?.profesional ? `${s.servicio.profesional.apellidos} ${s.servicio.profesional.nombre}` : null),
+  });
+
+  const {
+    items: solicitudesPagina,
+    pagina: solicitudesPaginaActual,
+    totalPaginas: solicitudesTotalPaginas,
+    setPagina: setSolicitudesPagina,
+  } = usePaginacion(ordenSolicitudes.ordenadas);
   const seleccionSolicitudes = useSeleccion(solicitudesFiltradas);
+
+  // Eliminar en bloque (sección "si selecciono todas las solicitudes pueda
+  // eliminarlo"): el backend solo deja borrar las que todavía no tienen
+  // servicio en marcha, así que se informa de cuántas se han podido quitar.
+  async function eliminarSolicitudes() {
+    const filas = seleccionSolicitudes.seleccionadas;
+    if (filas.length === 0) return;
+    if (!confirm(`¿Eliminar ${filas.length} solicitud(es)? Las que ya tengan un servicio en marcha no se pueden borrar, hay que cancelarlas.`)) return;
+    const resultados = await Promise.all(
+      filas.map((s) =>
+        api
+          .delete(`/solicitudes/${s.id}`, token)
+          .then(() => true)
+          .catch(() => false),
+      ),
+    );
+    const borradas = resultados.filter(Boolean).length;
+    const bloqueadas = resultados.length - borradas;
+    seleccionSolicitudes.limpiar();
+    await cargar();
+    if (bloqueadas > 0) {
+      alert(`Se han eliminado ${borradas}. ${bloqueadas} no se han podido eliminar porque ya tienen un servicio en marcha: cancélalas desde su ficha.`);
+    }
+  }
 
   function exportarSolicitudes() {
     const filas = seleccionSolicitudes.seleccionadas.length > 0 ? seleccionSolicitudes.seleccionadas : solicitudesFiltradas;
@@ -246,6 +298,17 @@ export function CoordinadorPage() {
       "solicitudes",
     );
   }
+
+  const incidenciasFiltradas = useMemo(() => {
+    const q = busquedaIncidencias.trim().toLowerCase();
+    return incidencias.filter((i) => {
+      if (prioridadFiltro && i.prioridad !== prioridadFiltro) return false;
+      if (incidenciaEstadoFiltro === "abiertas" && ["RESUELTA", "CERRADA"].includes(i.estado)) return false;
+      if (incidenciaEstadoFiltro && incidenciaEstadoFiltro !== "abiertas" && i.estado !== incidenciaEstadoFiltro) return false;
+      if (q && !`${i.codigo} ${i.descripcion} ${i.servicio?.solicitud?.persona.nombre ?? ""}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [incidencias, prioridadFiltro, incidenciaEstadoFiltro, busquedaIncidencias]);
 
   const estadosPresentes = useMemo(() => {
     const set = new Set(solicitudes.map((s) => (s.servicio ? s.servicio.estado : s.estado)));
@@ -338,7 +401,7 @@ export function CoordinadorPage() {
       <div className="min-w-0 flex-1">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-slate-800">{tab === "resumen" ? "Panel de coordinación" : tituloTab}</h2>
+            <h2 className="text-lg font-semibold text-slate-800">{tab === "escritorio" ? "" : tituloTab}</h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -356,7 +419,7 @@ export function CoordinadorPage() {
           </div>
         </div>
 
-        {tab === "resumen" && <ResumenTab solicitudes={solicitudes} servicios={servicios} incidencias={incidencias} kpis={kpis} onIrA={irA} />}
+        {tab === "escritorio" && <ResumenTab solicitudes={solicitudes} servicios={servicios} incidencias={incidencias} onIrA={irA} />}
 
         {tab === "solicitudes" && (
           <div>
@@ -413,26 +476,40 @@ export function CoordinadorPage() {
               ))}
             </div>
 
+            {/* Barra de lista: buscar, ordenar y filtros avanzados encima de
+                la tabla (sección "sobre ella una barra de búsqueda, un botón
+                para ordenar, establecer filtros avanzados"). */}
             <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-              <select value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-xs">
-                <option value="">Todos los estados</option>
-                {estadosPresentes.map((e) => (
-                  <option key={e} value={e}>
-                    {e.replace(/_/g, " ")}
-                  </option>
-                ))}
+              <SearchBox value={busquedaSolicitudes} onChange={setBusquedaSolicitudes} placeholder="Buscar por persona, código, servicio…" className="flex-1 sm:max-w-xs" />
+              <select
+                value={ordenSolicitudes.campo ?? ""}
+                onChange={(e) => e.target.value && ordenSolicitudes.ordenarPor(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-2 text-xs"
+              >
+                <option value="">Ordenar por…</option>
+                <option value="codigo">Código</option>
+                <option value="fecha">Fecha de creación</option>
+                <option value="persona">Persona</option>
+                <option value="servicio">Servicio</option>
+                <option value="estado">Estado</option>
+                <option value="profesional">Profesional</option>
               </select>
-              <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-xs">
-                <option value="">Puntual y recurrente</option>
-                <option value="PUNTUAL">Puntual</option>
-                <option value="RECURRENTE">Recurrente</option>
-              </select>
-              {(filtro || estadoFiltro || tipoFiltro) && (
+              <button
+                onClick={() => setFiltrosAbiertos((v) => !v)}
+                className={`rounded-md border px-3 py-2 text-xs font-medium ${
+                  estadoFiltro || tipoFiltro || profesionalFiltro ? "border-brand bg-brand-50 text-brand-800" : "border-slate-300 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                ⚙ Filtros avanzados{[estadoFiltro, tipoFiltro, profesionalFiltro].filter(Boolean).length > 0 && ` (${[estadoFiltro, tipoFiltro, profesionalFiltro].filter(Boolean).length})`}
+              </button>
+              {(filtro || estadoFiltro || tipoFiltro || profesionalFiltro || busquedaSolicitudes) && (
                 <button
                   onClick={() => {
                     setFiltro(null);
                     setEstadoFiltro("");
                     setTipoFiltro("");
+                    setProfesionalFiltro("");
+                    setBusquedaSolicitudes("");
                   }}
                   className="text-xs text-slate-500 underline decoration-dotted hover:text-slate-700"
                 >
@@ -441,11 +518,55 @@ export function CoordinadorPage() {
               )}
             </div>
 
+            {filtrosAbiertos && (
+              <div className="mb-3 grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs sm:grid-cols-3">
+                <label className="text-slate-500">
+                  Estado
+                  <select value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5">
+                    <option value="">Todos los estados</option>
+                    {estadosPresentes.map((e) => (
+                      <option key={e} value={e}>
+                        {e.replace(/_/g, " ")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-slate-500">
+                  Tipo de servicio
+                  <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5">
+                    <option value="">Puntual y recurrente</option>
+                    <option value="PUNTUAL">Puntual</option>
+                    <option value="RECURRENTE">Recurrente</option>
+                  </select>
+                </label>
+                <label className="text-slate-500">
+                  Profesional
+                  <select value={profesionalFiltro} onChange={(e) => setProfesionalFiltro(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5">
+                    <option value="">Todos</option>
+                    <option value="__sin__">Sin profesional asignado</option>
+                    {profesionales.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre} {p.apellidos}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+
             {solicitudesFiltradas.length === 0 ? (
               <p className="text-sm text-slate-500">Sin solicitudes que mostrar.</p>
             ) : (
               <div>
-                <ExportarBarra total={solicitudesFiltradas.length} seleccionadas={seleccionSolicitudes.seleccionadas.length} onExportar={exportarSolicitudes} />
+                <ExportarBarra
+                  total={solicitudesFiltradas.length}
+                  seleccionadas={seleccionSolicitudes.seleccionadas.length}
+                  onExportar={exportarSolicitudes}
+                  onSeleccionarTodo={seleccionSolicitudes.seleccionarTodo}
+                  onLimpiarSeleccion={seleccionSolicitudes.limpiar}
+                  onEliminar={eliminarSolicitudes}
+                  etiquetaEliminar="Eliminar solicitudes"
+                />
                 <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
                 <table className="min-w-full divide-y divide-slate-100 text-sm">
                   <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -453,13 +574,25 @@ export function CoordinadorPage() {
                       <th className="w-8 px-4 py-2.5">
                         <input type="checkbox" checked={seleccionSolicitudes.todasMarcadas} onChange={seleccionSolicitudes.toggleTodos} />
                       </th>
-                      <th className="px-4 py-2.5">Persona</th>
-                      <th className="px-4 py-2.5">Necesidad</th>
+                      <ThOrdenable campo="persona" campoActivo={ordenSolicitudes.campo} direccion={ordenSolicitudes.direccion} onOrdenar={ordenSolicitudes.ordenarPor}>
+                        Persona
+                      </ThOrdenable>
+                      <ThOrdenable campo="servicio" campoActivo={ordenSolicitudes.campo} direccion={ordenSolicitudes.direccion} onOrdenar={ordenSolicitudes.ordenarPor}>
+                        Servicio
+                      </ThOrdenable>
                       <th className="px-4 py-2.5">Tipo</th>
-                      <th className="px-4 py-2.5">Estado</th>
-                      <th className="px-4 py-2.5">Profesional</th>
-                      <th className="px-4 py-2.5">Creada</th>
-                      <th className="px-4 py-2.5">Código</th>
+                      <ThOrdenable campo="estado" campoActivo={ordenSolicitudes.campo} direccion={ordenSolicitudes.direccion} onOrdenar={ordenSolicitudes.ordenarPor}>
+                        Estado
+                      </ThOrdenable>
+                      <ThOrdenable campo="profesional" campoActivo={ordenSolicitudes.campo} direccion={ordenSolicitudes.direccion} onOrdenar={ordenSolicitudes.ordenarPor}>
+                        Profesional
+                      </ThOrdenable>
+                      <ThOrdenable campo="fecha" campoActivo={ordenSolicitudes.campo} direccion={ordenSolicitudes.direccion} onOrdenar={ordenSolicitudes.ordenarPor}>
+                        Creada
+                      </ThOrdenable>
+                      <ThOrdenable campo="codigo" campoActivo={ordenSolicitudes.campo} direccion={ordenSolicitudes.direccion} onOrdenar={ordenSolicitudes.ordenarPor}>
+                        Código
+                      </ThOrdenable>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -472,7 +605,17 @@ export function CoordinadorPage() {
                           {s.persona.nombre} {s.persona.apellidos}
                         </td>
                         <td className="px-4 py-2.5 text-slate-500">{s.necesidad.nombre}</td>
-                        <td className="px-4 py-2.5 text-slate-500">{s.servicio?.tipoServicio === "RECURRENTE" ? "Recurrente" : "Puntual"}</td>
+                        <td className="px-4 py-2.5 text-slate-500">
+                          {s.servicio?.tipoServicio === "RECURRENTE" ? "Recurrente" : "Puntual"}
+                          {/* Un servicio sin fecha de fin es indefinido: se
+                              marca de por sí, para no confundirlo con uno
+                              recurrente que sí termina en una fecha. */}
+                          {s.plan && !s.plan.fechaFin && (
+                            <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600" title="Sin fecha de fin">
+                              📌 Indefinido
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-1.5">
                             <EstadoUnificadoBadge clave={estadoUnificadoDeSolicitud(s)} />
@@ -504,12 +647,32 @@ export function CoordinadorPage() {
         {tab === "incidencias" && (
           <div>
             {incidencias.length > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <SearchBox value={busquedaIncidencias} onChange={setBusquedaIncidencias} placeholder="Buscar por código, descripción o persona…" className="flex-1 sm:max-w-xs" />
+                <select value={prioridadFiltro} onChange={(e) => setPrioridadFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-2 text-xs">
+                  <option value="">Todas las prioridades</option>
+                  <option value="ALTA">Alta</option>
+                  <option value="MEDIA">Media</option>
+                  <option value="BAJA">Baja</option>
+                </select>
+                <select value={incidenciaEstadoFiltro} onChange={(e) => setIncidenciaEstadoFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-2 text-xs">
+                  <option value="">Todos los estados</option>
+                  <option value="abiertas">Solo abiertas</option>
+                  {PIPELINE_INCIDENCIA.map((e) => (
+                    <option key={e} value={e}>
+                      {e.replace(/_/g, " ")}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {incidenciasFiltradas.length > 0 && (
               <ExportarBarra
-                total={incidencias.length}
+                total={incidenciasFiltradas.length}
                 seleccionadas={0}
                 onExportar={() =>
                   exportarCSV(
-                    incidencias,
+                    incidenciasFiltradas,
                     [
                       { encabezado: "Código", valor: (i) => i.codigo },
                       { encabezado: "Descripción", valor: (i) => i.descripcion },
@@ -522,8 +685,8 @@ export function CoordinadorPage() {
                 }
               />
             )}
-            {incidencias.length === 0 && <p className="text-sm text-slate-500">Sin incidencias abiertas.</p>}
-            {incidencias.map((i) => {
+            {incidenciasFiltradas.length === 0 && <p className="text-sm text-slate-500">Sin incidencias que mostrar.</p>}
+            {incidenciasFiltradas.map((i) => {
               const esCancelacion = i.tipo === "SOLICITUD_CANCELACION";
               const pendiente = !["RESUELTA", "CERRADA"].includes(i.estado);
               const paso = PIPELINE_INCIDENCIA.indexOf(i.estado);

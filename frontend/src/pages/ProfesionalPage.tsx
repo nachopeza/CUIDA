@@ -3,6 +3,7 @@ import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
+import { Cronometro } from "../components/Cronometro.js";
 import { ConversacionesPanel } from "../components/ConversacionesPanel.js";
 import { BuscarSolicitudesTab } from "./profesional/BuscarSolicitudesTab.js";
 import { MiPerfilTab } from "./profesional/MiPerfilTab.js";
@@ -178,6 +179,7 @@ export function ProfesionalPage() {
                     {persona?.direccion && <p className="mt-0.5 text-xs text-slate-500">📍 {persona.direccion}</p>}
                   </div>
                   <div className="flex items-center gap-1.5">
+                    <Cronometro inicio={v.horaInicioReal} fin={v.horaFinReal} />
                     {incidenciaAbiertaEnVisita && (
                       <span className="text-amber-600" title="Incidencia abierta">
                         ⚠
@@ -315,7 +317,7 @@ export function ProfesionalPage() {
                 <div className="flex items-center gap-2">
                   {(v.estado === "PROGRAMADA" || v.estado === "CONFIRMADA") && (
                     <button onClick={() => iniciar(v.id)} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800">
-                      He llegado
+                      ▶ He llegado — empezar a contar
                     </button>
                   )}
                   {v.estado === "EN_CURSO" && (
@@ -328,7 +330,7 @@ export function ProfesionalPage() {
                         className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
                       />
                       <button onClick={() => finalizar(v.id)} className="rounded-md bg-brand-green-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-green-800">
-                        Cerrar tarea
+                        ⏹ He terminado — parar el tiempo
                       </button>
                     </div>
                   )}

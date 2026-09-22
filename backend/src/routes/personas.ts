@@ -308,3 +308,36 @@ personasRouter.post("/:id/familiares", requiereRol("COORDINADOR", "ORGANIZACION"
 
   res.status(201).json(relacion);
 });
+
+// Eliminar un usuario atendido: solo si no tiene solicitudes ni facturas —
+// en cuanto ha habido servicio hay historial asistencial y económico que no
+// debe desaparecer (sección "poder eliminar el conjunto seleccionado", con
+// el límite obvio de no borrar historial real).
+personasRouter.delete("/:id", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const persona = await prisma.persona.findUnique({
+    where: { id: req.params.id },
+    include: { solicitudes: { take: 1 }, facturas: { take: 1 }, usuario: true, familiares: true },
+  });
+  if (!persona || persona.organizacionId !== req.usuario!.organizacionId) return res.status(404).json({ error: "No encontrada" });
+  if (persona.solicitudes.length > 0 || persona.facturas.length > 0) {
+    return res.status(409).json({ error: "Tiene solicitudes o facturas; no se puede eliminar su historial" });
+  }
+
+  await prisma.$transaction([
+    prisma.familiarRelacion.deleteMany({ where: { personaId: persona.id } }),
+    prisma.documento.deleteMany({ where: { personaId: persona.id } }),
+    ...(persona.usuario ? [prisma.usuario.delete({ where: { id: persona.usuario.id } })] : []),
+    prisma.persona.delete({ where: { id: persona.id } }),
+  ]);
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: persona.organizacionId,
+    accion: "eliminar_persona",
+    entidadTipo: "Persona",
+    entidadId: persona.id,
+    detalle: persona.codigo,
+  });
+
+  res.status(204).send();
+});

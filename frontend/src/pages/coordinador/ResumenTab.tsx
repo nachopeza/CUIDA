@@ -10,7 +10,6 @@ interface Props {
   solicitudes: Solicitud[];
   servicios: Servicio[];
   incidencias: Incidencia[];
-  kpis: { label: string; valor: number; onClick: () => void }[];
   onIrA: (tab: string, filtro?: string) => void;
 }
 
@@ -27,20 +26,35 @@ function mesActualISO() {
   return new Date().toISOString().slice(0, 7);
 }
 
-// Portada del panel de coordinación (sección "el panel de coordinación no
-// es nada intuitivo... le falta muchas opciones y dinamizaciones para ser
-// útil"): de un vistazo, cuántas solicitudes hay, qué necesita acción
-// ahora mismo, cómo va el mes en facturación, quién está disponible y qué
-// se está pidiendo más — en vez de aterrizar en una lista sin contexto.
-export function ResumenTab({ solicitudes, servicios, incidencias, kpis, onIrA }: Props) {
-  const { token } = useAuth();
+// Saludo según la hora (sección "cuando entras debe saludarte buenos días,
+// buenas tardes o buenas noches").
+function saludo(): string {
+  const h = new Date().getHours();
+  if (h < 6) return "Buenas noches";
+  if (h < 14) return "Buenos días";
+  if (h < 21) return "Buenas tardes";
+  return "Buenas noches";
+}
+
+// Escritorio del panel de coordinación: lo primero es el saludo y lo que
+// necesita acción ahora mismo (sección "prioriza los avisos de abajo... pero
+// con nuevas solicitudes"); debajo, los paneles de situación. Las casillas
+// de conteo por grupo viven en la pestaña Solicitudes, no aquí.
+export function ResumenTab({ solicitudes, servicios, incidencias, onIrA }: Props) {
+  const { token, usuario } = useAuth();
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [profesionales, setProfesionales] = useState<Profesional[]>([]);
+  const [nombre, setNombre] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([api.get<Factura[]>("/facturas", token), api.get<Profesional[]>("/profesionales", token)]).then(([facs, pros]) => {
+    Promise.all([
+      api.get<Factura[]>("/facturas", token),
+      api.get<Profesional[]>("/profesionales", token),
+      api.get<{ nombre: string | null }>("/cuenta/me", token),
+    ]).then(([facs, pros, me]) => {
       setFacturas(facs);
       setProfesionales(pros);
+      setNombre(me.nombre);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -53,8 +67,19 @@ export function ResumenTab({ solicitudes, servicios, incidencias, kpis, onIrA }:
     0,
   );
   const profesionalesPendientes = profesionales.filter((p) => p.estado === "PENDIENTE").length;
+  // Solicitudes nuevas todavía sin revisar: son lo primero que debe atender
+  // coordinación, así que encabezan los avisos.
+  const nuevasSolicitudes = solicitudes.filter((s) => !s.servicio && s.estado !== "CANCELADA").length;
 
   const atencion: Atencion[] = [
+    {
+      label: "Solicitudes nuevas",
+      detalle: "pendientes de revisar y aceptar",
+      valor: nuevasSolicitudes,
+      icon: IconClipboard,
+      tono: "amber" as const,
+      onClick: () => onIrA("solicitudes", "gestion"),
+    },
     {
       label: "Cancelaciones pendientes",
       detalle: "esperando que las corrobores con la familia",
@@ -97,9 +122,6 @@ export function ResumenTab({ solicitudes, servicios, incidencias, kpis, onIrA }:
     },
   ].filter((a) => a.valor > 0);
 
-  // Agenda: próximas visitas programadas de cualquier servicio, ordenadas
-  // por fecha (sección "dinamizaciones para ser útil"): saber qué toca
-  // atender esta semana sin entrar al calendario completo.
   const hoy = new Date().toISOString().slice(0, 10);
   const proximasVisitas = useMemo(() => {
     return servicios
@@ -109,18 +131,12 @@ export function ResumenTab({ solicitudes, servicios, incidencias, kpis, onIrA }:
       .slice(0, 5);
   }, [servicios, hoy]);
 
-  // Resumen financiero del mes en curso (sección facturación): cuánto se
-  // ha facturado, cuánto sigue pendiente de cobro y cuánto es comisión de
-  // CUIDA, de un vistazo sin entrar a la pestaña de Facturación.
   const mesActual = mesActualISO();
   const facturasMes = useMemo(() => facturas.filter((f) => f.mes === mesActual), [facturas, mesActual]);
   const totalFacturadoMes = facturasMes.reduce((acc, f) => acc + Number(f.totalConIva ?? f.importeTotal), 0);
   const pendienteCobroMes = facturasMes.filter((f) => f.estado !== "PAGADA").reduce((acc, f) => acc + Number(f.totalConIva ?? f.importeTotal), 0);
   const comisionMes = facturasMes.reduce((acc, f) => acc + Number(f.comisionTotal), 0);
 
-  // Estado de la plantilla de profesionales: cuántos están activos y, de
-  // esos, cuántos están ocupados ahora mismo con un servicio en curso —
-  // para saber de un vistazo si hay margen para aceptar más solicitudes.
   const profesionalesActivos = profesionales.filter((p) => p.estado === "ACTIVO").length;
   const profesionalesOcupados = useMemo(() => {
     const ocupadosIds = new Set(
@@ -129,9 +145,6 @@ export function ResumenTab({ solicitudes, servicios, incidencias, kpis, onIrA }:
     return ocupadosIds.size;
   }, [servicios]);
 
-  // Distribución de solicitudes por necesidad (sección "creas servicios,
-  // los filtras, los contabilizas"): qué se está pidiendo más, con acceso
-  // directo a filtrar la tabla de solicitudes por ese tipo.
   const distribucionNecesidad = useMemo(() => {
     const conteo = new Map<string, { nombre: string; codigo: string; valor: number }>();
     for (const s of solicitudes) {
@@ -147,17 +160,17 @@ export function ResumenTab({ solicitudes, servicios, incidencias, kpis, onIrA }:
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        {kpis.map((k) => (
-          <button
-            key={k.label}
-            onClick={k.onClick}
-            className="rounded-lg border border-slate-200 bg-white p-3 text-center transition hover:border-slate-400 hover:bg-slate-50"
-          >
-            <p className="text-2xl font-semibold text-slate-800">{k.valor}</p>
-            <p className="text-xs text-slate-500">{k.label}</p>
-          </button>
-        ))}
+      <div>
+        <h2 className="text-xl font-semibold text-slate-800">
+          {saludo()}
+          {nombre ? `, ${nombre.split(" ")[0]}` : ""} 👋
+        </h2>
+        <p className="text-sm text-slate-500">
+          {atencion.length === 0
+            ? "No tienes nada pendiente de tu acción ahora mismo."
+            : `Tienes ${atencion.reduce((acc, a) => acc + a.valor, 0)} cosas esperándote.`}
+          {usuario?.email && <span className="text-slate-400"> · {new Date().toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}</span>}
+        </p>
       </div>
 
       <div>
@@ -189,10 +202,6 @@ export function ResumenTab({ solicitudes, servicios, incidencias, kpis, onIrA }:
         )}
       </div>
 
-      {/* Panel de widgets (inspirado en el dashboard modular de un CRM, con
-          datos propios de CUIDA en vez de módulos genéricos de ERP):
-          agenda, facturación del mes y estado de la plantilla, de un
-          vistazo y con acceso directo a la pestaña correspondiente. */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <div className="rounded-lg border border-slate-200 bg-white p-3">
           <div className="mb-2 flex items-center justify-between">
@@ -295,7 +304,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, kpis, onIrA }:
                   {ICONOS_NECESIDAD[d.codigo] ?? "❓"} {d.nombre}
                 </span>
                 <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                  <span className="block h-full rounded-full bg-brand" style={{ width: `${(d.valor / maxDistribucion) * 100}%` }} />
+                  <span className="block h-full rounded-full bg-brand-green-200" style={{ width: `${(d.valor / maxDistribucion) * 100}%` }} />
                 </span>
                 <span className="w-6 shrink-0 text-right font-semibold text-slate-800">{d.valor}</span>
               </button>
