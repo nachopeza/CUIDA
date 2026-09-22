@@ -9,3 +9,6 @@ build/
 backend/prisma/dev.db
 backend/generated/
 *.tsbuildinfo
+
+# Capturas del barrido de comprobación: son temporales, no parte del repo.
+r-*.png
