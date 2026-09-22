@@ -4,7 +4,10 @@ import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { Cronometro } from "../components/Cronometro.js";
-import { IconAlert, IconChat, IconClock, IconFlag, IconHome, IconMenu, IconNote, IconPin, IconPlay, IconSearch, IconStop, IconUsers } from "../components/icons.js";
+import { IconAlert, IconCalendar, IconChat, IconClock, IconFlag, IconHome, IconMenu, IconNote, IconPin, IconPlay, IconSearch, IconStop, IconUsers } from "../components/icons.js";
+import { IconoNecesidad } from "../lib/necesidadIconos.js";
+import { cobroDeJornada, duracion, euros, minutosEntre, minutosFichados } from "../lib/economia.js";
+import { Modal } from "../components/Modal.js";
 import { TiempoTrabajadoModal } from "../components/TiempoTrabajadoModal.js";
 import { ChatPanel } from "../components/ChatPanel.js";
 import { Navegacion, type ItemNav } from "../components/Navegacion.js";
@@ -42,6 +45,8 @@ export function ProfesionalPage() {
   const [tab, setTab] = useState<Tab>("proximos");
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [chatAbierto, setChatAbierto] = useState<string | null>(null);
+  const [rechazando, setRechazando] = useState<Servicio | null>(null);
+  const [motivoRechazo, setMotivoRechazo] = useState("");
   const [profesional, setProfesional] = useState<Profesional | null>(null);
   const [visitas, setVisitas] = useState<Visita[]>([]);
   const [propuestas, setPropuestas] = useState<Servicio[]>([]);
@@ -67,6 +72,14 @@ export function ProfesionalPage() {
 
   async function aceptar(servicioId: string) {
     await api.post(`/servicios/${servicioId}/aceptar`, {}, token);
+    await cargar();
+  }
+
+  async function rechazar() {
+    if (!rechazando) return;
+    await api.post(`/servicios/${rechazando.id}/rechazar`, { motivo: motivoRechazo.trim() || undefined }, token);
+    setRechazando(null);
+    setMotivoRechazo("");
     await cargar();
   }
 
@@ -117,7 +130,21 @@ export function ProfesionalPage() {
       .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())[0];
   }, [visitas]);
 
-  const visitasProximas = visitas.filter((v) => v.estado !== "REVISADA");
+  // Hoy es lo que queda por hacer. Lo ya cerrado —entregado a coordinación o
+  // verificado— se va a "Mis jornadas": mezclarlo hacía que cada día la lista
+  // creciera con trabajo que ya no toca.
+  const visitasProximas = visitas.filter((v) => ["PROGRAMADA", "CONFIRMADA", "EN_CURSO"].includes(v.estado));
+
+  // El mes de un vistazo, que es lo que se mira al abrir.
+  const mesActual = new Date().toISOString().slice(0, 7);
+  const delMes = visitas.filter((v) => v.fecha.slice(0, 7) === mesActual);
+  const fichadasDelMes = delMes.filter((v) => v.horaInicioReal && v.horaFinReal);
+  const minutosDelMes = fichadasDelMes.reduce((acc, v) => acc + (minutosFichados(v.horaInicioReal, v.horaFinReal) ?? 0), 0);
+  const cobroDelMes = fichadasDelMes.reduce((acc, v) => acc + cobroDeJornada(v), 0);
+  // Lo que queda por delante este mes, para saber a cuánto se puede llegar.
+  const cobroPendienteMes = delMes
+    .filter((v) => !v.horaInicioReal && ["PROGRAMADA", "CONFIRMADA"].includes(v.estado))
+    .reduce((acc, v) => acc + cobroDeJornada(v), 0);
 
   return (
     <div className="flex flex-col gap-4 md:flex-row">
@@ -162,25 +189,118 @@ export function ProfesionalPage() {
         </div>
       )}
 
+      {/* Lo que llevas trabajado y lo que vas a cobrar, sin ir a otra
+          pestaña: es la pregunta con la que se abre la app. */}
+      {tab === "proximos" && (
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+            <p className="text-xs text-slate-500">Este mes</p>
+            <p className="text-xl font-semibold leading-tight text-slate-900">{duracion(minutosDelMes)}</p>
+            <p className="text-[11px] text-slate-400">{fichadasDelMes.length} jornada{fichadasDelMes.length === 1 ? "" : "s"}</p>
+          </div>
+          <div className="rounded-lg border border-brand-green-200 bg-brand-green-50 px-3 py-2.5">
+            <p className="text-xs text-brand-green-700">Vas a cobrar</p>
+            <p className="text-xl font-semibold leading-tight text-brand-green-800">{euros(cobroDelMes)}</p>
+            {cobroPendienteMes > 0 && <p className="text-[11px] text-brand-green-700">+{euros(cobroPendienteMes)} por delante</p>}
+          </div>
+          <button
+            onClick={() => setTab("jornadas")}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:bg-slate-50"
+          >
+            <p className="text-xs text-slate-500">Por hacer</p>
+            <p className="text-xl font-semibold leading-tight text-slate-900">{visitasProximas.length}</p>
+            <p className="text-[11px] text-brand">Ver mis jornadas</p>
+          </button>
+        </div>
+      )}
+
       {tab === "buscar" && <BuscarSolicitudesTab />}
       {tab === "perfil" && <MiPerfilTab />}
       {tab === "jornadas" && <MisJornadasTab visitas={visitas} />}
 
       {tab === "proximos" && (
         <>
+          {/* Aceptar a ciegas no es aceptar. Antes solo salía el nombre y un
+              botón: ni se veía de qué iba el servicio, ni cuánto duraba, ni
+              cuánto se cobraba, ni se podía decir que no. */}
           {propuestas.length > 0 && (
-            <Card title="Te han propuesto estos servicios">
+            <Card title={`Te han propuesto ${propuestas.length} servicio${propuestas.length > 1 ? "s" : ""}`}>
               <ul className="space-y-2">
-                {propuestas.map((s) => (
-                  <li key={s.id} className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
-                    <span>
-                      {s.solicitud?.persona.nombre} {s.solicitud?.persona.apellidos} · {s.solicitud?.necesidad.nombre}
-                    </span>
-                    <button onClick={() => aceptar(s.id)} className="rounded-md bg-brand px-3 py-1 text-xs font-medium text-white hover:bg-brand-800">
-                      Aceptar
-                    </button>
-                  </li>
-                ))}
+                {propuestas.map((s) => {
+                  const plan = s.solicitud?.plan;
+                  const minutos = plan ? minutosEntre(plan.horaInicio, plan.horaFin) : null;
+                  const cobro = Number(s.importeProfesional ?? 0);
+                  return (
+                    <li key={s.id} className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="flex items-center gap-1.5 font-medium text-slate-800">
+                            <IconoNecesidad codigo={s.solicitud?.necesidad.codigo} className="h-4 w-4 shrink-0 text-slate-500" />
+                            {s.solicitud?.necesidad.nombre}
+                          </p>
+                          <p className="text-sm text-slate-600">
+                            con {s.solicitud?.persona.nombre} {s.solicitud?.persona.apellidos}
+                          </p>
+                        </div>
+                        {cobro > 0 && (
+                          <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-sm font-semibold text-brand-green-700">
+                            {euros(cobro)}
+                            {s.tipoServicio === "RECURRENTE" && <span className="text-xs font-normal text-slate-400">/jornada</span>}
+                          </span>
+                        )}
+                      </div>
+
+                      <dl className="mt-2 space-y-1 text-xs text-slate-600">
+                        {plan && (
+                          <div className="flex items-center gap-1.5">
+                            <IconClock className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <dd>
+                              {plan.horaInicio && plan.horaFin ? `${plan.horaInicio}–${plan.horaFin}` : "Horario a concretar"}
+                              {minutos != null && ` · ${duracion(minutos)}`}
+                              {plan.recurrencia && ` · ${plan.recurrencia}`}
+                            </dd>
+                          </div>
+                        )}
+                        {plan && (
+                          <div className="flex items-center gap-1.5">
+                            <IconCalendar className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <dd>
+                              Desde el {new Date(plan.fechaInicio).toLocaleDateString("es-ES", { day: "numeric", month: "long" })}
+                              {plan.fechaFin
+                                ? ` hasta el ${new Date(plan.fechaFin).toLocaleDateString("es-ES", { day: "numeric", month: "long" })}`
+                                : " · indefinido"}
+                            </dd>
+                          </div>
+                        )}
+                        {s.solicitud?.persona.direccion && (
+                          <div className="flex items-center gap-1.5">
+                            <IconPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <dd>{s.solicitud.persona.direccion}</dd>
+                          </div>
+                        )}
+                        {plan?.tareasPrevistas && (
+                          <div className="flex items-start gap-1.5">
+                            <IconNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <dd className="whitespace-pre-line">{plan.tareasPrevistas}</dd>
+                          </div>
+                        )}
+                        {s.solicitud?.descripcionLibre && <p className="pt-1 italic text-slate-500">"{s.solicitud.descripcionLibre}"</p>}
+                      </dl>
+
+                      <div className="mt-3 flex gap-2">
+                        <button onClick={() => aceptar(s.id)} className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
+                          Aceptar
+                        </button>
+                        <button
+                          onClick={() => setRechazando(s)}
+                          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                        >
+                          No me encaja
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </Card>
           )}
@@ -392,6 +512,34 @@ export function ProfesionalPage() {
       {/* Cerrar la tarea pasa por confirmar el tiempo. La hora de fin que se
           propone es la de ahora mismo, porque es cuando se está cerrando. */}
       </div>
+
+      {rechazando && (
+        <Modal title="No me encaja" onClose={() => setRechazando(null)}>
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">
+              {rechazando.solicitud?.necesidad.nombre} con {rechazando.solicitud?.persona.nombre}. Volverá a coordinación para buscar a otra persona.
+            </p>
+            <label className="block text-xs font-medium text-slate-500">
+              ¿Por qué? (opcional, pero ayuda)
+              <textarea
+                value={motivoRechazo}
+                onChange={(e) => setMotivoRechazo(e.target.value)}
+                rows={2}
+                placeholder="Me pilla lejos, ese día ya tengo otro servicio…"
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setRechazando(null)} className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">
+                Volver
+              </button>
+              <button onClick={rechazar} className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
+                Rechazar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {cerrando && (
         <TiempoTrabajadoModal

@@ -7,6 +7,7 @@ import { Cronometro, horasTrabajadas } from "../../components/Cronometro.js";
 import { compararConAcordado, duracion, euros, minutosFichados } from "../../lib/economia.js";
 import { IconAlert, IconArrowDown, IconArrowUp, IconBriefcase, IconCalendar, IconCheck, IconClipboard, IconReceipt, IconRefresh, IconUsers } from "../../components/icons.js";
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
+import { IncidenciaFormModal } from "./IncidenciaFormModal.js";
 import type { Factura, Incidencia, Profesional, Servicio, Solicitud, Visita } from "../../lib/types.js";
 
 interface Props {
@@ -64,6 +65,20 @@ function haceCuanto(desde: number, ahora: number): string {
   return `hace ${h} h`;
 }
 
+// Minutos transcurridos desde una hora "HH:MM" de hoy. Negativo si aún no ha
+// llegado.
+function minutosDesde(hora: string, ahora: number): number {
+  const [h, m] = hora.split(":").map(Number);
+  const d = new Date(ahora);
+  const previsto = new Date(d);
+  previsto.setHours(h, m, 0, 0);
+  return Math.round((d.getTime() - previsto.getTime()) / 60000);
+}
+
+// Margen antes de dar una jornada por no presentada. Media hora perdona el
+// atasco y el portero que no abre; más allá, alguien tiene que llamar.
+const MARGEN_NO_PRESENTADO = 30;
+
 function nombrePersona(s?: Servicio) {
   const p = s?.solicitud?.persona;
   return p ? `${p.nombre} ${p.apellidos}` : "—";
@@ -83,6 +98,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const [ahora, setAhora] = useState(() => Date.now());
   const [refrescando, setRefrescando] = useState(false);
   const [verificando, setVerificando] = useState<string | null>(null);
+  const [incidenciaFichaje, setIncidenciaFichaje] = useState<FilaAgenda | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const cargarPropios = useCallback(async () => {
@@ -402,13 +418,26 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                 {agendaHoy.map(({ visita, servicio }) => {
                   const enCurso = !!visita.horaInicioReal && !visita.horaFinReal;
                   const retrasada = retrasadas.some((r) => r.visita.id === visita.id);
+                  const solicitudId = servicio.solicitud?.id;
+                  // Pasada media hora de la hora prevista sin que nadie haya
+                  // fichado, esto ya no es "va con retraso": es que no se ha
+                  // presentado, y hay que llamar a alguien.
+                  const noPresentado =
+                    retrasada && !!visita.horaInicioProg && minutosDesde(visita.horaInicioProg, ahora) > MARGEN_NO_PRESENTADO;
                   return (
                     <li key={visita.id} className="flex items-center gap-3 py-2">
                       <span className={`w-12 shrink-0 text-xs font-semibold tabular-nums ${retrasada ? "text-rose-600" : "text-slate-500"}`}>
                         {visita.horaInicioProg ?? "--:--"}
                       </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm text-slate-800">
+                      {/* Toda la fila entra en la ficha: antes solo había
+                          botones de cambio de estado y no se podía mirar nada
+                          antes de decidir. */}
+                      <button
+                        onClick={() => solicitudId && onAbrirSolicitud(solicitudId)}
+                        disabled={!solicitudId}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <p className="truncate text-sm text-slate-800 hover:underline">
                           <IconoNecesidad codigo={servicio.solicitud?.necesidad.codigo} className="mr-1.5 inline h-4 w-4 shrink-0 align-text-bottom text-slate-400" />
                           {nombrePersona(servicio)}
                         </p>
@@ -416,24 +445,37 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                           {servicio.solicitud?.necesidad.nombre}
                           {visita.profesional && ` · ${visita.profesional.nombre} ${visita.profesional.apellidos}`}
                         </p>
-                      </div>
-                      <div className="shrink-0">
+                      </button>
+                      <div className="flex shrink-0 items-center gap-1.5">
                         {enCurso ? (
                           <Cronometro inicio={visita.horaInicioReal} fin={visita.horaFinReal} />
                         ) : visita.estado === "FINALIZADA" ? (
+                          // Verificar lleva a Verificación con esta jornada
+                          // delante, que es donde están las horas y las
+                          // tareas para poder decidir.
                           <button
-                            onClick={() => verificar({ visita, servicio })}
-                            disabled={verificando === visita.id}
-                            className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700 transition hover:bg-orange-200 disabled:opacity-60"
+                            onClick={() => onIrA("verificacion")}
+                            className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700 transition hover:bg-orange-200"
                           >
-                            {verificando === visita.id ? "…" : "Verificar"}
+                            Verificar
                           </button>
                         ) : visita.estado === "REVISADA" ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-medium text-teal-700">
                             <IconCheck className="h-3 w-3" /> Verificada
                           </span>
+                        ) : noPresentado ? (
+                          <>
+                            <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-medium text-rose-700">No presentado</span>
+                            <button
+                              onClick={() => setIncidenciaFichaje({ visita, servicio })}
+                              title="Abrir una incidencia de fichaje"
+                              className="rounded-md border border-rose-200 px-2 py-0.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                            >
+                              <IconAlert className="h-3.5 w-3.5" />
+                            </button>
+                          </>
                         ) : retrasada ? (
-                          <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-medium text-rose-700">Sin empezar</span>
+                          <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">Sin empezar</span>
                         ) : (
                           <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">Programada</span>
                         )}
@@ -653,6 +695,25 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
           )}
         </div>
       </div>
+
+      {/* Nadie ha fichado y ya ha pasado la hora larga: se abre la incidencia
+          con el caso redactado, para no tener que contarlo a mano cada vez. */}
+      {incidenciaFichaje && (
+        <IncidenciaFormModal
+          servicios={servicios}
+          servicioPreseleccionado={incidenciaFichaje.servicio.id}
+          motivoPreseleccionado="AUSENCIA"
+          descripcionSugerida={`${
+            incidenciaFichaje.visita.profesional
+              ? `${incidenciaFichaje.visita.profesional.nombre} ${incidenciaFichaje.visita.profesional.apellidos}`
+              : "El profesional"
+          } no ha fichado la entrada de la jornada de hoy de ${incidenciaFichaje.visita.horaInicioProg}–${
+            incidenciaFichaje.visita.horaFinProg
+          } con ${nombrePersona(incidenciaFichaje.servicio)}. Localizar y confirmar si se ha presentado.`}
+          onClose={() => setIncidenciaFichaje(null)}
+          onCreada={onCambiado}
+        />
+      )}
 
       <section>
         <div className="mb-2 flex items-center justify-between">

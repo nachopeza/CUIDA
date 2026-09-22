@@ -65,23 +65,28 @@ export const ESTADOS: InfoEstado[] = [
   },
   {
     clave: "finalizada",
+    // Terminada del todo: el color no es otro verde. El teal que tenía se
+    // confundía con el verde de "en curso" y las finalizadas parecían seguir
+    // en marcha; el gris grafito se lee como "esto ya está cerrado".
     etiqueta: "Finalizada",
     ayuda: "Verificada y lista para facturar",
-    badge: "bg-teal-100 text-teal-700",
-    dot: "bg-teal-400",
-    borde: "border-teal-300",
-    fondo: "bg-teal-50",
-    texto: "text-teal-700",
+    badge: "bg-slate-700 text-white",
+    dot: "bg-slate-600",
+    borde: "border-slate-500",
+    fondo: "bg-slate-100",
+    texto: "text-slate-700",
   },
   {
     clave: "cancelada",
+    // La cancelación no es un cierre normal: era gris, igual que cualquier
+    // cosa apagada, y no decía que algo se había caído.
     etiqueta: "Cancelada",
     ayuda: "Anulada por la familia o por coordinación",
-    badge: "bg-slate-200 text-slate-600",
-    dot: "bg-slate-400",
-    borde: "border-slate-300",
-    fondo: "bg-slate-100",
-    texto: "text-slate-600",
+    badge: "bg-rose-100 text-rose-700",
+    dot: "bg-rose-400",
+    borde: "border-rose-300",
+    fondo: "bg-rose-50",
+    texto: "text-rose-700",
   },
 ];
 

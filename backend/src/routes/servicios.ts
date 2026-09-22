@@ -318,6 +318,61 @@ serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", 
   res.json(actualizado);
 });
 
+const rechazarSchema = z.object({ motivo: z.string().max(500).optional() });
+
+// El profesional dice que no. Antes solo podía aceptar: si no le encajaba —
+// le pilla lejos, no trabaja ese día, no puede con ese tipo de servicio— la
+// propuesta se quedaba ahí colgada y coordinación no se enteraba. El
+// servicio vuelve al mercado y se avisa con el motivo.
+serviciosRouter.post("/:id/rechazar", requiereRol("PROFESIONAL"), async (req, res) => {
+  const parsed = rechazarSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id }, include: { profesional: true } });
+  if (!servicio) return res.status(404).json({ error: "No encontrado" });
+  if (servicio.profesionalId !== req.usuario!.profesionalId) {
+    return res.status(403).json({ error: "Este servicio no te ha sido propuesto a ti" });
+  }
+  if (servicio.estado !== "ASIGNADO") {
+    return res.status(409).json({ error: "Solo se puede rechazar una propuesta que todavía no has aceptado" });
+  }
+
+  const quien = servicio.profesional ? `${servicio.profesional.nombre} ${servicio.profesional.apellidos}` : "El profesional";
+
+  const actualizado = await prisma.servicio.update({
+    where: { id: servicio.id },
+    // Vuelve a PENDIENTE y se suelta el profesional: el servicio queda otra
+    // vez disponible para proponérselo a otra persona.
+    data: { estado: "PENDIENTE", profesionalId: null },
+  });
+
+  await registrarHistorial({
+    entidadTipo: "Servicio",
+    estadoAnterior: servicio.estado,
+    estadoNuevo: "PENDIENTE",
+    motivo: `Rechazado por ${quien}${parsed.data.motivo ? `: ${parsed.data.motivo}` : ""}`,
+    servicioId: servicio.id,
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: servicio.organizacionId,
+    accion: "rechazar_servicio",
+    entidadTipo: "Servicio",
+    entidadId: servicio.id,
+    detalle: parsed.data.motivo,
+  });
+
+  await notificarGestores(
+    servicio.organizacionId,
+    "servicio_rechazado",
+    `${quien} ha rechazado el servicio ${servicio.codigo}${parsed.data.motivo ? `: ${parsed.data.motivo}` : ""}. Vuelve a estar sin cubrir.`,
+    servicio.solicitudId,
+  ).catch(() => undefined);
+
+  res.json(actualizado);
+});
+
 // Reemplazo de profesional en marcha (sección "debo poder cambiar de
 // profesional si este se enferma o deja el trabajo y que pueda tener un
 // reemplazo"): a diferencia de /asignar (que es la propuesta inicial y pasa

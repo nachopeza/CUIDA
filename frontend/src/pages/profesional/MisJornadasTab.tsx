@@ -3,7 +3,7 @@ import { IconCheck, IconChevronLeft, IconChevronRight, IconClock, IconEuro } fro
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
 import { exportarCSV } from "../../lib/csv.js";
-import { duracion, euros, horaDe, minutosEntre, minutosFichados } from "../../lib/economia.js";
+import { cobroDeJornada as cobroDe, duracion, euros, horaDe, minutosEntre, minutosFichados } from "../../lib/economia.js";
 import type { Visita } from "../../lib/types.js";
 
 const DIAS = ["L", "M", "X", "J", "V", "S", "D"];
@@ -11,20 +11,6 @@ const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "
 
 function clave(f: Date) {
   return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, "0")}-${String(f.getDate()).padStart(2, "0")}`;
-}
-
-// Lo que cobra por una jornada. El profesional no ve lo que paga la familia
-// ni el margen de CUIDA, pero sí su parte: sin eso no puede saber lo que
-// ingresa este mes, que es lo primero que quiere mirar.
-function cobroDe(v: Visita): number {
-  const importe = Number(v.servicio?.importeProfesional ?? 0);
-  if (!importe) return 0;
-  const previstos = minutosEntre(v.horaInicioProg, v.horaFinProg);
-  const fichados = minutosFichados(v.horaInicioReal, v.horaFinReal);
-  // Si trabajó más o menos de lo previsto, cobra en proporción: es el
-  // sentido de facturar por tiempo.
-  if (previstos && fichados) return Math.round((importe * (fichados / previstos)) * 100) / 100;
-  return importe;
 }
 
 // Mis jornadas: los fichajes tal y como quedaron, la escaleta del mes y lo

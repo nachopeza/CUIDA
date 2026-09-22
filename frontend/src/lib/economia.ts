@@ -94,3 +94,20 @@ export function compararConAcordado(fichados: number, acordados: number, margenM
 export function conMayusculaInicial(texto: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
+
+// Lo que cobra el profesional por una jornada. Si trabajó más o menos de lo
+// previsto, cobra en proporción: es el sentido de facturar por tiempo.
+export function cobroDeJornada(v: {
+  horaInicioProg?: string | null;
+  horaFinProg?: string | null;
+  horaInicioReal?: string | null;
+  horaFinReal?: string | null;
+  servicio?: { importeProfesional?: string | number | null } | null;
+}): number {
+  const importe = Number(v.servicio?.importeProfesional ?? 0);
+  if (!importe) return 0;
+  const previstos = minutosEntre(v.horaInicioProg, v.horaFinProg);
+  const fichados = minutosFichados(v.horaInicioReal, v.horaFinReal);
+  if (previstos && fichados) return Math.round(importe * (fichados / previstos) * 100) / 100;
+  return importe;
+}

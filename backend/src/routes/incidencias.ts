@@ -211,6 +211,90 @@ incidenciasRouter.post("/:id/estado", async (req, res) => {
   res.json(actualizada);
 });
 
+const cerrarSchema = z.object({ motivo: z.string().optional() });
+
+// Cerrar de un tirón. El pipeline obliga a pasar por revisión, asignación,
+// resolución y cierre, y eso está bien cuando la incidencia se trabaja; pero
+// muchas se resuelven de una llamada y obligar a dar cinco pasos para
+// archivarlas hacía que nadie las cerrara y la bandeja no bajara nunca.
+// El salto queda escrito en el historial, así que no se pierde de dónde venía.
+incidenciasRouter.post("/:id/cerrar", async (req, res) => {
+  if (!esGestorOrganizacion(req.usuario!)) return res.status(403).json({ error: "Sin permiso" });
+  const parsed = cerrarSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const incidencia = await prisma.incidencia.findUnique({ where: { id: req.params.id } });
+  if (!incidencia) return res.status(404).json({ error: "No encontrada" });
+  if (incidencia.estado === "CERRADA") return res.status(409).json({ error: "Esta incidencia ya está cerrada" });
+
+  // Una petición de cancelación no se cierra a mano: se confirma o se
+  // rechaza, y eso lo hace el servicio.
+  if (incidencia.tipo === "SOLICITUD_CANCELACION") {
+    return res.status(409).json({
+      error: `${incidencia.codigo} es una petición de cancelación de la familia: confírmala o recházala desde el servicio`,
+    });
+  }
+
+  const actualizada = await prisma.incidencia.update({ where: { id: incidencia.id }, data: { estado: "CERRADA" } });
+
+  await registrarHistorial({
+    entidadTipo: "Incidencia",
+    estadoAnterior: incidencia.estado,
+    estadoNuevo: "CERRADA",
+    motivo: parsed.data.motivo ?? "Cerrada directamente por coordinación",
+    incidenciaId: incidencia.id,
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: req.usuario!.organizacionId,
+    accion: "cambiar_estado_incidencia",
+    entidadTipo: "Incidencia",
+    entidadId: incidencia.id,
+    detalle: `${incidencia.estado} → CERRADA`,
+  });
+
+  res.json(actualizada);
+});
+
+const asignarSchema = z.object({ responsableUsuarioId: z.string().nullable() });
+
+// A quién le toca. Se podía mandar junto al cambio de estado pero no había
+// forma de hacerlo solo, así que en el listado nunca ponía de quién era.
+incidenciasRouter.post("/:id/asignar", async (req, res) => {
+  if (!esGestorOrganizacion(req.usuario!)) return res.status(403).json({ error: "Sin permiso" });
+  const parsed = asignarSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const incidencia = await prisma.incidencia.findUnique({ where: { id: req.params.id } });
+  if (!incidencia) return res.status(404).json({ error: "No encontrada" });
+
+  let nombre = "nadie";
+  if (parsed.data.responsableUsuarioId) {
+    const usuario = await prisma.usuario.findUnique({ where: { id: parsed.data.responsableUsuarioId } });
+    if (!usuario || usuario.organizacionId !== req.usuario!.organizacionId) {
+      return res.status(400).json({ error: "Esa persona no es de esta organización" });
+    }
+    nombre = usuario.nombre ?? usuario.email;
+  }
+
+  const actualizada = await prisma.incidencia.update({
+    where: { id: incidencia.id },
+    data: { responsableUsuarioId: parsed.data.responsableUsuarioId },
+    include: { responsable: true },
+  });
+
+  await registrarHistorial({
+    entidadTipo: "Incidencia",
+    estadoAnterior: incidencia.estado,
+    estadoNuevo: incidencia.estado,
+    motivo: `Asignada a ${nombre}`,
+    incidenciaId: incidencia.id,
+  });
+
+  res.json(actualizada);
+});
+
 const notaSchema = z.object({ nota: z.string().min(1) });
 
 // Anotación sin cambiar de estado (sección "se debe poder... escribir

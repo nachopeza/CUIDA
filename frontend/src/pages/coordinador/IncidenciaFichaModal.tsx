@@ -3,8 +3,8 @@ import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Modal } from "../../components/Modal.js";
 import { EstadoBadge } from "../../components/EstadoBadge.js";
-import type { Incidencia } from "../../lib/types.js";
-import { IconArrowRight } from "../../components/icons.js";
+import type { CuentaResumen, Incidencia } from "../../lib/types.js";
+import { IconArrowRight, IconCheckCircle } from "../../components/icons.js";
 
 // Espejo de TRANSICIONES_INCIDENCIA del backend (backend/src/services/estados.ts).
 const TRANSICIONES_INCIDENCIA: Record<string, string[]> = {
@@ -32,6 +32,9 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged }: Props
   const [i, setI] = useState<Incidencia | null>(null);
   const [nota, setNota] = useState("");
   const [enviandoNota, setEnviandoNota] = useState(false);
+  const [coordinadores, setCoordinadores] = useState<CuentaResumen[]>([]);
+  const [cerrando, setCerrando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function cargar() {
     setI(await api.get<Incidencia>(`/incidencias/${incidenciaId}`, token));
@@ -39,6 +42,7 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged }: Props
 
   useEffect(() => {
     cargar();
+    api.get<CuentaResumen[]>("/cuenta/coordinadores", token).then(setCoordinadores).catch(() => setCoordinadores([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incidenciaId]);
 
@@ -48,8 +52,38 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged }: Props
   }
 
   async function cambiarEstado(estado: string) {
-    await api.post(`/incidencias/${incidenciaId}/estado`, { estado }, token);
-    await recargar();
+    setError(null);
+    try {
+      await api.post(`/incidencias/${incidenciaId}/estado`, { estado }, token);
+      await recargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido cambiar el estado");
+    }
+  }
+
+  // Cerrar sin recorrer el pipeline entero: la mayoría se resuelven de una
+  // llamada y obligar a dar cinco pasos hacía que nadie las cerrara.
+  async function cerrar() {
+    setCerrando(true);
+    setError(null);
+    try {
+      await api.post(`/incidencias/${incidenciaId}/cerrar`, {}, token);
+      await recargar();
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido cerrar");
+      setCerrando(false);
+    }
+  }
+
+  async function asignar(responsableUsuarioId: string) {
+    setError(null);
+    try {
+      await api.post(`/incidencias/${incidenciaId}/asignar`, { responsableUsuarioId: responsableUsuarioId || null }, token);
+      await recargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido asignar");
+    }
   }
 
   async function enviarNota() {
@@ -113,8 +147,41 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged }: Props
                 ))}
               </select>
             </label>
+
+            {/* A quién le toca resolverla. Sin esto, en el listado ponía
+                "sin asignar" y nadie sabía de quién era. */}
+            <label className="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Asignada a
+              <select
+                value={i.responsable ? coordinadores.find((c) => c.email === i.responsable?.email)?.id ?? "" : ""}
+                onChange={(e) => asignar(e.target.value)}
+                className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm font-normal normal-case text-slate-700"
+              >
+                <option value="">Sin asignar</option>
+                {coordinadores.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre ?? c.email}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* Cerrar de un tirón, sin pasar por revisión, asignación y
+                resolución: va directa a archivadas. */}
+            {i.estado !== "CERRADA" && (
+              <button
+                onClick={cerrar}
+                disabled={cerrando}
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                <IconCheckCircle className="h-4 w-4" />
+                {cerrando ? "Cerrando…" : "Cerrar incidencia y archivar"}
+              </button>
+            )}
           </div>
         )}
+
+        {error && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
 
         <div>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Anotaciones</p>

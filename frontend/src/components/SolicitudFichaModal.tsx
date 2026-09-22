@@ -17,7 +17,7 @@ import {
 import { EstadoBadge } from "./EstadoBadge.js";
 import { Cronometro, horasTrabajadas } from "./Cronometro.js";
 import { TiempoTrabajadoModal, formatearDuracion } from "./TiempoTrabajadoModal.js";
-import { calcularReparto, duracion, euros, minutosEntre } from "../lib/economia.js";
+import { calcularReparto, duracion, euros, horaDe, minutosEntre, minutosFichados } from "../lib/economia.js";
 import { PersonaDetalleModal } from "../pages/coordinador/PersonaDetalleModal.js";
 import { ProfesionalFormModal } from "../pages/coordinador/ProfesionalFormModal.js";
 import { IncidenciaFichaModal } from "../pages/coordinador/IncidenciaFichaModal.js";
@@ -47,6 +47,8 @@ const TRANSICIONES_SERVICIO_MANUAL: Record<string, string[]> = {
 // vaya a rechazar.
 const ESTADOS_BLOQUEADOS_CON_INCIDENCIA = ["FINALIZADO", "VALIDADO", "CERRADO"];
 
+const PUNTO_PRIORIDAD: Record<string, string> = { ALTA: "bg-rose-500", MEDIA: "bg-amber-400", BAJA: "bg-slate-300" };
+
 const SERVICIO_CANCELABLE = ["PENDIENTE", "ASIGNADO", "CONFIRMADO", "EN_CURSO"];
 const FRANJAS = ["Mañana", "Tarde", "Todo el día"];
 
@@ -62,6 +64,17 @@ const NOMBRE_DIA: Record<string, string> = {
   S: "sábados",
   D: "domingos",
 };
+
+// Cambiar el día de un servicio de una sola jornada dejaba la fecha de fin
+// atrás y la validación lo rechazaba: se veía como "no me deja cambiar el
+// día". Si el servicio era de un día, el fin se mueve con el inicio; y si de
+// todas formas se quedaría antes, se iguala en vez de bloquear.
+function moverInicio<T extends { fechaInicio: string; fechaFin: string }>(plan: T, nuevoInicio: string): T {
+  if (!plan.fechaFin) return { ...plan, fechaInicio: nuevoInicio };
+  const eraDeUnDia = plan.fechaInicio === plan.fechaFin;
+  const seQuedaAtras = plan.fechaFin < nuevoInicio;
+  return { ...plan, fechaInicio: nuevoInicio, fechaFin: eraDeUnDia || seQuedaAtras ? nuevoInicio : plan.fechaFin };
+}
 
 const DIAS_RECURRENCIA = [
   { letra: "L", nombre: "Lunes" },
@@ -450,6 +463,189 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   })();
 
 
+  // Historial del servicio más los fichajes de cada jornada, en una sola
+  // línea de tiempo. Antes solo salían los cambios de estado, así que no
+  // había forma de ver a qué hora entró y salió de verdad el profesional
+  // frente a lo que estaba programado.
+  const entradasHistorial = (() => {
+    const entradas: { id: string; cuando: string; texto: string; esFichaje: boolean }[] = (s?.estadoHistorial ?? []).map((h) => ({
+      id: h.id,
+      cuando: h.createdAt,
+      texto: `${h.estadoNuevo.replace(/_/g, " ")}${h.motivo ? ` — ${h.motivo}` : ""}`,
+      esFichaje: false,
+    }));
+
+    for (const v of s?.servicio?.visitas ?? []) {
+      if (!v.horaInicioReal) continue;
+      const dia = new Date(v.fecha).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+      const previsto = v.horaInicioProg && v.horaFinProg ? ` (previsto ${v.horaInicioProg}–${v.horaFinProg})` : "";
+      const trabajados = minutosFichados(v.horaInicioReal, v.horaFinReal);
+      entradas.push({
+        id: `fichaje-${v.id}`,
+        cuando: v.horaInicioReal,
+        texto: v.horaFinReal
+          ? `${dia}: fichó de ${horaDe(v.horaInicioReal)} a ${horaDe(v.horaFinReal)}${previsto} · ${duracion(trabajados ?? 0)}`
+          : `${dia}: fichó la entrada a las ${horaDe(v.horaInicioReal)}${previsto} · sin cerrar todavía`,
+        esFichaje: true,
+      });
+    }
+
+    return entradas.sort((a, b) => a.cuando.localeCompare(b.cuando));
+  })();
+
+  // El "qué se hace y cuándo" no es algo aparte del servicio: es el servicio.
+  // Estaban en dos cajas hermanas, una encima de otra, diciendo lo mismo. Se
+  // define aquí para poder meterlo dentro del recuadro del servicio cuando lo
+  // hay, y dejarlo suelto mientras la solicitud todavía no tiene ninguno.
+  const bloqueQueYCuando = (
+    <>
+      {/* Qué se hace y cuándo, en un solo bloque. Antes los días y las
+          horas estaban aquí y el "cuándo se hace" del servicio más abajo:
+          dos sitios para lo mismo, y el de arriba ni siquiera guardaba. */}
+      <div className="rounded-lg border border-slate-200">
+        <button
+          onClick={() => setDatosAbiertos((v) => !v)}
+          className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
+        >
+          <span>Qué se hace y cuándo</span>
+          <span className="flex items-center gap-1 font-normal normal-case text-slate-400">
+            {resumenPlan}
+            <IconChevronDown className={`h-3.5 w-3.5 transition ${datosAbiertos ? "rotate-180" : ""}`} />
+          </span>
+        </button>
+        {(datosAbiertos || !srv) && (
+          <div className="space-y-4 border-t border-slate-100 px-3 pb-3 pt-3">
+            <div>
+              <label className="text-xs text-slate-500">
+                Servicio
+                <select value={s.necesidad.id} onChange={(e) => clasificar(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+                  {necesidades.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="mt-1 text-xs text-slate-400">{s.descripcionLibre}</p>
+            </div>
+
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-slate-500">Cuándo</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <label className="text-xs text-slate-500">
+                  Desde
+                  <input
+                    type="date"
+                    value={plan.fechaInicio}
+                    onChange={(e) => setPlan((p) => moverInicio(p, e.target.value))}
+                    className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-slate-500">
+                  Hasta
+                  <input
+                    type="date"
+                    value={plan.fechaFin}
+                    disabled={plan.indefinido}
+                    onChange={(e) => setPlan((p) => ({ ...p, fechaFin: e.target.value }))}
+                    className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                  />
+                  <span className="mt-1 flex items-center gap-1.5 font-normal normal-case text-slate-500">
+                    <input type="checkbox" checked={plan.indefinido} onChange={(e) => setPlan((p) => ({ ...p, indefinido: e.target.checked }))} />
+                    Indefinido
+                  </span>
+                </label>
+                <label className="text-xs text-slate-500">
+                  Hora inicio
+                  <input type="time" value={plan.horaInicio} onChange={(e) => setPlan((p) => ({ ...p, horaInicio: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+                </label>
+                <label className="text-xs text-slate-500">
+                  Hora fin
+                  <input type="time" value={plan.horaFin} onChange={(e) => setPlan((p) => ({ ...p, horaFin: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+                </label>
+              </div>
+
+              {/* La duración es la cifra de la que sale el importe, así que
+                  se ve aquí mismo mientras se teclean las horas. */}
+              {minutosPlan != null && (
+                <p className="mt-1.5 text-xs text-slate-500">
+                  <IconClock className="mr-1 inline h-3.5 w-3.5 align-text-bottom text-slate-400" />
+                  Cada jornada dura <strong className="text-slate-700">{duracion(minutosPlan)}</strong>
+                </p>
+              )}
+
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {FRANJAS.map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setPlan((p) => ({ ...p, franjaHoraria: f }))}
+                    className={`rounded-md border px-2.5 py-1 text-xs ${plan.franjaHoraria === f ? "border-brand bg-brand text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-2">
+                <p className="mb-1 text-xs text-slate-500">Qué días se repite</p>
+                <div className="flex flex-wrap gap-1">
+                  {DIAS_RECURRENCIA.map((d) => {
+                    const elegido = diasElegidos.includes(d.letra);
+                    return (
+                      <button
+                        key={d.letra}
+                        onClick={() => alternarDia(d.letra)}
+                        title={d.nombre}
+                        className={`h-8 w-8 rounded-md border text-xs font-medium transition ${
+                          elegido ? "border-brand bg-brand text-white" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                        }`}
+                      >
+                        {d.letra}
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => setPlan((p) => ({ ...p, recurrencia: "" }))}
+                    className="ml-1 self-center text-xs text-slate-400 hover:text-slate-600"
+                  >
+                    Solo una vez
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Lo que hay que hacer ese día, tal cual: se escribe una vez y
+                aparece como lista de tareas en cada jornada, para que la
+                profesional las marque y coordinación las vea al verificar. */}
+            <div>
+              <label className="text-xs font-medium text-slate-500">
+                Qué hay que hacer
+                <textarea
+                  value={plan.tareasPrevistas}
+                  onChange={(e) => setPlan((p) => ({ ...p, tareasPrevistas: e.target.value }))}
+                  rows={3}
+                  placeholder={"Levantar\nDesayunar\nDuchar y vestir\nLimpiar la habitación"}
+                  className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                />
+              </label>
+              <p className="mt-1 text-xs text-slate-400">Una por línea. Se convierten en la lista que marca la profesional en cada jornada.</p>
+            </div>
+
+            {errorPlan && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{errorPlan}</p>}
+
+            <button
+              onClick={guardarPlan}
+              disabled={guardandoPlan}
+              className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+            >
+              {guardandoPlan ? "Guardando…" : "Guardar"}
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <Modal title={`${s.persona.nombre} ${s.persona.apellidos} · ${s.codigo}`} onClose={onClose} size="lg">
       <div className="space-y-5">
@@ -661,146 +857,10 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             </div>
           )}
         </div>
+        {/* Mientras no hay servicio, esto es toda la solicitud. En cuanto
+            lo hay, se muestra dentro del recuadro del servicio. */}
+        {!srv && bloqueQueYCuando}
 
-        {/* Qué se hace y cuándo, en un solo bloque. Antes los días y las
-            horas estaban aquí y el "cuándo se hace" del servicio más abajo:
-            dos sitios para lo mismo, y el de arriba ni siquiera guardaba. */}
-        <div className="rounded-lg border border-slate-200">
-          <button
-            onClick={() => setDatosAbiertos((v) => !v)}
-            className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            <span>Qué se hace y cuándo</span>
-            <span className="flex items-center gap-1 font-normal normal-case text-slate-400">
-              {resumenPlan}
-              <IconChevronDown className={`h-3.5 w-3.5 transition ${datosAbiertos ? "rotate-180" : ""}`} />
-            </span>
-          </button>
-          {(datosAbiertos || !srv) && (
-            <div className="space-y-4 border-t border-slate-100 px-3 pb-3 pt-3">
-              <div>
-                <label className="text-xs text-slate-500">
-                  Servicio
-                  <select value={s.necesidad.id} onChange={(e) => clasificar(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm">
-                    {necesidades.map((n) => (
-                      <option key={n.id} value={n.id}>
-                        {n.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <p className="mt-1 text-xs text-slate-400">{s.descripcionLibre}</p>
-              </div>
-
-              <div>
-                <p className="mb-1.5 text-xs font-medium text-slate-500">Cuándo</p>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <label className="text-xs text-slate-500">
-                    Desde
-                    <input type="date" value={plan.fechaInicio} onChange={(e) => setPlan((p) => ({ ...p, fechaInicio: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-                  </label>
-                  <label className="text-xs text-slate-500">
-                    Hasta
-                    <input
-                      type="date"
-                      value={plan.fechaFin}
-                      disabled={plan.indefinido}
-                      onChange={(e) => setPlan((p) => ({ ...p, fechaFin: e.target.value }))}
-                      className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400"
-                    />
-                    <span className="mt-1 flex items-center gap-1.5 font-normal normal-case text-slate-500">
-                      <input type="checkbox" checked={plan.indefinido} onChange={(e) => setPlan((p) => ({ ...p, indefinido: e.target.checked }))} />
-                      Indefinido
-                    </span>
-                  </label>
-                  <label className="text-xs text-slate-500">
-                    Hora inicio
-                    <input type="time" value={plan.horaInicio} onChange={(e) => setPlan((p) => ({ ...p, horaInicio: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-                  </label>
-                  <label className="text-xs text-slate-500">
-                    Hora fin
-                    <input type="time" value={plan.horaFin} onChange={(e) => setPlan((p) => ({ ...p, horaFin: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-                  </label>
-                </div>
-
-                {/* La duración es la cifra de la que sale el importe, así que
-                    se ve aquí mismo mientras se teclean las horas. */}
-                {minutosPlan != null && (
-                  <p className="mt-1.5 text-xs text-slate-500">
-                    <IconClock className="mr-1 inline h-3.5 w-3.5 align-text-bottom text-slate-400" />
-                    Cada jornada dura <strong className="text-slate-700">{duracion(minutosPlan)}</strong>
-                  </p>
-                )}
-
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  {FRANJAS.map((f) => (
-                    <button
-                      key={f}
-                      onClick={() => setPlan((p) => ({ ...p, franjaHoraria: f }))}
-                      className={`rounded-md border px-2.5 py-1 text-xs ${plan.franjaHoraria === f ? "border-brand bg-brand text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
-                    >
-                      {f}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mt-2">
-                  <p className="mb-1 text-xs text-slate-500">Qué días se repite</p>
-                  <div className="flex flex-wrap gap-1">
-                    {DIAS_RECURRENCIA.map((d) => {
-                      const elegido = diasElegidos.includes(d.letra);
-                      return (
-                        <button
-                          key={d.letra}
-                          onClick={() => alternarDia(d.letra)}
-                          title={d.nombre}
-                          className={`h-8 w-8 rounded-md border text-xs font-medium transition ${
-                            elegido ? "border-brand bg-brand text-white" : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                          }`}
-                        >
-                          {d.letra}
-                        </button>
-                      );
-                    })}
-                    <button
-                      onClick={() => setPlan((p) => ({ ...p, recurrencia: "" }))}
-                      className="ml-1 self-center text-xs text-slate-400 hover:text-slate-600"
-                    >
-                      Solo una vez
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Lo que hay que hacer ese día, tal cual: se escribe una vez y
-                  aparece como lista de tareas en cada jornada, para que la
-                  profesional las marque y coordinación las vea al verificar. */}
-              <div>
-                <label className="text-xs font-medium text-slate-500">
-                  Qué hay que hacer
-                  <textarea
-                    value={plan.tareasPrevistas}
-                    onChange={(e) => setPlan((p) => ({ ...p, tareasPrevistas: e.target.value }))}
-                    rows={3}
-                    placeholder={"Levantar\nDesayunar\nDuchar y vestir\nLimpiar la habitación"}
-                    className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-                  />
-                </label>
-                <p className="mt-1 text-xs text-slate-400">Una por línea. Se convierten en la lista que marca la profesional en cada jornada.</p>
-              </div>
-
-              {errorPlan && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{errorPlan}</p>}
-
-              <button
-                onClick={guardarPlan}
-                disabled={guardandoPlan}
-                className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
-              >
-                {guardandoPlan ? "Guardando…" : "Guardar"}
-              </button>
-            </div>
-          )}
-        </div>
 
         {/* Fase 1: pendiente de revisión — sin servicio todavía. Una sola
             decisión posible: aceptar o cancelar. */}
@@ -824,9 +884,10 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
           </div>
         )}
 
-        {/* Fase 2+: hay servicio — el foco pasa a profesional/ejecución. */}
+        {/* Fase 2+: hay servicio. Todo lo suyo —lo que se hace, cuándo, las
+            jornadas y el precio— vive dentro del mismo recuadro. */}
         {srv && (
-          <div className="space-y-3">
+          <div className="space-y-3 rounded-xl border border-slate-200 p-3">
             <div className="mb-1 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Servicio {srv.codigo}</p>
               <div className="flex items-center gap-2">
@@ -866,6 +927,8 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 )}
               </div>
             </div>
+
+            {bloqueQueYCuando}
 
             {/* Fase "buscando": elegir explícitamente entre dejarlo en el
                 mercado de profesionales o asignar a alguien directamente —
@@ -1259,14 +1322,45 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
           </div>
         )}
 
-        {s.estadoHistorial && s.estadoHistorial.length > 0 && (
+        {/* Todas las incidencias del servicio, abiertas y cerradas: desde la
+            ficha se ve el historial completo de lo que ha pasado, no solo el
+            aviso de la que sigue abierta. */}
+        {srv?.incidencias && srv.incidencias.length > 0 && (
+          <div className="border-t border-slate-100 pt-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Incidencias del servicio ({srv.incidencias.length})
+            </p>
+            <ul className="space-y-1">
+              {srv.incidencias.map((i) => (
+                <li key={i.id}>
+                  <button
+                    onClick={() => setIncidenciaAbierta(i.id)}
+                    className="flex w-full items-center gap-2 rounded-md border border-slate-200 px-2.5 py-2 text-left text-xs hover:bg-slate-50"
+                  >
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PUNTO_PRIORIDAD[i.prioridad] ?? "bg-slate-300"}`} />
+                    <span className="min-w-0 flex-1 truncate text-slate-700">{i.descripcion}</span>
+                    {i.responsable && (
+                      <span className="shrink-0 text-slate-400">{i.responsable.nombre ?? i.responsable.email.split("@")[0]}</span>
+                    )}
+                    <EstadoBadge estado={i.estado} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* El historial junta lo que pasó con el servicio y lo que fichó el
+            profesional: sin los fichajes no se podía comprobar si de verdad
+            estuvo las horas acordadas. */}
+        {entradasHistorial.length > 0 && (
           <div className="border-t border-slate-100 pt-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Historial</p>
-            <ul className="space-y-1 text-xs text-slate-500">
-              {s.estadoHistorial.map((h) => (
-                <li key={h.id}>
-                  {new Date(h.createdAt).toLocaleString("es-ES")} · {h.estadoNuevo.replace(/_/g, " ")}
-                  {h.motivo && ` — ${h.motivo}`}
+            <ul className="space-y-1 text-xs">
+              {entradasHistorial.map((h) => (
+                <li key={h.id} className={h.esFichaje ? "rounded-md bg-slate-50 px-2 py-1.5 text-slate-600" : "text-slate-500"}>
+                  {h.esFichaje && <IconClock className="mr-1 inline h-3.5 w-3.5 align-text-bottom text-slate-400" />}
+                  {new Date(h.cuando).toLocaleString("es-ES")} · {h.texto}
                 </li>
               ))}
             </ul>

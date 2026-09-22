@@ -58,7 +58,7 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
       if (prioridadFiltro && i.prioridad !== prioridadFiltro) return false;
       if (motivoFiltro && (i.motivo ?? "OTRO") !== motivoFiltro) return false;
       if (estadoFiltro === "abiertas" && !abierta(i)) return false;
-      if (estadoFiltro && estadoFiltro !== "abiertas" && i.estado !== estadoFiltro) return false;
+      if (estadoFiltro === "archivadas" && abierta(i)) return false;
       if (!q) return true;
       return [i.codigo, i.descripcion, personaDe(i), i.servicio?.codigo ?? "", infoMotivo(i.motivo).etiqueta].join(" ").toLowerCase().includes(q);
     });
@@ -72,11 +72,13 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
     // antes que "BAJA" es casualidad, "MEDIA" en medio ya no lo sería.
     prioridad: (i) => PRIORIDAD_ORDEN[i.prioridad] ?? 9,
     estado: (i) => PIPELINE.indexOf(i.estado),
+    responsable: (i) => i.responsable?.nombre ?? i.responsable?.email ?? null,
   });
   const seleccion = useSeleccion(orden.ordenadas);
   const { items: pagina, pagina: paginaActual, totalPaginas, setPagina } = usePaginacion(orden.ordenadas);
 
   const abiertasCount = incidencias.filter(abierta).length;
+  const archivadasCount = incidencias.length - abiertasCount;
 
   async function eliminarSeleccionadas() {
     const elegidas = seleccion.seleccionadas;
@@ -105,15 +107,25 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por código, motivo, descripción o persona…" className="flex-1 sm:max-w-xs" />
-        <select value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-2 text-xs">
-          <option value="abiertas">Solo abiertas ({abiertasCount})</option>
-          <option value="">Todos los estados</option>
-          {PIPELINE.map((e) => (
-            <option key={e} value={e}>
-              {e.replace(/_/g, " ").toLowerCase()}
-            </option>
+        {/* Abiertas y archivadas son dos bandejas distintas: mezclarlas hacía
+            que lo cerrado tapara lo que hay que atender. */}
+        <div className="flex rounded-md border border-slate-300 bg-white p-0.5 text-xs">
+          {[
+            { valor: "abiertas", etiqueta: `Abiertas (${abiertasCount})` },
+            { valor: "archivadas", etiqueta: `Archivadas (${archivadasCount})` },
+            { valor: "", etiqueta: "Todas" },
+          ].map((o) => (
+            <button
+              key={o.valor}
+              onClick={() => setEstadoFiltro(o.valor)}
+              className={`rounded px-2.5 py-1.5 font-medium transition ${
+                estadoFiltro === o.valor ? "bg-brand text-white" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              {o.etiqueta}
+            </button>
           ))}
-        </select>
+        </div>
         <select value={motivoFiltro} onChange={(e) => setMotivoFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-2 text-xs">
           <option value="">Todos los motivos</option>
           {MOTIVOS_INCIDENCIA.map((m) => (
@@ -160,6 +172,7 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
                   { encabezado: "Motivo", valor: (i) => infoMotivo(i.motivo).etiqueta },
                   { encabezado: "Descripción", valor: (i) => i.descripcion },
                   { encabezado: "Prioridad", valor: (i) => i.prioridad },
+                  { encabezado: "Asignada a", valor: (i) => i.responsable?.nombre ?? i.responsable?.email ?? "" },
                   { encabezado: "Estado", valor: (i) => i.estado },
                 ],
                 "incidencias",
@@ -189,6 +202,9 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
                     Motivo
                   </ThOrdenable>
                   <th className="px-4 py-2.5">Qué pasa</th>
+                  <ThOrdenable campo="responsable" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
+                    Asignada a
+                  </ThOrdenable>
                   <ThOrdenable campo="estado" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
                     Estado
                   </ThOrdenable>
@@ -237,6 +253,14 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
                       </td>
                       <td className="max-w-xs truncate px-4 py-2.5 text-slate-500" title={i.descripcion}>
                         {i.descripcion}
+                      </td>
+                      {/* A quién le toca. Si no se dice, nadie la coge. */}
+                      <td className="whitespace-nowrap px-4 py-2.5 text-xs">
+                        {i.responsable ? (
+                          <span className="text-slate-600">{i.responsable.nombre ?? i.responsable.email.split("@")[0]}</span>
+                        ) : (
+                          <span className="text-slate-300">Sin asignar</span>
+                        )}
                       </td>
                       <td className="px-4 py-2.5">
                         <EstadoBadge estado={i.estado} />

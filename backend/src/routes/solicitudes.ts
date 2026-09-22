@@ -244,7 +244,9 @@ solicitudesRouter.get("/:id", async (req, res) => {
           empresaColaboradora: true,
           profesional: true,
           visitas: { orderBy: { fecha: "asc" } },
-          incidencias: { orderBy: { createdAt: "desc" } },
+          // Con el responsable: desde la ficha se ve a quién se le asignó
+          // cada incidencia, que antes no aparecía en ninguna parte.
+          incidencias: { include: { responsable: true }, orderBy: { createdAt: "desc" } },
           interesados: { include: { profesional: true }, orderBy: { createdAt: "asc" } },
         },
       },
