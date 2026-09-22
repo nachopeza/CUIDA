@@ -376,7 +376,19 @@ export function CoordinadorPage() {
           </div>
         </div>
 
-        {tab === "escritorio" && <ResumenTab solicitudes={solicitudes} servicios={servicios} incidencias={incidencias} onIrA={irA} />}
+        {tab === "escritorio" && (
+          <ResumenTab
+            solicitudes={solicitudes}
+            servicios={servicios}
+            incidencias={incidencias}
+            onIrA={irA}
+            onAbrirSolicitud={(id) => {
+              setTab("solicitudes");
+              setFichaAbierta(id);
+            }}
+            onCambiado={cargar}
+          />
+        )}
 
         {tab === "solicitudes" && (
           <div>

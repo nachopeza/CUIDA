@@ -148,7 +148,9 @@ export interface Visita {
   // se reasigna después (sección "cambiar de profesional... que esto se
   // tenga en cuenta en su facturación").
   profesionalId?: string | null;
-  profesional?: Profesional | null;
+  // Solo los campos identificativos: el listado de servicios no trae (ni debe
+  // traer) los datos bancarios del profesional.
+  profesional?: Pick<Profesional, "id" | "codigo" | "nombre" | "apellidos" | "foto"> | null;
   facturaId?: string | null;
   tareas: Tarea[];
   actuaciones?: Actuacion[];

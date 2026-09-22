@@ -31,7 +31,14 @@ serviciosRouter.get("/", async (req, res) => {
 
   const servicios = await prisma.servicio.findMany({
     where,
-    include: { ...INCLUDE_SERVICIO, visitas: true },
+    // La agenda del escritorio necesita saber quién va a cada visita, y esa
+    // atribución es la del snapshot (no la del servicio, que puede haberse
+    // reasignado después). Solo los campos de identificación: los datos
+    // bancarios del profesional no tienen por qué viajar en este listado.
+    include: {
+      ...INCLUDE_SERVICIO,
+      visitas: { include: { profesional: { select: { id: true, codigo: true, nombre: true, apellidos: true, foto: true } } } },
+    },
     orderBy: { createdAt: "desc" },
   });
 
