@@ -1,3 +1,4 @@
+import type { CarneConducir, Titulacion } from "./territorio.js";
 import type { MotivoIncidencia } from "./incidencias.js";
 
 export interface CuentaResumen {
@@ -173,6 +174,10 @@ export interface Visita {
     profesionalId?: string | null;
     tarifaImporte?: string | number | null;
     ivaPorcentaje?: string | number | null;
+    // Lo que cobra quien la hace y si ya se le pagó. Al profesional se le
+    // mandan estos dos (es su nómina) pero no el precio de la familia.
+    importeProfesional?: string | number | null;
+    pagoProfesionalEstado?: "PENDIENTE" | "PAGADO";
     solicitud: { persona: Persona; necesidad: Necesidad };
   };
 }
@@ -183,7 +188,12 @@ export interface Profesional {
   nombre: string;
   apellidos: string;
   telefono: string | null;
+  comunidad?: string | null;
+  municipio?: string | null;
   zona: string | null;
+  carneConducir?: CarneConducir | null;
+  vehiculoPropio?: boolean;
+  titulacion?: Titulacion | null;
   dni?: string | null;
   numeroCuenta?: string | null;
   bizum?: string | null;

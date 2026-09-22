@@ -171,6 +171,27 @@ model FamiliarRelacion {
   @@map("familiar_relaciones")
 }
 
+enum CarneConducir {
+  NO
+  B // turismo, el habitual
+  A // moto
+  C // camión
+  D // autobús
+}
+
+// Titulación de referencia en atención a domicilio, de menos a más.
+enum Titulacion {
+  SIN_TITULACION
+  ATENCION_SOCIOSANITARIA // certificado de profesionalidad
+  AUXILIAR_ENFERMERIA // TCAE
+  ENFERMERIA
+  TRABAJO_SOCIAL
+  FISIOTERAPIA
+  TERAPIA_OCUPACIONAL
+  PSICOLOGIA
+  OTRA
+}
+
 enum EstadoProfesional {
   PENDIENTE
   VERIFICADO
@@ -185,7 +206,19 @@ model Profesional {
   nombre       String
   apellidos    String
   telefono     String?
+  // Zona de trabajo. Era texto libre y cada quien escribía una cosa
+  // ("Centro", "centro", "Santander centro"), así que no se podía filtrar ni
+  // agrupar. Ahora son dos códigos de una lista cerrada.
+  comunidad    String?
+  municipio    String?
+  // Se conserva el texto anterior para no perder lo que ya había escrito y
+  // para poder afinar ("barrio de la Inmobiliaria", "zona rural").
   zona         String?
+  // Lo que hace falta saber para mandarle según qué servicio: si puede
+  // conducir, si tiene coche y qué ha estudiado.
+  carneConducir   CarneConducir @default(NO)
+  vehiculoPropio  Boolean       @default(false)
+  titulacion      Titulacion?
   // Datos personales y de cobro (sección "los perfiles de profesionales se
   // deben poder editar e incluir información número de cuenta, Bizum, carné,
   // datos personales..."). Información sensible: solo la ve el propio

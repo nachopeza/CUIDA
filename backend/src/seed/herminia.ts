@@ -24,6 +24,25 @@ async function crearUsuario(email: string, rol: "PERSONA" | "FAMILIAR" | "PROFES
 // Marca de tiempo real de una jornada. Antes el seed ponía `new Date()` como
 // hora de entrada y de salida, así que todas las visitas "trabajadas" salían
 // a 0,0 h y la facturación por horas no se podía probar.
+// Mismo reparto que hace el backend al fijar el precio: el seed no inventa
+// importes, los calcula, para que lo que se ve en pantalla cuadre siempre.
+function tarifaPorHora(precioHora: number, minutos: number, ivaPorcentaje: number, comisionPorcentaje = 15) {
+  const base = Math.round((minutos / 60) * precioHora * 100) / 100;
+  const comisionImporte = Math.round(base * (comisionPorcentaje / 100) * 100) / 100;
+  const ivaImporte = Math.round(base * (ivaPorcentaje / 100) * 100) / 100;
+  return {
+    precioHora,
+    minutosPrevistos: minutos,
+    comisionPorcentaje,
+    tarifaImporte: base,
+    comisionImporte,
+    importeProfesional: Math.round((base - comisionImporte) * 100) / 100,
+    ivaPorcentaje,
+    ivaImporte,
+    totalConIva: Math.round((base + ivaImporte) * 100) / 100,
+  };
+}
+
 function enHora(fecha: Date, hora: string): Date {
   const [h, m] = hora.split(":").map(Number);
   const d = new Date(fecha);
@@ -192,7 +211,12 @@ async function main() {
       nombre: "Carmen",
       apellidos: "López Vidal",
       telefono: "600 555 666",
+      comunidad: "CB",
+      municipio: "Santander",
       zona: "Centro",
+      carneConducir: "B",
+      vehiculoPropio: false,
+      titulacion: "ATENCION_SOCIOSANITARIA",
       dni: "12345678A",
       numeroCuenta: "ES00 1111 1111 1111 1111 1111",
       bizum: "600 555 666",
@@ -218,7 +242,11 @@ async function main() {
     nombre: string;
     apellidos: string;
     telefono: string;
-    zona: string;
+    municipio: string;
+    zona?: string;
+    carneConducir?: "NO" | "B" | "A" | "C" | "D";
+    vehiculoPropio?: boolean;
+    titulacion?: "SIN_TITULACION" | "ATENCION_SOCIOSANITARIA" | "AUXILIAR_ENFERMERIA" | "ENFERMERIA" | "TRABAJO_SOCIAL" | "FISIOTERAPIA" | "TERAPIA_OCUPACIONAL" | "PSICOLOGIA" | "OTRA";
     foto: string;
     biografia: string;
     dias: string[];
@@ -233,7 +261,12 @@ async function main() {
         nombre: datos.nombre,
         apellidos: datos.apellidos,
         telefono: datos.telefono,
+        comunidad: "CB",
+        municipio: datos.municipio,
         zona: datos.zona,
+        carneConducir: datos.carneConducir ?? "NO",
+        vehiculoPropio: datos.vehiculoPropio ?? false,
+        titulacion: datos.titulacion,
         foto: datos.foto,
         biografia: datos.biografia,
         disponibilidad: JSON.stringify({ dias: datos.dias, franja: datos.franja }),
@@ -256,7 +289,10 @@ async function main() {
     nombre: "Rosa",
     apellidos: "Martín Peña",
     telefono: "600 777 888",
-    zona: "Norte",
+    municipio: "Torrelavega",
+    carneConducir: "B",
+    vehiculoPropio: true,
+    titulacion: "AUXILIAR_ENFERMERIA",
     foto: "https://i.pravatar.cc/300?img=32",
     biografia:
       "Doce años en atención domiciliaria, los seis últimos en Cuidados del Bages. Formación en demencias y Alzheimer, y en manejo de grúas y transferencias. Trabaja tardes y fines de semana.",
@@ -271,7 +307,10 @@ async function main() {
     nombre: "Javier",
     apellidos: "Ortega Ruiz",
     telefono: "600 999 000",
-    zona: "Sur",
+    municipio: "Camargo",
+    carneConducir: "B",
+    vehiculoPropio: true,
+    titulacion: "AUXILIAR_ENFERMERIA",
     foto: "https://i.pravatar.cc/300?img=12",
     biografia:
       "Técnico en cuidados auxiliares de enfermería. Acostumbrado a acompañamientos a consultas y pruebas médicas, y al control de medicación pautada. Coche propio.",
@@ -287,7 +326,10 @@ async function main() {
     nombre: "Nadia",
     apellidos: "Bouzid",
     telefono: "600 222 333",
-    zona: "Centro",
+    municipio: "Santander",
+    zona: "Puertochico",
+    carneConducir: "NO",
+    titulacion: "ATENCION_SOCIOSANITARIA",
     foto: "https://i.pravatar.cc/300?img=45",
     biografia: "Recién titulada en Atención Sociosanitaria. Prácticas en residencia de mayores. Busca empezar con acompañamientos y tareas domésticas.",
     dias: ["L", "M", "X"],
@@ -475,18 +517,10 @@ async function main() {
   servicio = await prisma.servicio.update({
     where: { id: servicio.id },
     data: {
-      tarifaImporte: 12.5,
       tarifaTipo: "PAGADO",
-      tarifaNotas: "Tarifa estándar de servicio doméstico por hora",
-      // Comisión de gestión (15% por defecto de la organización): mismo
-      // cálculo que hace POST /servicios/:id/tarifa.
-      comisionImporte: 1.88,
-      importeProfesional: 10.62,
-      // IVA (mismo cálculo que hace POST /servicios/:id/tarifa): plaza
-      // concertada → 4% superreducido.
-      ivaPorcentaje: 4,
-      ivaImporte: 0.5,
-      totalConIva: 13.0,
+      tarifaNotas: "Tarifa estándar de servicio doméstico",
+      // 3 h a 12,50 €/h, IVA superreducido por plaza concertada.
+      ...tarifaPorHora(12.5, 180, 4),
     },
   });
 
@@ -611,10 +645,8 @@ async function main() {
       estado: "CONFIRMADO",
       tipoServicio: "PUNTUAL",
       profesionalId: profesional.id,
-      tarifaImporte: 15,
       tarifaTipo: "PAGADO",
-      comisionImporte: 2.25,
-      importeProfesional: 12.75,
+      ...tarifaPorHora(15, 60, 10),
     },
   });
   await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "CONFIRMADO", motivo: `Asignado a ${profesional.codigo} y confirmado (seed)`, servicioId: servicio3.id });
@@ -656,13 +688,8 @@ async function main() {
       estado: "VALIDADO",
       tipoServicio: "PUNTUAL",
       profesionalId: profesional.id,
-      tarifaImporte: 45,
       tarifaTipo: "PAGADO",
-      comisionImporte: 6.75,
-      importeProfesional: 38.25,
-      ivaPorcentaje: 10,
-      ivaImporte: 4.5,
-      totalConIva: 49.5,
+      ...tarifaPorHora(22.5, 120, 10),
     },
   });
   await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "EN_CURSO", motivo: "Asignado, confirmado y realizado (seed)", servicioId: servicio4.id });
@@ -719,10 +746,8 @@ async function main() {
       estado: "EN_CURSO",
       tipoServicio: "PUNTUAL",
       profesionalId: profesional.id,
-      tarifaImporte: 10,
       tarifaTipo: "PAGADO",
-      comisionImporte: 1.5,
-      importeProfesional: 8.5,
+      ...tarifaPorHora(10, 120, 10),
     },
   });
   await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "EN_CURSO", motivo: "Asignado, confirmado y en curso (seed)", servicioId: servicio5.id });
@@ -775,10 +800,8 @@ async function main() {
       estado: "EN_CURSO",
       tipoServicio: "RECURRENTE",
       profesionalId: profesional.id,
-      tarifaImporte: 40,
       tarifaTipo: "PAGADO",
-      comisionImporte: 6,
-      importeProfesional: 34,
+      ...tarifaPorHora(10, 240, 10),
     },
   });
   await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "EN_CURSO", motivo: "Contrato recurrente confirmado (seed)", servicioId: servicio6.id });
@@ -849,11 +872,8 @@ async function main() {
       estado: "EN_CURSO",
       tipoServicio: "RECURRENTE",
       profesionalId: rosa.id,
-      tarifaImporte: 14,
       tarifaTipo: "PAGADO",
-      comisionImporte: 2.1,
-      importeProfesional: 11.9,
-      ivaPorcentaje: 10,
+      ...tarifaPorHora(14, 180, 10),
     },
   });
   await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "EN_CURSO", motivo: "Contrato recurrente de tardes con Rosa (seed)", servicioId: servicioManuel.id });
@@ -911,13 +931,8 @@ async function main() {
       estado: "EN_CURSO",
       tipoServicio: "PUNTUAL",
       profesionalId: javier.id,
-      tarifaImporte: 38,
       tarifaTipo: "PAGADO",
-      comisionImporte: 5.7,
-      importeProfesional: 32.3,
-      ivaPorcentaje: 10,
-      ivaImporte: 3.8,
-      totalConIva: 41.8,
+      ...tarifaPorHora(15.2, 150, 10),
     },
   });
   await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "EN_CURSO", motivo: "Asignado a Javier y realizado (seed)", servicioId: servicioDolores.id });
@@ -961,8 +976,8 @@ async function main() {
       organizacionId: organizacion.id,
       estado: "PENDIENTE",
       tipoServicio: "RECURRENTE",
-      tarifaImporte: 12,
       tarifaTipo: "PAGADO",
+      ...tarifaPorHora(12, 120, 10),
     },
   });
   await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "PENDIENTE", motivo: "Publicado, buscando profesional (seed)", servicioId: servicioAmadeo.id });

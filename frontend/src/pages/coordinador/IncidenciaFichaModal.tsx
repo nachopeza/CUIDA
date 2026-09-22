@@ -89,16 +89,30 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged }: Props
           <EstadoBadge estado={i.estado} />
         </div>
 
-        {!esCancelacion && siguientes.length > 0 && (
+        {/* El estado como desplegable, igual que en el servicio: ofrece solo
+            los pasos a los que de verdad se puede ir desde donde está, en vez
+            de una fila de botones que crecía con cada fase. */}
+        {!esCancelacion && (
           <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Cambiar estado</p>
-            <div className="flex flex-wrap gap-2">
-              {siguientes.map((estado) => (
-                <button key={estado} onClick={() => cambiarEstado(estado)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-100">
-                  {estado.replace(/_/g, " ")}
-                </button>
-              ))}
-            </div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Estado
+              <select
+                value=""
+                onChange={(e) => e.target.value && cambiarEstado(e.target.value)}
+                disabled={siguientes.length === 0}
+                className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm font-normal normal-case text-slate-700 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                <option value="">
+                  {i.estado.replace(/_/g, " ").toLowerCase()}
+                  {siguientes.length === 0 ? " · sin más pasos" : " · pasar a…"}
+                </option>
+                {siguientes.map((estado) => (
+                  <option key={estado} value={estado}>
+                    {estado.replace(/_/g, " ").toLowerCase()}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         )}
 

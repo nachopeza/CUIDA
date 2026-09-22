@@ -7,15 +7,29 @@ import { DocumentosProfesional } from "../../components/DocumentosProfesional.js
 import { FotoUpload } from "../../components/FotoUpload.js";
 import { DisponibilidadPicker } from "../../components/DisponibilidadPicker.js";
 import { parsearDisponibilidad, serializarDisponibilidad, type Disponibilidad } from "../../lib/disponibilidad.js";
+import {
+  CARNES,
+  COMUNIDADES,
+  TITULACIONES,
+  municipiosDe,
+  type CarneConducir,
+  type Titulacion,
+} from "../../lib/territorio.js";
 import type { EmpresaColaboradora, Profesional, Servicio } from "../../lib/types.js";
 
-const ZONA_POR_DEFECTO = "Cantabria";
+// La organización piloto opera en Cantabria: es lo que más se va a elegir.
+const COMUNIDAD_POR_DEFECTO = "CB";
 
 const CAMPOS_VACIOS = {
   nombre: "",
   apellidos: "",
   telefono: "",
-  zona: ZONA_POR_DEFECTO,
+  comunidad: COMUNIDAD_POR_DEFECTO,
+  municipio: "",
+  zona: "",
+  carneConducir: "NO" as CarneConducir,
+  vehiculoPropio: false,
+  titulacion: "" as Titulacion | "",
   dni: "",
   numeroCuenta: "",
   bizum: "",
@@ -47,7 +61,12 @@ export function ProfesionalFormModal({
           nombre: profesional.nombre,
           apellidos: profesional.apellidos,
           telefono: profesional.telefono ?? "",
-          zona: profesional.zona ?? ZONA_POR_DEFECTO,
+          comunidad: profesional.comunidad ?? COMUNIDAD_POR_DEFECTO,
+          municipio: profesional.municipio ?? "",
+          zona: profesional.zona ?? "",
+          carneConducir: (profesional.carneConducir ?? "NO") as CarneConducir,
+          vehiculoPropio: profesional.vehiculoPropio ?? false,
+          titulacion: (profesional.titulacion ?? "") as Titulacion | "",
           dni: profesional.dni ?? "",
           numeroCuenta: profesional.numeroCuenta ?? "",
           bizum: profesional.bizum ?? "",
@@ -73,8 +92,18 @@ export function ProfesionalFormModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profesional?.id]);
 
+  // Los campos vacíos no se mandan, para no pisar lo que ya hubiera. Los
+  // booleanos sí van siempre: `false` es una respuesta, no un hueco, y si se
+  // colaba en la regla de "vacío" no había forma de desmarcar el vehículo.
+  // La titulación vacía va como null, que es lo que la borra.
   function limpiar(p: Campos) {
-    return Object.fromEntries(Object.entries(p).map(([k, v]) => [k, v || undefined]));
+    return Object.fromEntries(
+      Object.entries(p).map(([k, v]) => {
+        if (typeof v === "boolean") return [k, v];
+        if (k === "titulacion") return [k, v || null];
+        return [k, v || undefined];
+      }),
+    );
   }
 
   async function guardar(e: FormEvent) {
@@ -120,8 +149,86 @@ export function ProfesionalFormModal({
         <input required placeholder="Nombre" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
         <input required placeholder="Apellidos" value={form.apellidos} onChange={(e) => setForm((f) => ({ ...f, apellidos: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
         <input placeholder="Teléfono" value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        <input placeholder="Zona" value={form.zona} onChange={(e) => setForm((f) => ({ ...f, zona: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        <input placeholder="DNI / carné" value={form.dni} onChange={(e) => setForm((f) => ({ ...f, dni: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        <input placeholder="DNI" value={form.dni} onChange={(e) => setForm((f) => ({ ...f, dni: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+
+        {/* Dónde trabaja, de una lista cerrada: al elegir comunidad cambian
+            los municipios. Antes era un campo libre y cada ficha lo escribía
+            a su manera, así que no se podía filtrar por zona. */}
+        <label className="text-xs text-slate-500">
+          Comunidad
+          <select
+            value={form.comunidad}
+            onChange={(e) => setForm((f) => ({ ...f, comunidad: e.target.value, municipio: "" }))}
+            className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800"
+          >
+            <option value="">Sin indicar</option>
+            {COMUNIDADES.map((c) => (
+              <option key={c.codigo} value={c.codigo}>
+                {c.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-slate-500">
+          Municipio
+          <select
+            value={form.municipio}
+            onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))}
+            disabled={!form.comunidad}
+            className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 disabled:bg-slate-100"
+          >
+            <option value="">{form.comunidad ? "Toda la comunidad" : "Elige comunidad primero"}</option>
+            {municipiosDe(form.comunidad).map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </label>
+        <input
+          placeholder="Barrio o zona concreta (opcional)"
+          value={form.zona}
+          onChange={(e) => setForm((f) => ({ ...f, zona: e.target.value }))}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
+        />
+
+        <label className="text-xs text-slate-500">
+          Carné de conducir
+          <select
+            value={form.carneConducir}
+            onChange={(e) => setForm((f) => ({ ...f, carneConducir: e.target.value as CarneConducir }))}
+            className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800"
+          >
+            {CARNES.map((c) => (
+              <option key={c.valor} value={c.valor}>
+                {c.etiqueta}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-slate-500">
+          Titulación
+          <select
+            value={form.titulacion}
+            onChange={(e) => setForm((f) => ({ ...f, titulacion: e.target.value as Titulacion | "" }))}
+            className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800"
+          >
+            <option value="">Sin indicar</option>
+            {TITULACIONES.map((t) => (
+              <option key={t.valor} value={t.valor}>
+                {t.etiqueta}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slate-600 sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={form.vehiculoPropio}
+            onChange={(e) => setForm((f) => ({ ...f, vehiculoPropio: e.target.checked }))}
+          />
+          Tiene vehículo propio
+        </label>
         <input placeholder="Número de cuenta (IBAN)" value={form.numeroCuenta} onChange={(e) => setForm((f) => ({ ...f, numeroCuenta: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
         <input placeholder="Bizum" value={form.bizum} onChange={(e) => setForm((f) => ({ ...f, bizum: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2" />
         <textarea

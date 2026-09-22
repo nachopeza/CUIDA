@@ -77,6 +77,29 @@ export function ocultarTarifaSiProcede<T extends Record<string, unknown>>(servic
   return copia;
 }
 
+// Lo que paga la familia y el margen de CUIDA no son asunto del profesional,
+// pero lo que él cobra sí: es su nómina. La función de arriba lo borraba
+// todo por igual, así que un profesional no podía ver lo que iba a cobrar.
+// Esta deja su parte y esconde el resto.
+const CAMPOS_SOLO_DE_COORDINACION = [
+  "tarifaImporte",
+  "tarifaNotas",
+  "comisionImporte",
+  "comisionPorcentaje",
+  "precioHora",
+  "ivaPorcentaje",
+  "ivaImporte",
+  "totalConIva",
+  "facturaId",
+];
+
+export function soloLoQueCobraElProfesional<T extends Record<string, unknown>>(servicio: T | null | undefined): T | null | undefined {
+  if (!servicio) return servicio;
+  const copia = { ...servicio };
+  for (const campo of CAMPOS_SOLO_DE_COORDINACION) delete (copia as Record<string, unknown>)[campo];
+  return copia;
+}
+
 export function scopeOrganizacion(usuario: TokenPayload): { organizacionId: string } | {} {
   if (usuario.rol === "SUPERADMIN") return {};
   return { organizacionId: usuario.organizacionId ?? "__none__" };

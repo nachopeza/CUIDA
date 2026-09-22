@@ -4,18 +4,30 @@ import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { Cronometro } from "../components/Cronometro.js";
-import { IconAlert, IconFlag, IconNote, IconPin, IconPlay, IconStop } from "../components/icons.js";
+import { IconAlert, IconChat, IconClock, IconFlag, IconHome, IconMenu, IconNote, IconPin, IconPlay, IconSearch, IconStop, IconUsers } from "../components/icons.js";
 import { TiempoTrabajadoModal } from "../components/TiempoTrabajadoModal.js";
-import { ConversacionesPanel } from "../components/ConversacionesPanel.js";
+import { ChatPanel } from "../components/ChatPanel.js";
+import { Navegacion, type ItemNav } from "../components/Navegacion.js";
+import { MisJornadasTab } from "./profesional/MisJornadasTab.js";
 import { BuscarSolicitudesTab } from "./profesional/BuscarSolicitudesTab.js";
 import { MiPerfilTab } from "./profesional/MiPerfilTab.js";
 import type { Profesional, Servicio, Visita } from "../lib/types.js";
 
-type Tab = "proximos" | "realizados" | "mensajes" | "buscar" | "perfil";
+type Tab = "proximos" | "jornadas" | "buscar" | "perfil";
+
+// Misma barra lateral que coordinación: el panel del profesional era una
+// fila de pestañas sueltas y no se parecía a nada del resto de la app.
+// "Mensajes" se va: el chat vive donde está la persona, no en una pestaña
+// aparte que repetía lo mismo.
+const NAV: ItemNav[] = [
+  { key: "proximos", label: "Hoy", icon: IconHome },
+  { key: "jornadas", label: "Mis jornadas", icon: IconClock },
+  { key: "buscar", label: "Buscar solicitudes", icon: IconSearch },
+  { key: "perfil", label: "Mi perfil", icon: IconUsers },
+];
 const TAB_LABEL: Record<Tab, string> = {
-  proximos: "Próximos",
-  realizados: "Realizados",
-  mensajes: "Mensajes",
+  proximos: "Hoy",
+  jornadas: "Mis jornadas",
   buscar: "Buscar solicitudes",
   perfil: "Mi perfil",
 };
@@ -28,6 +40,8 @@ const PRIORIDADES = ["BAJA", "MEDIA", "ALTA"] as const;
 export function ProfesionalPage() {
   const { token, usuario } = useAuth();
   const [tab, setTab] = useState<Tab>("proximos");
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const [chatAbierto, setChatAbierto] = useState<string | null>(null);
   const [profesional, setProfesional] = useState<Profesional | null>(null);
   const [visitas, setVisitas] = useState<Visita[]>([]);
   const [propuestas, setPropuestas] = useState<Servicio[]>([]);
@@ -104,11 +118,34 @@ export function ProfesionalPage() {
   }, [visitas]);
 
   const visitasProximas = visitas.filter((v) => v.estado !== "REVISADA");
-  const visitasRealizadas = visitas.filter((v) => v.estado === "REVISADA");
 
   return (
-    <div>
-      {profesional && (
+    <div className="flex flex-col gap-4 md:flex-row">
+      <Navegacion
+        items={NAV}
+        activo={tab}
+        onIr={(k) => {
+          setTab(k as Tab);
+          setMenuAbierto(false);
+        }}
+        badges={{ proximos: propuestas.length > 0 ? { valor: propuestas.length, tono: "amber" } : undefined }}
+        abierto={menuAbierto}
+        onCerrar={() => setMenuAbierto(false)}
+      />
+
+      <div className="min-w-0 flex-1">
+      <div className="mb-3 flex items-center gap-2 md:hidden">
+        <button
+          onClick={() => setMenuAbierto(true)}
+          aria-label="Abrir menú"
+          className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
+        >
+          <IconMenu className="h-4 w-4" />
+          {TAB_LABEL[tab]}
+        </button>
+      </div>
+
+      {profesional && tab === "proximos" && (
         <div className="mb-4 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
           <p className="text-base font-semibold text-slate-800">Hola {profesional.nombre}</p>
           {proximaVisita ? (
@@ -125,25 +162,13 @@ export function ProfesionalPage() {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap gap-2 text-sm">
-        {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`rounded-md px-3 py-1.5 font-medium ${tab === t ? "bg-brand text-white" : "border border-slate-300 bg-white text-slate-600"}`}
-          >
-            {TAB_LABEL[t]}
-          </button>
-        ))}
-      </div>
-
       {tab === "buscar" && <BuscarSolicitudesTab />}
       {tab === "perfil" && <MiPerfilTab />}
-      {tab === "mensajes" && <ConversacionesPanel verNombrePersona />}
+      {tab === "jornadas" && <MisJornadasTab visitas={visitas} />}
 
-      {(tab === "proximos" || tab === "realizados") && (
+      {tab === "proximos" && (
         <>
-          {tab === "proximos" && propuestas.length > 0 && (
+          {propuestas.length > 0 && (
             <Card title="Te han propuesto estos servicios">
               <ul className="space-y-2">
                 {propuestas.map((s) => (
@@ -160,11 +185,9 @@ export function ProfesionalPage() {
             </Card>
           )}
 
-          {(tab === "proximos" ? visitasProximas : visitasRealizadas).length === 0 && (
-            <p className="text-sm text-slate-500">{tab === "proximos" ? "No tienes visitas próximas." : "Todavía no hay visitas verificadas."}</p>
-          )}
+          {visitasProximas.length === 0 && <p className="text-sm text-slate-500">No tienes jornadas próximas.</p>}
 
-          {(tab === "proximos" ? visitasProximas : visitasRealizadas).map((v) => {
+          {visitasProximas.map((v) => {
             const persona = v.servicio?.solicitud.persona;
             const cerrada = v.estado === "FINALIZADA" || v.estado === "REVISADA";
             const incidenciaAbiertaEnVisita = v.incidencias?.some((i) => !["RESUELTA", "CERRADA"].includes(i.estado));
@@ -220,6 +243,23 @@ export function ProfesionalPage() {
                       <IconFlag className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
                     Reportar incidencia
                     </button>
+                    {/* El chat, donde está la persona con la que se habla, en
+                        vez de en una pestaña suelta que repetía la lista. */}
+                    {persona && usuario?.profesionalId && (
+                      <button
+                        onClick={() => setChatAbierto(chatAbierto === v.id ? null : v.id)}
+                        className="text-xs font-medium text-slate-500 underline decoration-dotted hover:text-slate-700"
+                      >
+                        <IconChat className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
+                        {chatAbierto === v.id ? "Cerrar chat" : "Escribir a la familia"}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {chatAbierto === v.id && persona && usuario?.profesionalId && (
+                  <div className="mb-3 rounded-lg border border-slate-200">
+                    <ChatPanel profesionalId={usuario.profesionalId} personaId={persona.id} compacto />
                   </div>
                 )}
 
@@ -351,6 +391,8 @@ export function ProfesionalPage() {
 
       {/* Cerrar la tarea pasa por confirmar el tiempo. La hora de fin que se
           propone es la de ahora mismo, porque es cuando se está cerrando. */}
+      </div>
+
       {cerrando && (
         <TiempoTrabajadoModal
           titulo="¿Cuánto ha durado?"

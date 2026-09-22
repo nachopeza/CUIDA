@@ -57,10 +57,13 @@ export function Layout({ children }: { children: ReactNode }) {
               a la línea base del texto — antes flotaba por encima. */}
           <div className="flex shrink-0 items-center gap-3 self-center">
             <img src={logoCuida} alt="CUIDA" className="block h-9 w-auto sm:h-10" />
+            {/* En el móvil la denominación se esconde: no cabe junto al
+                logo, el perfil y la campana, y el propio panel ya dice en
+                qué parte se está. */}
             {muestraDenominacion && (
               <>
-                <span className="h-6 w-px shrink-0 bg-slate-200" aria-hidden />
-                <span className="text-sm font-medium leading-none text-slate-500">{AREA_LABEL[usuario!.rol] ?? ""}</span>
+                <span className="hidden h-6 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
+                <span className="hidden text-sm font-medium leading-none text-slate-500 sm:block">{AREA_LABEL[usuario!.rol] ?? ""}</span>
               </>
             )}
           </div>
@@ -72,12 +75,12 @@ export function Layout({ children }: { children: ReactNode }) {
               <div className="relative order-2" ref={menuRef}>
                 <button
                   onClick={() => setMenuAbierto((v) => !v)}
-                  className="flex items-center gap-2 rounded-md px-2 py-1 text-slate-600 hover:bg-slate-100"
+                  className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-slate-600 hover:bg-slate-100 sm:px-2"
                 >
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-800">
                     {usuario.email.slice(0, 2).toUpperCase()}
                   </span>
-                  <span className="hidden sm:inline">
+                  <span className="hidden truncate sm:inline">
                     {usuario.email} <span className="text-slate-400">· {ROL_LABEL[usuario.rol] ?? usuario.rol}</span>
                   </span>
                   <IconChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />

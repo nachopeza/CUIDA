@@ -5,7 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
 import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
-import { ocultarTarifaSiProcede } from "../services/permisos.js";
+import { ocultarTarifaSiProcede, soloLoQueCobraElProfesional } from "../services/permisos.js";
 
 export const profesionalesRouter = Router();
 profesionalesRouter.use(autenticar);
@@ -14,7 +14,17 @@ const crearProfesionalSchema = z.object({
   nombre: z.string().min(1),
   apellidos: z.string().min(1),
   telefono: z.string().optional(),
+  // Zona de trabajo como lista cerrada, para poder filtrar por ella; `zona`
+  // se queda para afinar a mano dentro del municipio.
+  comunidad: z.string().max(4).optional(),
+  municipio: z.string().max(120).optional(),
   zona: z.string().optional(),
+  carneConducir: z.enum(["NO", "B", "A", "C", "D"]).optional(),
+  vehiculoPropio: z.boolean().optional(),
+  titulacion: z
+    .enum(["SIN_TITULACION", "ATENCION_SOCIOSANITARIA", "AUXILIAR_ENFERMERIA", "ENFERMERIA", "TRABAJO_SOCIAL", "FISIOTERAPIA", "TERAPIA_OCUPACIONAL", "PSICOLOGIA", "OTRA"])
+    .nullable()
+    .optional(),
   dni: z.string().optional(),
   numeroCuenta: z.string().optional(),
   bizum: z.string().optional(),
@@ -30,7 +40,17 @@ const editarProfesionalSchema = z.object({
   nombre: z.string().min(1).optional(),
   apellidos: z.string().min(1).optional(),
   telefono: z.string().optional(),
+  // Zona de trabajo como lista cerrada, para poder filtrar por ella; `zona`
+  // se queda para afinar a mano dentro del municipio.
+  comunidad: z.string().max(4).optional(),
+  municipio: z.string().max(120).optional(),
   zona: z.string().optional(),
+  carneConducir: z.enum(["NO", "B", "A", "C", "D"]).optional(),
+  vehiculoPropio: z.boolean().optional(),
+  titulacion: z
+    .enum(["SIN_TITULACION", "ATENCION_SOCIOSANITARIA", "AUXILIAR_ENFERMERIA", "ENFERMERIA", "TRABAJO_SOCIAL", "FISIOTERAPIA", "TERAPIA_OCUPACIONAL", "PSICOLOGIA", "OTRA"])
+    .nullable()
+    .optional(),
   dni: z.string().optional(),
   numeroCuenta: z.string().optional(),
   bizum: z.string().optional(),
@@ -57,7 +77,12 @@ profesionalesRouter.post("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"
       nombre: parsed.data.nombre,
       apellidos: parsed.data.apellidos,
       telefono: parsed.data.telefono,
+      comunidad: parsed.data.comunidad,
+      municipio: parsed.data.municipio,
       zona: parsed.data.zona,
+      carneConducir: parsed.data.carneConducir,
+      vehiculoPropio: parsed.data.vehiculoPropio,
+      titulacion: parsed.data.titulacion,
       dni: parsed.data.dni,
       numeroCuenta: parsed.data.numeroCuenta,
       bizum: parsed.data.bizum,
@@ -300,8 +325,12 @@ profesionalesRouter.get("/:id/agenda", async (req, res) => {
     orderBy: { fecha: "asc" },
   });
 
-  // El profesional nunca ve la tarifa del servicio (sección 4/14), aunque
-  // Prisma la incluya por defecto al traer la relación; un gestor sí la ve.
-  const resultado = visitas.map((v) => ({ ...v, servicio: ocultarTarifaSiProcede(v.servicio, esGestor) }));
+  // El profesional no ve lo que paga la familia ni el margen de CUIDA
+  // (sección 4/14), pero sí lo que cobra él: es su nómina, y sin ella no
+  // puede saber lo que va a ingresar este mes. Un gestor lo ve todo.
+  const resultado = visitas.map((v) => ({
+    ...v,
+    servicio: esGestor ? v.servicio : soloLoQueCobraElProfesional(v.servicio),
+  }));
   res.json(resultado);
 });

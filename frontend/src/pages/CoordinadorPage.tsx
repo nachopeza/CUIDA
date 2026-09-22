@@ -32,6 +32,7 @@ import {
 import { ResumenTab } from "./coordinador/ResumenTab.js";
 import { GlobalSearch } from "./coordinador/GlobalSearch.js";
 import { Navegacion } from "../components/Navegacion.js";
+import { duracion, minutosEntre } from "../lib/economia.js";
 import { PersonasTab } from "./coordinador/PersonasTab.js";
 import { NuevoUsuarioModal } from "./coordinador/NuevoUsuarioModal.js";
 import { PersonaDetalleModal } from "./coordinador/PersonaDetalleModal.js";
@@ -79,6 +80,16 @@ const NAV: { key: Tab; label: string; icon: typeof IconHome }[] = [
 // casillas de conteo (estadoUnificado.ts): una fase de trabajo, o bien el
 // corte transversal "tiene una incidencia abierta".
 type Filtro = null | ClaveEstado | "con_incidencia";
+
+// De cuándo a cuándo va una solicitud. Un servicio sin fecha de fin es
+// indefinido y se dice así, no con una fecha inventada.
+function periodoDe(s: Solicitud): string {
+  if (!s.plan) return "Sin fijar";
+  const desde = new Date(s.plan.fechaInicio).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+  if (!s.plan.fechaFin) return `Desde ${desde} · indefinido`;
+  const hasta = new Date(s.plan.fechaFin).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+  return desde === hasta ? desde : `${desde} – ${hasta}`;
+}
 
 export function CoordinadorPage() {
   const { token } = useAuth();
@@ -214,7 +225,9 @@ export function CoordinadorPage() {
 
   const ordenSolicitudes = useOrdenacion(solicitudesFiltradas, {
     codigo: (s) => s.codigo,
-    fecha: (s) => s.createdAt,
+    // Se ordena por cuándo se presta, no por cuándo se escribió.
+    fecha: (s) => s.plan?.fechaInicio ?? s.createdAt,
+    duracion: (s) => minutosEntre(s.plan?.horaInicio, s.plan?.horaFin) ?? -1,
     persona: (s) => `${s.persona.apellidos} ${s.persona.nombre}`,
     servicio: (s) => s.necesidad.nombre,
     estado: (s) => estadoDeSolicitud(s),
@@ -264,7 +277,10 @@ export function CoordinadorPage() {
         { encabezado: "Tipo", valor: (s) => (s.servicio?.tipoServicio === "RECURRENTE" ? "Recurrente" : "Puntual") },
         { encabezado: "Estado", valor: (s) => (s.servicio ? s.servicio.estado : s.estado) },
         { encabezado: "Profesional", valor: (s) => (s.servicio?.profesional ? `${s.servicio.profesional.nombre} ${s.servicio.profesional.apellidos}` : "") },
-        { encabezado: "Creada", valor: (s) => new Date(s.createdAt).toLocaleDateString("es-ES") },
+        { encabezado: "Desde", valor: (s) => (s.plan ? new Date(s.plan.fechaInicio).toLocaleDateString("es-ES") : "") },
+        { encabezado: "Hasta", valor: (s) => (s.plan?.fechaFin ? new Date(s.plan.fechaFin).toLocaleDateString("es-ES") : "indefinido") },
+        { encabezado: "Horario", valor: (s) => (s.plan?.horaInicio ? `${s.plan.horaInicio}-${s.plan.horaFin}` : "") },
+        { encabezado: "Duración", valor: (s) => { const m = minutosEntre(s.plan?.horaInicio, s.plan?.horaFin); return m == null ? "" : duracion(m); } },
       ],
       "solicitudes",
     );
@@ -517,7 +533,10 @@ export function CoordinadorPage() {
                         Profesional
                       </ThOrdenable>
                       <ThOrdenable campo="fecha" campoActivo={ordenSolicitudes.campo} direccion={ordenSolicitudes.direccion} onOrdenar={ordenSolicitudes.ordenarPor}>
-                        Creada
+                        Cuándo
+                      </ThOrdenable>
+                      <ThOrdenable campo="duracion" campoActivo={ordenSolicitudes.campo} direccion={ordenSolicitudes.direccion} onOrdenar={ordenSolicitudes.ordenarPor}>
+                        Duración
                       </ThOrdenable>
                       <ThOrdenable campo="codigo" campoActivo={ordenSolicitudes.campo} direccion={ordenSolicitudes.direccion} onOrdenar={ordenSolicitudes.ordenarPor}>
                         Código
@@ -557,7 +576,22 @@ export function CoordinadorPage() {
                         <td className="px-4 py-2.5 text-slate-500">
                           {s.servicio?.profesional ? `${s.servicio.profesional.nombre} ${s.servicio.profesional.apellidos}` : "—"}
                         </td>
-                        <td className="px-4 py-2.5 text-xs text-slate-400">{new Date(s.createdAt).toLocaleDateString("es-ES")}</td>
+                        {/* Lo que importa de una solicitud no es cuándo se
+                            escribió, sino de cuándo a cuándo va y cuánto
+                            dura: el ERP se mide en tiempo. */}
+                        <td className="whitespace-nowrap px-4 py-2.5 text-xs text-slate-500">{periodoDe(s)}</td>
+                        <td className="whitespace-nowrap px-4 py-2.5 text-xs text-slate-500">
+                          {(() => {
+                            const m = minutosEntre(s.plan?.horaInicio, s.plan?.horaFin);
+                            if (m == null) return <span className="text-slate-300">—</span>;
+                            return (
+                              <>
+                                {duracion(m)}
+                                {s.plan?.recurrencia && <span className="block text-[10px] text-slate-400">{s.plan.recurrencia}</span>}
+                              </>
+                            );
+                          })()}
+                        </td>
                         <td className="px-4 py-2.5 text-xs text-slate-400">{s.codigo}</td>
                       </tr>
                     ))}

@@ -4,6 +4,7 @@ import { api } from "../lib/api.js";
 import { Modal } from "./Modal.js";
 import {
   IconAlert,
+  IconClock,
   IconBan,
   IconCheck,
   IconChevronDown,
@@ -16,10 +17,12 @@ import {
 import { EstadoBadge } from "./EstadoBadge.js";
 import { Cronometro, horasTrabajadas } from "./Cronometro.js";
 import { TiempoTrabajadoModal, formatearDuracion } from "./TiempoTrabajadoModal.js";
+import { calcularReparto, duracion, euros, minutosEntre } from "../lib/economia.js";
 import { PersonaDetalleModal } from "../pages/coordinador/PersonaDetalleModal.js";
 import { ProfesionalFormModal } from "../pages/coordinador/ProfesionalFormModal.js";
 import { IncidenciaFichaModal } from "../pages/coordinador/IncidenciaFichaModal.js";
 import { parsearDisponibilidad } from "../lib/disponibilidad.js";
+import { etiquetaTitulacion, zonaDe } from "../lib/territorio.js";
 import { resumenDisponibilidad } from "./DisponibilidadPicker.js";
 import type { EmpresaColaboradora, Necesidad, Profesional, Solicitud, Visita } from "../lib/types.js";
 
@@ -46,6 +49,29 @@ const ESTADOS_BLOQUEADOS_CON_INCIDENCIA = ["FINALIZADO", "VALIDADO", "CERRADO"];
 
 const SERVICIO_CANCELABLE = ["PENDIENTE", "ASIGNADO", "CONFIRMADO", "EN_CURSO"];
 const FRANJAS = ["Mañana", "Tarde", "Todo el día"];
+
+// La recurrencia se escribía a mano ("L-V", "lunes y miércoles") y había que
+// adivinar qué entendía el sistema. Con botones no hay nada que adivinar, y
+// se guarda en la misma forma canónica que lee el generador de jornadas.
+const NOMBRE_DIA: Record<string, string> = {
+  L: "lunes",
+  M: "martes",
+  X: "miércoles",
+  J: "jueves",
+  V: "viernes",
+  S: "sábados",
+  D: "domingos",
+};
+
+const DIAS_RECURRENCIA = [
+  { letra: "L", nombre: "Lunes" },
+  { letra: "M", nombre: "Martes" },
+  { letra: "X", nombre: "Miércoles" },
+  { letra: "J", nombre: "Jueves" },
+  { letra: "V", nombre: "Viernes" },
+  { letra: "S", nombre: "Sábado" },
+  { letra: "D", nombre: "Domingo" },
+];
 
 // Las 6 fases reales de la sección 7 (revisión → búsqueda/asignación →
 // confirmado → en curso → verificación → cerrado): un solo mapa deriva la
@@ -87,11 +113,24 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   const [reemplazoAbierto, setReemplazoAbierto] = useState(false);
   const [tarifaAbierta, setTarifaAbierta] = useState(false);
   const [modoAsignacion, setModoAsignacion] = useState<"mercado" | "directo">("mercado");
+  const [soloDisponibles, setSoloDisponibles] = useState(true);
 
-  const [plan, setPlan] = useState({ fechaInicio: "", fechaFin: "", indefinido: false, horaInicio: "", horaFin: "", franjaHoraria: "Mañana", recurrencia: "" });
+  const [plan, setPlan] = useState({
+    fechaInicio: "",
+    fechaFin: "",
+    indefinido: false,
+    horaInicio: "",
+    horaFin: "",
+    franjaHoraria: "Mañana",
+    recurrencia: "",
+    tareasPrevistas: "",
+  });
+  const [errorPlan, setErrorPlan] = useState<string | null>(null);
+  const [guardandoPlan, setGuardandoPlan] = useState(false);
   const [tarifa, setTarifa] = useState({
     empresaColaboradoraId: "",
-    tarifaImporte: "",
+    precioHora: "",
+    comisionPorcentaje: "",
     tarifaTipo: "" as "" | "PAGADO" | "VOLUNTARIO",
     tarifaNotas: "",
     tipoServicio: "PUNTUAL" as "PUNTUAL" | "RECURRENTE",
@@ -121,12 +160,14 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
         horaFin: sol.plan.horaFin ?? "",
         franjaHoraria: sol.plan.franjaHoraria ?? "Mañana",
         recurrencia: sol.plan.recurrencia ?? "",
+        tareasPrevistas: sol.plan.tareasPrevistas ?? "",
       });
     }
     if (sol.servicio) {
       setTarifa({
         empresaColaboradoraId: sol.servicio.empresaColaboradoraId ?? "",
-        tarifaImporte: sol.servicio.tarifaImporte != null ? String(sol.servicio.tarifaImporte) : "",
+        precioHora: sol.servicio.precioHora != null ? String(Number(sol.servicio.precioHora)) : "",
+        comisionPorcentaje: sol.servicio.comisionPorcentaje != null ? String(Number(sol.servicio.comisionPorcentaje)) : "",
         tarifaTipo: sol.servicio.tarifaTipo ?? "",
         tarifaNotas: sol.servicio.tarifaNotas ?? "",
         tipoServicio: sol.servicio.tipoServicio ?? "PUNTUAL",
@@ -160,20 +201,45 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
     await recargar();
   }
 
+  // Guardar los días y las horas fallaba en silencio: sin fecha de inicio,
+  // `new Date("")` es una fecha inválida y `toISOString()` revienta antes de
+  // llegar a la petición, así que el botón no hacía nada y no decía por qué.
   async function guardarPlan() {
-    await api.post(
-      `/solicitudes/${solicitudId}/plan`,
-      {
-        fechaInicio: new Date(plan.fechaInicio).toISOString(),
-        fechaFin: plan.indefinido || !plan.fechaFin ? null : new Date(plan.fechaFin).toISOString(),
-        horaInicio: plan.horaInicio || undefined,
-        horaFin: plan.horaFin || undefined,
-        franjaHoraria: plan.franjaHoraria || undefined,
-        recurrencia: plan.recurrencia || undefined,
-      },
-      token,
-    );
-    await recargar();
+    setErrorPlan(null);
+    if (!plan.fechaInicio) {
+      setErrorPlan("Pon al menos la fecha de inicio: es lo que dice cuándo empieza el servicio.");
+      return;
+    }
+    if (!plan.indefinido && plan.fechaFin && plan.fechaFin < plan.fechaInicio) {
+      setErrorPlan("La fecha de fin no puede ser anterior a la de inicio.");
+      return;
+    }
+    if ((plan.horaInicio && !plan.horaFin) || (!plan.horaInicio && plan.horaFin)) {
+      setErrorPlan("Pon las dos horas o ninguna: el importe sale de la duración.");
+      return;
+    }
+
+    setGuardandoPlan(true);
+    try {
+      await api.post(
+        `/solicitudes/${solicitudId}/plan`,
+        {
+          fechaInicio: new Date(`${plan.fechaInicio}T00:00:00`).toISOString(),
+          fechaFin: plan.indefinido || !plan.fechaFin ? null : new Date(`${plan.fechaFin}T00:00:00`).toISOString(),
+          horaInicio: plan.horaInicio || undefined,
+          horaFin: plan.horaFin || undefined,
+          franjaHoraria: plan.franjaHoraria || undefined,
+          recurrencia: plan.recurrencia || undefined,
+          tareasPrevistas: plan.tareasPrevistas || undefined,
+        },
+        token,
+      );
+      await recargar();
+    } catch (e) {
+      setErrorPlan(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido guardar");
+    } finally {
+      setGuardandoPlan(false);
+    }
   }
 
   async function asignar(profesionalId: string) {
@@ -188,7 +254,9 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
       `/servicios/${s.servicio.id}/tarifa`,
       {
         empresaColaboradoraId: tarifa.empresaColaboradoraId || null,
-        tarifaImporte: tarifa.tarifaImporte ? Number(tarifa.tarifaImporte) : null,
+        precioHora: tarifa.precioHora ? Number(tarifa.precioHora) : null,
+        comisionPorcentaje: tarifa.comisionPorcentaje ? Number(tarifa.comisionPorcentaje) : null,
+        minutosPrevistos: minutosPlan ?? null,
         tarifaTipo: tarifa.tarifaTipo || null,
         tarifaNotas: tarifa.tarifaNotas || undefined,
         tipoServicio: tarifa.tipoServicio,
@@ -206,7 +274,9 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
       `/servicios/${s.servicio.id}/tarifa`,
       {
         empresaColaboradoraId: tarifa.empresaColaboradoraId || null,
-        tarifaImporte: tarifa.tarifaImporte ? Number(tarifa.tarifaImporte) : null,
+        precioHora: tarifa.precioHora ? Number(tarifa.precioHora) : null,
+        comisionPorcentaje: tarifa.comisionPorcentaje ? Number(tarifa.comisionPorcentaje) : null,
+        minutosPrevistos: minutosPlan ?? null,
         tarifaTipo: tarifa.tarifaTipo || null,
         tarifaNotas: tarifa.tarifaNotas || undefined,
         tipoServicio: t,
@@ -310,6 +380,75 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
     else if (srv.estado === "VALIDADO" || srv.estado === "CERRADO") fase = "cerrado";
   }
   const indiceFase = FASES.findIndex((f) => f.clave === fase);
+
+  // Duración de una jornada según las horas del plan: es de donde sale el
+  // importe, así que se calcula en cuanto hay dos horas.
+  const minutosPlan = minutosEntre(plan.horaInicio, plan.horaFin);
+
+  const diasElegidos = plan.recurrencia
+    .toUpperCase()
+    .split(/[^LMXJVSD]+/)
+    .join("")
+    .split("")
+    .filter((c, i, arr) => arr.indexOf(c) === i);
+
+  function alternarDia(letra: string) {
+    const orden = DIAS_RECURRENCIA.map((d) => d.letra);
+    const siguiente = diasElegidos.includes(letra) ? diasElegidos.filter((d) => d !== letra) : [...diasElegidos, letra];
+    siguiente.sort((a, b) => orden.indexOf(a) - orden.indexOf(b));
+    setPlan((p) => ({ ...p, recurrencia: siguiente.join(", ") }));
+  }
+
+  // Resumen de una línea para la cabecera plegada: sin abrir el bloque ya se
+  // sabe de cuándo a cuándo va y cuánto dura.
+  // A quién le encaja esta solicitud. Se cruza lo que pide —los días de la
+  // recurrencia y la franja— con lo que cada profesional tiene ofertado, que
+  // es justo la pregunta de "un domingo por la mañana, ¿quién puede?".
+  const descripcionDemanda = (() => {
+    const dias = diasElegidos.length > 0 ? diasElegidos.map((d) => NOMBRE_DIA[d] ?? d).join(", ") : "esos días";
+    return `${dias} por la ${plan.franjaHoraria.toLowerCase()}`;
+  })();
+
+  const candidatos = (() => {
+    const lista = profesionales
+      .filter((pro) => pro.estado === "ACTIVO")
+      .map((pro) => {
+        const disp = parsearDisponibilidad(pro.disponibilidad);
+        const sinOferta = disp.dias.length === 0;
+        const diasQueFaltan = diasElegidos.filter((d) => !disp.dias.includes(d));
+        const franjaEncaja = disp.franja === "Todo el día" || plan.franjaHoraria === "Todo el día" || disp.franja === plan.franjaHoraria;
+
+        if (sinOferta) return { profesional: pro, encaja: false, orden: 2, motivo: "Sin disponibilidad puesta" };
+        if (diasQueFaltan.length > 0) {
+          return { profesional: pro, encaja: false, orden: 3, motivo: `No trabaja ${diasQueFaltan.map((d) => NOMBRE_DIA[d] ?? d).join(", ")}` };
+        }
+        if (!franjaEncaja) return { profesional: pro, encaja: false, orden: 3, motivo: `Solo por la ${disp.franja.toLowerCase()}` };
+        return { profesional: pro, encaja: true, orden: 0, motivo: "Le encaja" };
+      })
+      .sort((a, b) => a.orden - b.orden || a.profesional.apellidos.localeCompare(b.profesional.apellidos, "es"));
+    return soloDisponibles ? lista.filter((c) => c.encaja) : lista;
+  })();
+
+  // El reparto que se va a aplicar, calculado en local mientras se teclea.
+  // El backend vuelve a hacer la cuenta al guardar: esto solo enseña.
+  const repartoPrevisto = (() => {
+    const precio = Number(tarifa.precioHora);
+    if (!precio || minutosPlan == null || tarifa.tarifaTipo === "VOLUNTARIO") return null;
+    return calcularReparto({
+      minutos: minutosPlan,
+      precioHora: precio,
+      comisionPorcentaje: tarifa.comisionPorcentaje ? Number(tarifa.comisionPorcentaje) : 15,
+      ivaPorcentaje: tarifa.ivaPorcentaje ? Number(tarifa.ivaPorcentaje) : Number(s?.necesidad.ivaPorcentaje ?? 0),
+    });
+  })();
+
+  const resumenPlan = (() => {
+    if (!plan.fechaInicio) return "Sin fijar";
+    const desde = new Date(`${plan.fechaInicio}T00:00:00`).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+    const hasta = plan.indefinido || !plan.fechaFin ? "indefinido" : new Date(`${plan.fechaFin}T00:00:00`).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+    return `${desde} – ${hasta}${minutosPlan != null ? ` · ${duracion(minutosPlan)}` : ""}`;
+  })();
+
 
   return (
     <Modal title={`${s.persona.nombre} ${s.persona.apellidos} · ${s.codigo}`} onClose={onClose} size="lg">
@@ -523,21 +662,25 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
           )}
         </div>
 
-        {/* Datos de la solicitud: siempre editables, pero replegados en cuanto
-            ya está aceptada — ya no es lo que hay que mirar en esa fase. */}
+        {/* Qué se hace y cuándo, en un solo bloque. Antes los días y las
+            horas estaban aquí y el "cuándo se hace" del servicio más abajo:
+            dos sitios para lo mismo, y el de arriba ni siquiera guardaba. */}
         <div className="rounded-lg border border-slate-200">
           <button
             onClick={() => setDatosAbiertos((v) => !v)}
             className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
           >
-            <span>Datos de la solicitud</span>
-            <span className="font-normal normal-case text-slate-400">{datosAbiertos ? "Ocultar ▲" : srv ? "Ver / editar ▼" : "▼"}</span>
+            <span>Qué se hace y cuándo</span>
+            <span className="flex items-center gap-1 font-normal normal-case text-slate-400">
+              {resumenPlan}
+              <IconChevronDown className={`h-3.5 w-3.5 transition ${datosAbiertos ? "rotate-180" : ""}`} />
+            </span>
           </button>
           {(datosAbiertos || !srv) && (
             <div className="space-y-4 border-t border-slate-100 px-3 pb-3 pt-3">
               <div>
                 <label className="text-xs text-slate-500">
-                  Necesidad
+                  Servicio
                   <select value={s.necesidad.id} onChange={(e) => clasificar(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm">
                     {necesidades.map((n) => (
                       <option key={n.id} value={n.id}>
@@ -550,7 +693,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
               </div>
 
               <div>
-                <p className="mb-1.5 text-xs text-slate-500">Días y horas</p>
+                <p className="mb-1.5 text-xs font-medium text-slate-500">Cuándo</p>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <label className="text-xs text-slate-500">
                     Desde
@@ -579,7 +722,17 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                     <input type="time" value={plan.horaFin} onChange={(e) => setPlan((p) => ({ ...p, horaFin: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
                   </label>
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
+
+                {/* La duración es la cifra de la que sale el importe, así que
+                    se ve aquí mismo mientras se teclean las horas. */}
+                {minutosPlan != null && (
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    <IconClock className="mr-1 inline h-3.5 w-3.5 align-text-bottom text-slate-400" />
+                    Cada jornada dura <strong className="text-slate-700">{duracion(minutosPlan)}</strong>
+                  </p>
+                )}
+
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   {FRANJAS.map((f) => (
                     <button
                       key={f}
@@ -589,18 +742,62 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                       {f}
                     </button>
                   ))}
-                  <input
-                    type="text"
-                    placeholder="Recurrencia (ej. L-V)"
-                    value={plan.recurrencia}
-                    onChange={(e) => setPlan((p) => ({ ...p, recurrencia: e.target.value }))}
-                    className="rounded-md border border-slate-300 px-2 py-1 text-xs"
-                  />
-                  <button onClick={guardarPlan} className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
-                    Guardar días/horas
-                  </button>
+                </div>
+
+                <div className="mt-2">
+                  <p className="mb-1 text-xs text-slate-500">Qué días se repite</p>
+                  <div className="flex flex-wrap gap-1">
+                    {DIAS_RECURRENCIA.map((d) => {
+                      const elegido = diasElegidos.includes(d.letra);
+                      return (
+                        <button
+                          key={d.letra}
+                          onClick={() => alternarDia(d.letra)}
+                          title={d.nombre}
+                          className={`h-8 w-8 rounded-md border text-xs font-medium transition ${
+                            elegido ? "border-brand bg-brand text-white" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                          }`}
+                        >
+                          {d.letra}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => setPlan((p) => ({ ...p, recurrencia: "" }))}
+                      className="ml-1 self-center text-xs text-slate-400 hover:text-slate-600"
+                    >
+                      Solo una vez
+                    </button>
+                  </div>
                 </div>
               </div>
+
+              {/* Lo que hay que hacer ese día, tal cual: se escribe una vez y
+                  aparece como lista de tareas en cada jornada, para que la
+                  profesional las marque y coordinación las vea al verificar. */}
+              <div>
+                <label className="text-xs font-medium text-slate-500">
+                  Qué hay que hacer
+                  <textarea
+                    value={plan.tareasPrevistas}
+                    onChange={(e) => setPlan((p) => ({ ...p, tareasPrevistas: e.target.value }))}
+                    rows={3}
+                    placeholder={"Levantar\nDesayunar\nDuchar y vestir\nLimpiar la habitación"}
+                    className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <p className="mt-1 text-xs text-slate-400">Una por línea. Se convierten en la lista que marca la profesional en cada jornada.</p>
+              </div>
+
+              {errorPlan && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{errorPlan}</p>}
+
+              <button
+                onClick={guardarPlan}
+                disabled={guardandoPlan}
+                className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              >
+                {guardandoPlan ? "Guardando…" : "Guardar"}
+              </button>
             </div>
           )}
         </div>
@@ -719,20 +916,53 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 )}
 
                 {modoAsignacion === "directo" && (
-                  <label className="block text-xs text-slate-500">
-                    Profesional
-                    <select defaultValue="" onChange={(e) => asignar(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5">
-                      <option value="" disabled>
-                        Elegir…
-                      </option>
-                      {profesionales.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.nombre} {p.apellidos} · {p.zona ?? "Cantabria"}
-                          {p.empresaColaboradora ? ` · ${p.empresaColaboradora.nombre}` : " · independiente"}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-xs text-slate-600">
+                      <input type="checkbox" checked={soloDisponibles} onChange={(e) => setSoloDisponibles(e.target.checked)} />
+                      Solo quien ha ofertado {descripcionDemanda}
+                    </label>
+
+                    {/* Mandar la propuesta a quien no trabaja ese día es
+                        perder el tiempo de los dos. Los candidatos salen
+                        ordenados por lo que han ofertado, y se dice por qué
+                        encaja o por qué no. */}
+                    {candidatos.length === 0 ? (
+                      <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                        Ningún profesional ha ofertado {descripcionDemanda}. Quita el filtro para ver a todos, o publícalo en el mercado.
+                      </p>
+                    ) : (
+                      <ul className="max-h-64 space-y-1 overflow-y-auto">
+                        {candidatos.map(({ profesional: pro, encaja, motivo }) => (
+                          <li key={pro.id}>
+                            <button
+                              onClick={() => asignar(pro.id)}
+                              className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left transition hover:bg-slate-50 ${
+                                encaja ? "border-brand-green-200 bg-brand-green-50/40" : "border-slate-200"
+                              }`}
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-medium text-slate-800">
+                                  {pro.nombre} {pro.apellidos}
+                                </span>
+                                <span className="block truncate text-xs text-slate-500">
+                                  {zonaDe(pro)}
+                                  {pro.vehiculoPropio && " · con coche"}
+                                  {pro.titulacion && ` · ${etiquetaTitulacion(pro.titulacion)}`}
+                                </span>
+                              </span>
+                              <span
+                                className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                  encaja ? "bg-brand-green-100 text-brand-green-700" : "bg-slate-100 text-slate-500"
+                                }`}
+                              >
+                                {motivo}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -870,16 +1100,23 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
               );
             })()}
 
-            {/* Tarifa/empresa: se puede fijar desde el principio, pero se
-                repliega para no competir por atención con la fase actual. */}
+            {/* El precio se fija por hora porque CUIDA cobra por tiempo. De
+                ahí salen las tres cifras que importan y que antes no estaban
+                en ninguna parte: lo que cobra la profesional —que es lo único
+                que ella ve—, lo que se le cobra a la familia y la comisión. */}
             <div className="rounded-lg border border-slate-200">
               <button
                 onClick={() => setTarifaAbierta((v) => !v)}
                 className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
               >
-                <span>Tarifa y facturación</span>
-                <span className="font-normal normal-case text-slate-400">
-                  {tarifaAbierta ? "Ocultar ▲" : tarifa.tarifaTipo ? (tarifa.tarifaTipo === "VOLUNTARIO" ? "Voluntario ▼" : `${tarifa.tarifaImporte || "?"} € ▼`) : "Sin definir ▼"}
+                <span>Precio y reparto</span>
+                <span className="flex items-center gap-1 font-normal normal-case text-slate-400">
+                  {tarifa.tarifaTipo === "VOLUNTARIO"
+                    ? "Voluntario"
+                    : tarifa.precioHora
+                      ? `${tarifa.precioHora} €/h`
+                      : "Sin fijar"}
+                  <IconChevronDown className={`h-3.5 w-3.5 transition ${tarifaAbierta ? "rotate-180" : ""}`} />
                 </span>
               </button>
               {tarifaAbierta && (
@@ -901,7 +1138,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                       </select>
                     </label>
                     <label className="text-slate-500">
-                      Tipo de tarifa
+                      Tipo
                       <select
                         value={tarifa.tarifaTipo}
                         onChange={(e) => setTarifa((t) => ({ ...t, tarifaTipo: e.target.value as typeof tarifa.tarifaTipo }))}
@@ -912,60 +1149,97 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                         <option value="VOLUNTARIO">Voluntario</option>
                       </select>
                     </label>
-                    {/* En un servicio recurrente el importe es el precio por
-                        hora: el servicio no se cierra nunca, se factura cada
-                        mes por las horas reales trabajadas (sección "basar el
-                        sistema de facturación en el tiempo"). En uno puntual
-                        sigue siendo el importe total del servicio. */}
-                    <label className="text-slate-500">
-                      {tarifa.tipoServicio === "RECURRENTE" ? "Precio por hora €" : "Importe €"}
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={tarifa.tarifaImporte}
-                        onChange={(e) => setTarifa((t) => ({ ...t, tarifaImporte: e.target.value }))}
-                        className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
-                      />
-                    </label>
-                    <label className="text-slate-500">
-                      IVA % (heredado de "{s.necesidad.nombre}": {Number(s.necesidad.ivaPorcentaje)}%)
-                      <input
-                        type="number"
-                        min="0"
-                        max="21"
-                        step="0.01"
-                        placeholder={String(Number(s.necesidad.ivaPorcentaje))}
-                        value={tarifa.ivaPorcentaje}
-                        onChange={(e) => setTarifa((t) => ({ ...t, ivaPorcentaje: e.target.value }))}
-                        className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
-                      />
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Notas de la tarifa (opcional)"
-                      value={tarifa.tarifaNotas}
-                      onChange={(e) => setTarifa((t) => ({ ...t, tarifaNotas: e.target.value }))}
-                      className="rounded-md border border-slate-300 px-2 py-1.5 sm:col-span-2"
-                    />
                   </div>
 
-                  {tarifa.tarifaImporte && (
-                    <p className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                      {(() => {
-                        const ivaPct = tarifa.ivaPorcentaje ? Number(tarifa.ivaPorcentaje) : Number(s.necesidad.ivaPorcentaje);
-                        const importe = Number(tarifa.tarifaImporte) || 0;
-                        const iva = Math.round(importe * (ivaPct / 100) * 100) / 100;
-                        const porHora = tarifa.tipoServicio === "RECURRENTE" ? "/hora" : "";
-                        return `Base ${importe.toFixed(2)} €${porHora} + IVA ${ivaPct}% (${iva.toFixed(2)} €${porHora}) = ${(importe + iva).toFixed(2)} €${porHora}${
-                          porHora ? " — se factura cada mes por las horas reales trabajadas" : " total"
-                        }`;
-                      })()}
-                    </p>
+                  {tarifa.tarifaTipo !== "VOLUNTARIO" && (
+                    <>
+                      <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
+                        <label className="text-slate-500">
+                          Precio por hora (€)
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={tarifa.precioHora}
+                            onChange={(e) => setTarifa((t) => ({ ...t, precioHora: e.target.value }))}
+                            className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                          />
+                        </label>
+                        <label className="text-slate-500">
+                          Comisión CUIDA (%)
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            placeholder="15"
+                            value={tarifa.comisionPorcentaje}
+                            onChange={(e) => setTarifa((t) => ({ ...t, comisionPorcentaje: e.target.value }))}
+                            className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                          />
+                        </label>
+                        <label className="text-slate-500">
+                          IVA % (de "{s.necesidad.nombre}": {Number(s.necesidad.ivaPorcentaje)}%)
+                          <input
+                            type="number"
+                            min="0"
+                            max="21"
+                            step="0.01"
+                            placeholder={String(Number(s.necesidad.ivaPorcentaje))}
+                            value={tarifa.ivaPorcentaje}
+                            onChange={(e) => setTarifa((t) => ({ ...t, ivaPorcentaje: e.target.value }))}
+                            className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                          />
+                        </label>
+                      </div>
+
+                      {repartoPrevisto ? (
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <p className="mb-2 text-xs text-slate-500">
+                            {duracion(repartoPrevisto.minutos)} a {euros(repartoPrevisto.precioHora)}/h
+                          </p>
+                          <dl className="space-y-1.5 text-sm">
+                            <div className="flex items-baseline justify-between">
+                              <dt className="text-slate-600">Cobra la profesional</dt>
+                              <dd className="font-semibold tabular-nums text-brand-green-700">{euros(repartoPrevisto.importeProfesional)}</dd>
+                            </div>
+                            <div className="flex items-baseline justify-between">
+                              <dt className="text-slate-600">
+                                Comisión CUIDA <span className="text-slate-400">({repartoPrevisto.comisionPorcentaje}%)</span>
+                              </dt>
+                              <dd className="font-semibold tabular-nums text-slate-800">{euros(repartoPrevisto.comision)}</dd>
+                            </div>
+                            <div className="flex items-baseline justify-between border-t border-slate-200 pt-1.5">
+                              <dt className="text-slate-600">
+                                Paga la familia <span className="text-slate-400">(IVA {repartoPrevisto.ivaPorcentaje}% incl.)</span>
+                              </dt>
+                              <dd className="font-semibold tabular-nums text-slate-900">{euros(repartoPrevisto.totalConIva)}</dd>
+                            </div>
+                          </dl>
+                          <p className="mt-2 text-xs text-slate-400">
+                            {tarifa.tipoServicio === "RECURRENTE"
+                              ? "Por jornada. Cada mes se factura por las horas realmente fichadas."
+                              : "Lo que se factura al final sale de las horas fichadas, no de las previstas."}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                          Pon el precio por hora y las horas del plan y aquí sale el reparto.
+                        </p>
+                      )}
+                    </>
                   )}
 
-                  <button onClick={guardarTarifa} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-100">
-                    Guardar tarifa
+                  <input
+                    type="text"
+                    placeholder="Notas del precio (opcional)"
+                    value={tarifa.tarifaNotas}
+                    onChange={(e) => setTarifa((t) => ({ ...t, tarifaNotas: e.target.value }))}
+                    className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  />
+
+                  <button onClick={guardarTarifa} className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
+                    Guardar precio
                   </button>
 
                   {tarifa.tarifaTipo === "PAGADO" && (

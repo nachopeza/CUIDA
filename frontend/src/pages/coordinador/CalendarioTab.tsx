@@ -198,7 +198,7 @@ export function CalendarioTab({ onAbrirSolicitud }: { onAbrirSolicitud: (solicit
           </button>
         </div>
 
-        <p className="text-sm font-semibold capitalize text-slate-700">{titulo}</p>
+        <p className="text-sm font-semibold text-slate-700 first-letter:uppercase">{titulo}</p>
 
         <select value={profesionalFiltro} onChange={(e) => setProfesionalFiltro(e.target.value)} className="ml-auto rounded-md border border-slate-300 px-2 py-1.5 text-xs">
           <option value="">Todos los profesionales</option>
