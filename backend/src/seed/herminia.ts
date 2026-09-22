@@ -21,6 +21,16 @@ async function crearUsuario(email: string, rol: "PERSONA" | "FAMILIAR" | "PROFES
   });
 }
 
+// Marca de tiempo real de una jornada. Antes el seed ponía `new Date()` como
+// hora de entrada y de salida, así que todas las visitas "trabajadas" salían
+// a 0,0 h y la facturación por horas no se podía probar.
+function enHora(fecha: Date, hora: string): Date {
+  const [h, m] = hora.split(":").map(Number);
+  const d = new Date(fecha);
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
 const NOMBRE_ORG_DEMO = "Ayuda a Domicilio Piloto";
 
 // El seed debe poder relanzarse sin ir acumulando organizaciones duplicadas
@@ -157,7 +167,7 @@ async function main() {
   // No se subcontrata el caso de Herminia (se resuelve con Carmen, plantilla
   // interna); esta empresa solo sirve para poblar el catálogo del coordinador.
   const codigoEmpresa = await generarCodigo("empresaColaboradora");
-  await prisma.empresaColaboradora.upsert({
+  const empresaBages = await prisma.empresaColaboradora.upsert({
     where: { codigo: codigoEmpresa },
     update: {},
     create: {
@@ -198,6 +208,174 @@ async function main() {
     nombre: "Carmen López Vidal",
     organizacionId: organizacion.id,
     profesionalId: profesional.id,
+  });
+
+  // 6b. Más profesionales, para que la plantilla no sea una sola persona.
+  // Con un único profesional no se puede probar nada de lo que de verdad hace
+  // coordinación: elegir entre candidatos, repartir por zona, sustituir a
+  // quien se pone enfermo o verificar a quien acaba de darse de alta.
+  async function crearProfesional(datos: {
+    nombre: string;
+    apellidos: string;
+    telefono: string;
+    zona: string;
+    foto: string;
+    biografia: string;
+    dias: string[];
+    franja: string;
+    estado: "PENDIENTE" | "VERIFICADO" | "ACTIVO" | "SUSPENDIDO" | "INACTIVO";
+    email?: string;
+    empresaColaboradoraId?: string;
+  }) {
+    const profesional = await prisma.profesional.create({
+      data: {
+        codigo: await generarCodigo("profesional"),
+        nombre: datos.nombre,
+        apellidos: datos.apellidos,
+        telefono: datos.telefono,
+        zona: datos.zona,
+        foto: datos.foto,
+        biografia: datos.biografia,
+        disponibilidad: JSON.stringify({ dias: datos.dias, franja: datos.franja }),
+        estado: datos.estado,
+        organizacionId: organizacion.id,
+        empresaColaboradoraId: datos.empresaColaboradoraId,
+      },
+    });
+    if (datos.email) {
+      await crearUsuario(datos.email, "PROFESIONAL", {
+        nombre: `${datos.nombre} ${datos.apellidos}`,
+        organizacionId: organizacion.id,
+        profesionalId: profesional.id,
+      });
+    }
+    return profesional;
+  }
+
+  const rosa = await crearProfesional({
+    nombre: "Rosa",
+    apellidos: "Martín Peña",
+    telefono: "600 777 888",
+    zona: "Norte",
+    foto: "https://i.pravatar.cc/300?img=32",
+    biografia:
+      "Doce años en atención domiciliaria, los seis últimos en Cuidados del Bages. Formación en demencias y Alzheimer, y en manejo de grúas y transferencias. Trabaja tardes y fines de semana.",
+    dias: ["J", "V", "S", "D"],
+    franja: "Tarde",
+    estado: "ACTIVO",
+    email: "rosa.profesional@cuida.demo",
+    empresaColaboradoraId: empresaBages.id,
+  });
+
+  const javier = await crearProfesional({
+    nombre: "Javier",
+    apellidos: "Ortega Ruiz",
+    telefono: "600 999 000",
+    zona: "Sur",
+    foto: "https://i.pravatar.cc/300?img=12",
+    biografia:
+      "Técnico en cuidados auxiliares de enfermería. Acostumbrado a acompañamientos a consultas y pruebas médicas, y al control de medicación pautada. Coche propio.",
+    dias: ["L", "M", "X", "J", "V"],
+    franja: "Mañana",
+    estado: "ACTIVO",
+    email: "javier.profesional@cuida.demo",
+  });
+
+  // Recién dada de alta: aparece en el aviso "profesionales por verificar"
+  // del escritorio hasta que coordinación revisa su documentación.
+  await crearProfesional({
+    nombre: "Nadia",
+    apellidos: "Bouzid",
+    telefono: "600 222 333",
+    zona: "Centro",
+    foto: "https://i.pravatar.cc/300?img=45",
+    biografia: "Recién titulada en Atención Sociosanitaria. Prácticas en residencia de mayores. Busca empezar con acompañamientos y tareas domésticas.",
+    dias: ["L", "M", "X"],
+    franja: "Tarde",
+    estado: "PENDIENTE",
+    email: "nadia.profesional@cuida.demo",
+  });
+
+  // 6c. Más personas atendidas, cada una con su situación: la lista de
+  // usuarios con una sola persona no enseña nada.
+  async function crearPersona(datos: {
+    nombre: string;
+    apellidos: string;
+    telefono: string;
+    direccion: string;
+    preferencias: string;
+    recomendaciones: string;
+    email: string;
+    familiar?: { email: string; nombre: string; parentesco: string };
+  }) {
+    const persona = await prisma.persona.create({
+      data: {
+        codigo: await generarCodigo("persona"),
+        nombre: datos.nombre,
+        apellidos: datos.apellidos,
+        telefono: datos.telefono,
+        direccion: datos.direccion,
+        preferencias: datos.preferencias,
+        recomendaciones: datos.recomendaciones,
+        estado: "ACTIVA",
+        organizacionId: organizacion.id,
+      },
+    });
+    const usuario = await crearUsuario(datos.email, "PERSONA", {
+      nombre: `${datos.nombre} ${datos.apellidos}`,
+      organizacionId: organizacion.id,
+      personaId: persona.id,
+    });
+    let usuarioFam = null;
+    if (datos.familiar) {
+      usuarioFam = await crearUsuario(datos.familiar.email, "FAMILIAR", { nombre: datos.familiar.nombre, organizacionId: organizacion.id });
+      await prisma.familiarRelacion.create({
+        data: {
+          personaId: persona.id,
+          usuarioId: usuarioFam.id,
+          parentesco: datos.familiar.parentesco,
+          esRepresentante: true,
+          puedeSolicitar: true,
+          puedeVerHistorial: true,
+        },
+      });
+    }
+    return { persona, usuario, usuarioFamiliar: usuarioFam };
+  }
+
+  const manuel = await crearPersona({
+    nombre: "Manuel",
+    apellidos: "Prats Soler",
+    telefono: "600 444 555",
+    direccion: "Domicilio particular (demo) — Zona Norte",
+    preferencias: "Prefiere las tardes; ve la televisión a las 20:00 y no quiere que le interrumpan",
+    recomendaciones: "Camina con andador. No dejar alfombras sueltas en el pasillo",
+    email: "manuel@cuida.demo",
+    familiar: { email: "hijo.manuel@cuida.demo", nombre: "Jordi Prats", parentesco: "Hijo" },
+  });
+
+  const dolores = await crearPersona({
+    nombre: "Dolores",
+    apellidos: "Aguirre Vega",
+    telefono: "600 666 777",
+    direccion: "Domicilio particular (demo) — Zona Sur",
+    preferencias: "Mañanas temprano. Le gusta que le lean el periódico",
+    recomendaciones: "Diabética: cuidado con la merienda. Tiene un perro muy ladrador pero inofensivo",
+    email: "dolores@cuida.demo",
+    familiar: { email: "hija.dolores@cuida.demo", nombre: "Marta Aguirre", parentesco: "Hija" },
+  });
+
+  // Vive solo y sin familia cerca: gestiona él mismo sus solicitudes. Es el
+  // caso que prueba que el sistema no da por hecho que siempre hay un
+  // familiar detrás.
+  const amadeo = await crearPersona({
+    nombre: "Amadeo",
+    apellidos: "Costa Riera",
+    telefono: "600 888 999",
+    direccion: "Domicilio particular (demo) — Centro",
+    preferencias: "Le da apuro pedir ayuda; conviene confirmarle las visitas por teléfono el día antes",
+    recomendaciones: "Vive solo, sin familia en la zona. Oye bien pero lee con dificultad",
+    email: "amadeo@cuida.demo",
   });
 
   // 7. Necesidad → Solicitud (sección 3, etapas 1-2)
@@ -331,7 +509,7 @@ async function main() {
     include: { tareas: true },
   });
 
-  await prisma.visita.update({ where: { id: visita.id }, data: { estado: "EN_CURSO", horaInicioReal: new Date() } });
+  await prisma.visita.update({ where: { id: visita.id }, data: { estado: "EN_CURSO", horaInicioReal: enHora(fechaInicio, "09:05") } });
   await registrarHistorial({ entidadTipo: "Visita", estadoAnterior: "PROGRAMADA", estadoNuevo: "EN_CURSO", visitaId: visita.id });
 
   await prisma.tarea.updateMany({ where: { visitaId: visita.id }, data: { completada: true } });
@@ -339,7 +517,7 @@ async function main() {
     data: { visitaId: visita.id, descripcion: "Compra realizada y comida preparada. Herminia se encuentra bien y contenta con la compañía." },
   });
 
-  await prisma.visita.update({ where: { id: visita.id }, data: { estado: "FINALIZADA", horaFinReal: new Date() } });
+  await prisma.visita.update({ where: { id: visita.id }, data: { estado: "FINALIZADA", horaFinReal: enHora(fechaInicio, "12:10") } });
   await registrarHistorial({ entidadTipo: "Visita", estadoAnterior: "EN_CURSO", estadoNuevo: "FINALIZADA", visitaId: visita.id });
 
   await prisma.servicio.update({ where: { id: servicio.id }, data: { estado: "EN_CURSO" } });
@@ -494,8 +672,8 @@ async function main() {
       fecha: fechaEn(-4),
       horaInicioProg: "10:00",
       horaFinProg: "12:00",
-      horaInicioReal: fechaEn(-4),
-      horaFinReal: fechaEn(-4),
+      horaInicioReal: enHora(fechaEn(-4), "10:00"),
+      horaFinReal: enHora(fechaEn(-4), "12:15"),
       servicioId: servicio4.id,
       profesionalId: profesional.id,
       estado: "REVISADA",
@@ -552,6 +730,7 @@ async function main() {
     data: {
       codigo: await generarCodigo("incidencia"),
       tipo: "GENERAL",
+      motivo: "ACCESO",
       servicioId: servicio5.id,
       descripcion: "La profesional no encuentra las llaves de repuesto para entrar.",
       prioridad: "ALTA",
@@ -609,6 +788,8 @@ async function main() {
       fecha: fechaEn(-1),
       horaInicioProg: "09:00",
       horaFinProg: "13:00",
+      horaInicioReal: enHora(fechaEn(-1), "09:00"),
+      horaFinReal: enHora(fechaEn(-1), "13:20"),
       servicioId: servicio6.id,
       profesionalId: profesional.id,
       estado: "REVISADA",
@@ -629,6 +810,211 @@ async function main() {
     },
   });
 
+  // 14f. Casos de las otras personas, repartidos entre los profesionales:
+  // así los listados enseñan de verdad diferencias — distintas personas,
+  // distintas zonas, distintos profesionales y distintos estados — en vez de
+  // seis filas con el mismo nombre.
+
+  // Manuel: recurrente de tardes con Rosa, ya rodado, con una jornada
+  // trabajada la semana pasada y la siguiente en la agenda.
+  const solicitudManuel = await prisma.solicitud.create({
+    data: {
+      codigo: await generarCodigo("solicitud"),
+      descripcionLibre: "Mi padre necesita compañía por las tardes, de jueves a domingo.",
+      necesidadId: necesidadAcompanamiento.id,
+      personaId: manuel.persona.id,
+      organizacionId: organizacion.id,
+      creadaPorUsuarioId: manuel.usuarioFamiliar!.id,
+      estado: "ACEPTADA",
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Solicitud", estadoAnterior: "BORRADOR", estadoNuevo: "ACEPTADA", motivo: "Aceptada por coordinación (seed)", solicitudId: solicitudManuel.id });
+  await prisma.plan.create({
+    data: {
+      solicitudId: solicitudManuel.id,
+      fechaInicio: fechaEn(-14),
+      fechaFin: null,
+      recurrencia: "J, V, S, D",
+      franjaHoraria: "Tarde",
+      horaInicio: "17:00",
+      horaFin: "20:00",
+      notas: "Indefinido",
+    },
+  });
+  const servicioManuel = await prisma.servicio.create({
+    data: {
+      codigo: await generarCodigo("servicio"),
+      solicitudId: solicitudManuel.id,
+      organizacionId: organizacion.id,
+      estado: "EN_CURSO",
+      tipoServicio: "RECURRENTE",
+      profesionalId: rosa.id,
+      tarifaImporte: 14,
+      tarifaTipo: "PAGADO",
+      comisionImporte: 2.1,
+      importeProfesional: 11.9,
+      ivaPorcentaje: 10,
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "EN_CURSO", motivo: "Contrato recurrente de tardes con Rosa (seed)", servicioId: servicioManuel.id });
+  const visitaManuel = await prisma.visita.create({
+    data: {
+      codigo: await generarCodigo("visita"),
+      fecha: fechaEn(-3),
+      horaInicioProg: "17:00",
+      horaFinProg: "20:00",
+      horaInicioReal: enHora(fechaEn(-3), "17:00"),
+      horaFinReal: enHora(fechaEn(-3), "20:00"),
+      servicioId: servicioManuel.id,
+      profesionalId: rosa.id,
+      estado: "REVISADA",
+      tareas: { create: [{ descripcion: "Compañía y merienda", completada: true }] },
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Visita", estadoAnterior: "FINALIZADA", estadoNuevo: "REVISADA", motivo: "Verificada con el hijo (seed)", visitaId: visitaManuel.id });
+  await prisma.visita.create({
+    data: {
+      codigo: await generarCodigo("visita"),
+      fecha: fechaEn(1),
+      horaInicioProg: "17:00",
+      horaFinProg: "20:00",
+      servicioId: servicioManuel.id,
+      profesionalId: rosa.id,
+      estado: "PROGRAMADA",
+      tareas: { create: [{ descripcion: "Compañía y merienda" }] },
+    },
+  });
+
+  // Dolores: acompañamiento a consulta con Javier, cerrado la semana pasada
+  // pero con la jornada todavía por verificar — es el caso que llega a
+  // coordinación esperando el visto bueno.
+  const solicitudDolores = await prisma.solicitud.create({
+    data: {
+      codigo: await generarCodigo("solicitud"),
+      descripcionLibre: "Necesito que alguien acompañe a mi madre al oftalmólogo, no ve para ir sola.",
+      necesidadId: necesidadCitas.id,
+      personaId: dolores.persona.id,
+      organizacionId: organizacion.id,
+      creadaPorUsuarioId: dolores.usuarioFamiliar!.id,
+      estado: "ACEPTADA",
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Solicitud", estadoAnterior: "BORRADOR", estadoNuevo: "ACEPTADA", motivo: "Aceptada por coordinación (seed)", solicitudId: solicitudDolores.id });
+  await prisma.plan.create({
+    data: { solicitudId: solicitudDolores.id, fechaInicio: fechaEn(-2), fechaFin: fechaEn(-2), franjaHoraria: "Mañana", horaInicio: "09:30", horaFin: "12:00" },
+  });
+  const servicioDolores = await prisma.servicio.create({
+    data: {
+      codigo: await generarCodigo("servicio"),
+      solicitudId: solicitudDolores.id,
+      organizacionId: organizacion.id,
+      estado: "EN_CURSO",
+      tipoServicio: "PUNTUAL",
+      profesionalId: javier.id,
+      tarifaImporte: 38,
+      tarifaTipo: "PAGADO",
+      comisionImporte: 5.7,
+      importeProfesional: 32.3,
+      ivaPorcentaje: 10,
+      ivaImporte: 3.8,
+      totalConIva: 41.8,
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "EN_CURSO", motivo: "Asignado a Javier y realizado (seed)", servicioId: servicioDolores.id });
+  await prisma.visita.create({
+    data: {
+      codigo: await generarCodigo("visita"),
+      fecha: fechaEn(-2),
+      horaInicioProg: "09:30",
+      horaFinProg: "12:00",
+      horaInicioReal: enHora(fechaEn(-2), "09:25"),
+      horaFinReal: enHora(fechaEn(-2), "12:40"),
+      servicioId: servicioDolores.id,
+      profesionalId: javier.id,
+      estado: "FINALIZADA",
+      tareas: { create: [{ descripcion: "Acompañar al oftalmólogo", completada: true }] },
+      actuaciones: { create: [{ descripcion: "La consulta se retrasó cuarenta minutos. Todo bien, le han cambiado la graduación." }] },
+    },
+  });
+
+  // Amadeo: lo pide él mismo y todavía no tiene a nadie asignado — aparece
+  // en el marketplace para los profesionales, con Javier ya interesado.
+  const solicitudAmadeo = await prisma.solicitud.create({
+    data: {
+      codigo: await generarCodigo("solicitud"),
+      descripcionLibre: "Necesitaría que alguien me ayudara con la compra los lunes, se me hace cuesta arriba.",
+      necesidadId: necesidadRecados.id,
+      personaId: amadeo.persona.id,
+      organizacionId: organizacion.id,
+      creadaPorUsuarioId: amadeo.usuario.id,
+      estado: "ACEPTADA",
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Solicitud", estadoAnterior: "BORRADOR", estadoNuevo: "ACEPTADA", motivo: "Aceptada por coordinación (seed)", solicitudId: solicitudAmadeo.id });
+  await prisma.plan.create({
+    data: { solicitudId: solicitudAmadeo.id, fechaInicio: fechaEn(2), fechaFin: null, recurrencia: "Lunes", franjaHoraria: "Mañana", horaInicio: "10:00", horaFin: "12:00" },
+  });
+  const servicioAmadeo = await prisma.servicio.create({
+    data: {
+      codigo: await generarCodigo("servicio"),
+      solicitudId: solicitudAmadeo.id,
+      organizacionId: organizacion.id,
+      estado: "PENDIENTE",
+      tipoServicio: "RECURRENTE",
+      tarifaImporte: 12,
+      tarifaTipo: "PAGADO",
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "PENDIENTE", motivo: "Publicado, buscando profesional (seed)", servicioId: servicioAmadeo.id });
+  await prisma.servicioInteres.create({
+    data: { servicioId: servicioAmadeo.id, profesionalId: javier.id, mensaje: "Me pilla de camino y tengo coche, puedo llevarle la compra a casa." },
+  });
+
+  // Amadeo, segunda: recién enviada, sin revisar todavía por coordinación.
+  const solicitudNueva = await prisma.solicitud.create({
+    data: {
+      codigo: await generarCodigo("solicitud"),
+      descripcionLibre: "También me vendría bien que alguien me acompañara a dar un paseo alguna tarde.",
+      necesidadId: necesidadPaseo.id,
+      personaId: amadeo.persona.id,
+      organizacionId: organizacion.id,
+      creadaPorUsuarioId: amadeo.usuario.id,
+      estado: "ENVIADA",
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Solicitud", estadoAnterior: "BORRADOR", estadoNuevo: "ENVIADA", motivo: "Enviada por la persona (seed)", solicitudId: solicitudNueva.id });
+  await prisma.plan.create({
+    data: { solicitudId: solicitudNueva.id, fechaInicio: fechaEn(7), fechaFin: fechaEn(7), franjaHoraria: "Tarde", horaInicio: "18:00", horaFin: "19:30" },
+  });
+
+  // Una incidencia ya resuelta, para que la bandeja no sea solo cosas
+  // ardiendo y se pueda probar el filtro por estado y por motivo.
+  const incidenciaResuelta = await prisma.incidencia.create({
+    data: {
+      codigo: await generarCodigo("incidencia"),
+      tipo: "GENERAL",
+      motivo: "RETRASO",
+      servicioId: servicioDolores.id,
+      descripcion: "La consulta se retrasó casi una hora y la jornada se alargó más de lo previsto.",
+      prioridad: "BAJA",
+      estado: "RESUELTA",
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Incidencia", estadoAnterior: "NUEVA", estadoNuevo: "RESUELTA", motivo: "Hablado con la hija: conforme con las horas de más (seed)", incidenciaId: incidenciaResuelta.id });
+
+  const incidenciaSalud = await prisma.incidencia.create({
+    data: {
+      codigo: await generarCodigo("incidencia"),
+      tipo: "GENERAL",
+      motivo: "SALUD",
+      servicioId: servicioManuel.id,
+      descripcion: "Manuel ha tenido un mareo al levantarse del sofá. No se ha caído, pero conviene avisar al médico.",
+      prioridad: "ALTA",
+      estado: "EN_REVISION",
+    },
+  });
+  await registrarHistorial({ entidadTipo: "Incidencia", estadoAnterior: "NUEVA", estadoNuevo: "EN_REVISION", motivo: "Avisado el hijo; pendiente de hablar con el centro de salud (seed)", incidenciaId: incidenciaSalud.id });
+
   // 13. Notificación de seguimiento para la familia (etapa 7)
   await prisma.notificacion.create({
     data: {
@@ -647,11 +1033,16 @@ async function main() {
   console.log(`  ${solicitud4.codigo}  Finalizada (VALIDADO) con factura ${factura.codigo} generada`);
   console.log(`  ${solicitud5.codigo}  Con incidencia abierta (${incidencia5.codigo})`);
   console.log(`  ${solicitud6.codigo}  Recurrente e indefinida (acompañamiento diario)`);
+  console.log(`  ${solicitudManuel.codigo}  Manuel · recurrente de tardes con Rosa (empresa colaboradora)`);
+  console.log(`  ${solicitudDolores.codigo}  Dolores · acompañamiento con Javier, por verificar`);
+  console.log(`  ${solicitudAmadeo.codigo}  Amadeo · sin profesional, con un candidato interesado`);
+  console.log(`  ${solicitudNueva.codigo}  Amadeo · recién enviada, sin revisar`);
   console.log("\nUsuarios demo (contraseña para todos: cuida2026):");
   console.log(`  Coordinadora   coordinadora@cuida.demo`);
-  console.log(`  Persona        herminia@cuida.demo`);
-  console.log(`  Familiar       hija.herminia@cuida.demo`);
-  console.log(`  Profesional    carmen.profesional@cuida.demo`);
+  console.log(`  Personas       herminia@cuida.demo · manuel@cuida.demo · dolores@cuida.demo · amadeo@cuida.demo`);
+  console.log(`  Familiares     hija.herminia@cuida.demo · hijo.manuel@cuida.demo · hija.dolores@cuida.demo`);
+  console.log(`  Profesionales  carmen.profesional@cuida.demo · rosa.profesional@cuida.demo · javier.profesional@cuida.demo`);
+  console.log(`                 nadia.profesional@cuida.demo (pendiente de verificar)`);
 }
 
 main()

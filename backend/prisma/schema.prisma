@@ -609,10 +609,25 @@ enum TipoIncidencia {
   SOLICITUD_CANCELACION
 }
 
+enum MotivoIncidencia {
+  SALUD // caída, malestar, un susto
+  ACCESO // no se puede entrar: llaves, portal, nadie abre
+  AUSENCIA // el profesional o la persona no estaban
+  RETRASO
+  TRATO // desacuerdo o queja sobre el trato
+  MATERIAL // falta material o algo está estropeado
+  HORARIO // cambio o confusión de horario
+  OTRO
+}
+
 model Incidencia {
-  id          String              @id @default(cuid())
-  codigo      String              @unique // INC-000045
-  tipo        TipoIncidencia      @default(GENERAL)
+  id     String         @id @default(cuid())
+  codigo String         @unique // INC-000045
+  tipo   TipoIncidencia @default(GENERAL)
+  // Motivo: de qué va la incidencia, en una palabra. Es lo que permite
+  // agrupar y filtrar ("¿cuántas caídas llevamos este mes?"); la descripción
+  // cuenta el caso concreto y no se puede agrupar por ella.
+  motivo      MotivoIncidencia @default(OTRO)
   descripcion String
   prioridad   PrioridadIncidencia @default(MEDIA)
   estado      EstadoIncidencia    @default(NUEVA)

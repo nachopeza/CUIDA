@@ -40,6 +40,7 @@ import { ServiciosTab } from "./coordinador/ServiciosTab.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
 import { SolicitudFichaModal } from "../components/SolicitudFichaModal.js";
 import { IncidenciaFichaModal } from "./coordinador/IncidenciaFichaModal.js";
+import { IncidenciasTab } from "./coordinador/IncidenciasTab.js";
 import type { EmpresaColaboradora, Incidencia, Necesidad, Persona, Profesional, Servicio, Solicitud } from "../lib/types.js";
 
 type Tab = "escritorio" | "solicitudes" | "servicios" | "incidencias" | "personas" | "profesionales" | "empresas" | "calendario" | "facturacion" | "actividad";
@@ -62,12 +63,6 @@ const NAV: { key: Tab; label: string; icon: typeof IconHome }[] = [
 // corte transversal "tiene una incidencia abierta".
 type Filtro = null | ClaveEstado | "con_incidencia";
 
-// Incidencia como ticket (sección "incidencia puede ser un ticket"): número
-// de ticket, franja de color por prioridad y mini-pipeline del estado, en
-// vez de una tarjeta genérica indistinguible de las demás.
-const PIPELINE_INCIDENCIA = ["NUEVA", "EN_REVISION", "ASIGNADA", "EN_RESOLUCION", "RESUELTA", "CERRADA"];
-const PRIORIDAD_BORDE: Record<string, string> = { ALTA: "border-l-rose-500", MEDIA: "border-l-amber-400", BAJA: "border-l-slate-300" };
-
 export function CoordinadorPage() {
   const { token } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -77,9 +72,6 @@ export function CoordinadorPage() {
   const [tipoFiltro, setTipoFiltro] = useState("");
   const [profesionalFiltro, setProfesionalFiltro] = useState("");
   const [busquedaSolicitudes, setBusquedaSolicitudes] = useState("");
-  const [busquedaIncidencias, setBusquedaIncidencias] = useState("");
-  const [prioridadFiltro, setPrioridadFiltro] = useState("");
-  const [incidenciaEstadoFiltro, setIncidenciaEstadoFiltro] = useState("");
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [profesionales, setProfesionales] = useState<Profesional[]>([]);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
@@ -261,16 +253,6 @@ export function CoordinadorPage() {
     );
   }
 
-  const incidenciasFiltradas = useMemo(() => {
-    const q = busquedaIncidencias.trim().toLowerCase();
-    return incidencias.filter((i) => {
-      if (prioridadFiltro && i.prioridad !== prioridadFiltro) return false;
-      if (incidenciaEstadoFiltro === "abiertas" && ["RESUELTA", "CERRADA"].includes(i.estado)) return false;
-      if (incidenciaEstadoFiltro && incidenciaEstadoFiltro !== "abiertas" && i.estado !== incidenciaEstadoFiltro) return false;
-      if (q && !`${i.codigo} ${i.descripcion} ${i.servicio?.solicitud?.persona.nombre ?? ""}`.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [incidencias, prioridadFiltro, incidenciaEstadoFiltro, busquedaIncidencias]);
 
   const tituloTab = NAV.find((n) => n.key === tab)?.label ?? "";
 
@@ -607,103 +589,14 @@ export function CoordinadorPage() {
         {tab === "servicios" && <ServiciosTab />}
 
         {tab === "incidencias" && (
-          <div>
-            {incidencias.length > 0 && (
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <SearchBox value={busquedaIncidencias} onChange={setBusquedaIncidencias} placeholder="Buscar por código, descripción o persona…" className="flex-1 sm:max-w-xs" />
-                <select value={prioridadFiltro} onChange={(e) => setPrioridadFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-2 text-xs">
-                  <option value="">Todas las prioridades</option>
-                  <option value="ALTA">Alta</option>
-                  <option value="MEDIA">Media</option>
-                  <option value="BAJA">Baja</option>
-                </select>
-                <select value={incidenciaEstadoFiltro} onChange={(e) => setIncidenciaEstadoFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-2 text-xs">
-                  <option value="">Todos los estados</option>
-                  <option value="abiertas">Solo abiertas</option>
-                  {PIPELINE_INCIDENCIA.map((e) => (
-                    <option key={e} value={e}>
-                      {e.replace(/_/g, " ")}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {incidenciasFiltradas.length > 0 && (
-              <ExportarBarra
-                total={incidenciasFiltradas.length}
-                seleccionadas={0}
-                onExportar={() =>
-                  exportarCSV(
-                    incidenciasFiltradas,
-                    [
-                      { encabezado: "Código", valor: (i) => i.codigo },
-                      { encabezado: "Descripción", valor: (i) => i.descripcion },
-                      { encabezado: "Prioridad", valor: (i) => i.prioridad },
-                      { encabezado: "Estado", valor: (i) => i.estado },
-                      { encabezado: "Persona", valor: (i) => i.servicio?.solicitud?.persona.nombre },
-                    ],
-                    "incidencias",
-                  )
-                }
-              />
-            )}
-            {incidenciasFiltradas.length === 0 && <p className="text-sm text-slate-500">Sin incidencias que mostrar.</p>}
-            {incidenciasFiltradas.map((i) => {
-              const esCancelacion = i.tipo === "SOLICITUD_CANCELACION";
-              const pendiente = !["RESUELTA", "CERRADA"].includes(i.estado);
-              const paso = PIPELINE_INCIDENCIA.indexOf(i.estado);
-              return (
-                <div
-                  key={i.id}
-                  className={`mb-3 rounded-lg border border-l-4 border-slate-200 bg-white p-4 ${PRIORIDAD_BORDE[i.prioridad] ?? "border-l-slate-300"}`}
-                >
-                  <div className="mb-2 flex items-center justify-between">
-                    <button onClick={() => setIncidenciaFichaAbierta(i.id)} className="text-left hover:underline">
-                      <p className="font-medium">
-                        <span className="text-slate-400">🎫 {i.codigo}</span> {esCancelacion && "🚫 "}
-                        {i.descripcion}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        prioridad {i.prioridad.toLowerCase()}
-                        {i.servicio?.solicitud && ` · ${i.servicio.solicitud.persona.nombre} · ${i.servicio.solicitud.necesidad.nombre}`}
-                      </p>
-                    </button>
-                    <EstadoBadge estado={i.estado} />
-                  </div>
-
-                  {paso >= 0 && (
-                    <div className="mb-3 flex items-center gap-1" title={PIPELINE_INCIDENCIA.map((e) => e.replace(/_/g, " ")).join(" → ")}>
-                      {PIPELINE_INCIDENCIA.map((estado, idx) => (
-                        <span key={estado} className={`h-1.5 flex-1 rounded-full ${idx <= paso ? "bg-slate-400" : "bg-slate-100"}`} />
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-2">
-                    {esCancelacion && pendiente && (
-                      <>
-                        <button
-                          onClick={() => i.servicioId && confirmarCancelacion(i.servicioId)}
-                          className="rounded-md bg-rose-600 px-3 py-1 text-xs font-medium text-white hover:bg-rose-700"
-                        >
-                          Confirmar cancelación
-                        </button>
-                        <button
-                          onClick={() => i.servicioId && rechazarCancelacion(i.servicioId)}
-                          className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100"
-                        >
-                          Seguir con el servicio
-                        </button>
-                      </>
-                    )}
-                    <button onClick={() => setIncidenciaFichaAbierta(i.id)} className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100">
-                      Abrir ficha
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <IncidenciasTab
+            incidencias={incidencias}
+            servicios={servicios}
+            onAbrirFicha={setIncidenciaFichaAbierta}
+            onConfirmarCancelacion={confirmarCancelacion}
+            onRechazarCancelacion={rechazarCancelacion}
+            onCambiado={cargar}
+          />
         )}
 
         {tab === "personas" && <PersonasTab onAbrirFicha={abrirPersona} refreshKey={personasRefreshKey} />}

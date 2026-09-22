@@ -1,3 +1,5 @@
+import type { MotivoIncidencia } from "./incidencias.js";
+
 export interface CuentaResumen {
   id: string;
   email: string;
@@ -123,6 +125,9 @@ export interface Incidencia {
   id: string;
   codigo: string;
   tipo?: "GENERAL" | "SOLICITUD_CANCELACION";
+  // De qué va la incidencia, en una palabra: es por lo que se agrupa y se
+  // filtra. La descripción cuenta el caso, el motivo lo clasifica.
+  motivo?: MotivoIncidencia;
   descripcion: string;
   prioridad: string;
   estado: string;

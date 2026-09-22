@@ -4,6 +4,7 @@ import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { Cronometro } from "../components/Cronometro.js";
+import { TiempoTrabajadoModal } from "../components/TiempoTrabajadoModal.js";
 import { ConversacionesPanel } from "../components/ConversacionesPanel.js";
 import { BuscarSolicitudesTab } from "./profesional/BuscarSolicitudesTab.js";
 import { MiPerfilTab } from "./profesional/MiPerfilTab.js";
@@ -29,7 +30,8 @@ export function ProfesionalPage() {
   const [profesional, setProfesional] = useState<Profesional | null>(null);
   const [visitas, setVisitas] = useState<Visita[]>([]);
   const [propuestas, setPropuestas] = useState<Servicio[]>([]);
-  const [observaciones, setObservaciones] = useState<Record<string, string>>({});
+  // La jornada que se está cerrando: cerrar obliga a confirmar el tiempo.
+  const [cerrando, setCerrando] = useState<Visita | null>(null);
   const [perfilAbierto, setPerfilAbierto] = useState<string | null>(null);
   const [notaAbierta, setNotaAbierta] = useState<string | null>(null);
   const [notaTexto, setNotaTexto] = useState("");
@@ -63,9 +65,8 @@ export function ProfesionalPage() {
     await cargar();
   }
 
-  async function finalizar(id: string) {
-    await api.post(`/visitas/${id}/finalizar`, { observacion: observaciones[id] || undefined }, token);
-    setObservaciones((prev) => ({ ...prev, [id]: "" }));
+  async function finalizar(id: string, datos: { horaInicio: string; horaFin: string; observacion?: string }) {
+    await api.post(`/visitas/${id}/finalizar`, datos, token);
     await cargar();
   }
 
@@ -321,18 +322,12 @@ export function ProfesionalPage() {
                     </button>
                   )}
                   {v.estado === "EN_CURSO" && (
-                    <div className="flex w-full flex-col gap-2 sm:flex-row">
-                      <input
-                        type="text"
-                        placeholder="Observación (opcional)"
-                        value={observaciones[v.id] ?? ""}
-                        onChange={(e) => setObservaciones((prev) => ({ ...prev, [v.id]: e.target.value }))}
-                        className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
-                      />
-                      <button onClick={() => finalizar(v.id)} className="rounded-md bg-brand-green-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-green-800">
-                        ⏹ He terminado — parar el tiempo
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setCerrando(v)}
+                      className="rounded-md bg-brand-green-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-green-800"
+                    >
+                      ⏹ He terminado — confirmar el tiempo
+                    </button>
                   )}
                   {v.estado === "FINALIZADA" && <span className="text-xs text-slate-400">Enviada a coordinación para verificar</span>}
                   {v.estado === "REVISADA" && <span className="text-xs text-brand-green-600">Verificada y archivada</span>}
@@ -341,6 +336,23 @@ export function ProfesionalPage() {
             );
           })}
         </>
+      )}
+
+      {/* Cerrar la tarea pasa por confirmar el tiempo. La hora de fin que se
+          propone es la de ahora mismo, porque es cuando se está cerrando. */}
+      {cerrando && (
+        <TiempoTrabajadoModal
+          titulo="¿Cuánto ha durado?"
+          explicacion="Se cerrará la tarea y pasará a coordinación para que la verifique. Este tiempo es el que se factura."
+          etiquetaConfirmar="Cerrar la tarea"
+          inicioSugerido={cerrando.horaInicioReal}
+          finSugerido={new Date().toISOString()}
+          horaInicioProg={cerrando.horaInicioProg}
+          horaFinProg={cerrando.horaFinProg}
+          conObservacion
+          onConfirmar={(datos) => finalizar(cerrando.id, datos)}
+          onClose={() => setCerrando(null)}
+        />
       )}
     </div>
   );

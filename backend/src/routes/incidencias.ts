@@ -10,9 +10,12 @@ import { validaciones, registrarHistorial, TransicionInvalidaError } from "../se
 export const incidenciasRouter = Router();
 incidenciasRouter.use(autenticar);
 
+const MOTIVOS = ["SALUD", "ACCESO", "AUSENCIA", "RETRASO", "TRATO", "MATERIAL", "HORARIO", "OTRO"] as const;
+
 const crearSchema = z.object({
   visitaId: z.string().optional(),
   servicioId: z.string().optional(),
+  motivo: z.enum(MOTIVOS).default("OTRO"),
   descripcion: z.string().min(1),
   prioridad: z.enum(["BAJA", "MEDIA", "ALTA"]).default("MEDIA"),
 });
@@ -54,6 +57,7 @@ incidenciasRouter.post("/", async (req, res) => {
       codigo,
       visitaId: parsed.data.visitaId,
       servicioId: parsed.data.servicioId,
+      motivo: parsed.data.motivo,
       descripcion: parsed.data.descripcion,
       prioridad: parsed.data.prioridad,
       estado: "NUEVA",
@@ -64,7 +68,7 @@ incidenciasRouter.post("/", async (req, res) => {
     entidadTipo: "Incidencia",
     estadoAnterior: "NUEVA",
     estadoNuevo: "NUEVA",
-    motivo: "Creación",
+    motivo: `Creación · ${parsed.data.motivo}`,
     incidenciaId: incidencia.id,
   });
 
@@ -230,4 +234,36 @@ incidenciasRouter.post("/:id/nota", async (req, res) => {
   });
 
   res.status(201).json({ ok: true });
+});
+
+// Borrado en bloque desde el listado, como en el resto de ventanas. Una
+// incidencia de cancelación no se borra: es la petición de la familia y su
+// rastro, y borrarla dejaría el servicio esperando una respuesta que ya nadie
+// va a dar. Para esas, el camino es resolverla o rechazarla.
+incidenciasRouter.delete("/:id", async (req, res) => {
+  const { incidencia, permitido } = await cargarIncidenciaConPermiso(req.params.id, req.usuario!);
+  if (!incidencia) return res.status(404).json({ error: "No encontrada" });
+  if (!permitido || !esGestorOrganizacion(req.usuario!)) return res.status(403).json({ error: "Sin permiso" });
+
+  if (incidencia.tipo === "SOLICITUD_CANCELACION") {
+    return res.status(409).json({
+      error: `${incidencia.codigo} es una petición de cancelación de la familia: confírmala o recházala, no se borra`,
+    });
+  }
+
+  await prisma.$transaction([
+    prisma.estadoHistorial.deleteMany({ where: { incidenciaId: incidencia.id } }),
+    prisma.incidencia.delete({ where: { id: incidencia.id } }),
+  ]);
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: req.usuario!.organizacionId,
+    accion: "eliminar_incidencia",
+    entidadTipo: "Incidencia",
+    entidadId: incidencia.id,
+    detalle: incidencia.codigo,
+  });
+
+  res.status(204).end();
 });

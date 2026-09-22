@@ -7,6 +7,7 @@ import { registrarAuditoria } from "../services/audit.js";
 import { esGestorOrganizacion, puedeVerImportes, ocultarTarifaSiProcede } from "../services/permisos.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
+import { asegurarSesiones } from "../services/sesiones.js";
 
 export const serviciosRouter = Router();
 serviciosRouter.use(autenticar);
@@ -335,11 +336,29 @@ serviciosRouter.post("/:id/reemplazar-profesional", requiereRol("COORDINADOR", "
     include: INCLUDE_SERVICIO,
   });
 
+  // El snapshot congela quién hizo el trabajo, no quién lo va a hacer: las
+  // jornadas ya empezadas o cerradas siguen contando para el profesional
+  // anterior (su facturación no se toca), pero las que aún no han empezado
+  // pasan al sustituto. Si no, el nuevo profesional no veía en su agenda los
+  // días que le tocaban y el escritorio seguía anunciando al que se fue.
+  const traspasadas = await prisma.visita.updateMany({
+    where: {
+      servicioId: servicio.id,
+      estado: { in: ["PROGRAMADA", "CONFIRMADA"] },
+      horaInicioReal: null,
+    },
+    data: { profesionalId: profesional.id },
+  });
+
   await registrarHistorial({
     entidadTipo: "Servicio",
     estadoAnterior: servicio.estado,
     estadoNuevo: servicio.estado,
-    motivo: `Reemplazo de profesional: ${anterior?.codigo ?? "sin asignar"} → ${profesional.codigo}`,
+    motivo:
+      `Reemplazo de profesional: ${anterior?.codigo ?? "sin asignar"} → ${profesional.codigo}` +
+      (traspasadas.count > 0
+        ? `. ${traspasadas.count} jornada(s) sin empezar pasan al nuevo profesional; las ya trabajadas siguen contando para ${anterior?.codigo ?? "el anterior"}`
+        : ""),
     servicioId: servicio.id,
   });
 
@@ -390,6 +409,21 @@ serviciosRouter.post("/:id/aceptar", requiereRol("PROFESIONAL"), async (req, res
     motivo: "Aceptado por el profesional",
     servicioId: servicio.id,
   });
+
+  // El servicio ya trae sus días y sus horas en el plan: la jornada sale de
+  // ahí sola. Antes había que ir a la ficha a "programar una visita" para un
+  // servicio que ya decía cuándo era, y si nadie lo hacía el servicio se
+  // quedaba confirmado pero sin nada en la agenda.
+  const sesiones = await asegurarSesiones(servicio.id);
+  if (sesiones.creadas.length > 0) {
+    await registrarHistorial({
+      entidadTipo: "Servicio",
+      estadoAnterior: "CONFIRMADO",
+      estadoNuevo: "CONFIRMADO",
+      motivo: `Jornada ${sesiones.creadas.join(", ")} creada automáticamente desde el plan`,
+      servicioId: servicio.id,
+    });
+  }
 
   await registrarAuditoria({
     usuarioId: req.usuario!.sub,
@@ -500,6 +534,22 @@ serviciosRouter.post("/:id/estado", async (req, res) => {
     entidadId: servicio.id,
     detalle: `${servicio.estado} → ${parsed.data.estado}`,
   });
+
+  // Si coordinación mueve el servicio a mano hasta confirmado o en curso, la
+  // jornada también sale sola: el camino largo y el atajo dejan el servicio
+  // en el mismo sitio.
+  if (["CONFIRMADO", "EN_CURSO"].includes(parsed.data.estado)) {
+    const sesiones = await asegurarSesiones(servicio.id);
+    if (sesiones.creadas.length > 0) {
+      await registrarHistorial({
+        entidadTipo: "Servicio",
+        estadoAnterior: parsed.data.estado,
+        estadoNuevo: parsed.data.estado,
+        motivo: `Jornada ${sesiones.creadas.join(", ")} creada automáticamente desde el plan`,
+        servicioId: servicio.id,
+      });
+    }
+  }
 
   res.json(actualizado);
 });

@@ -6,9 +6,43 @@ import { registrarAuditoria } from "../services/audit.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError, TRANSICIONES_SERVICIO } from "../services/estados.js";
 import { notificarGestores } from "../services/notificaciones.js";
 import { esGestorOrganizacion, ocultarTarifaSiProcede } from "../services/permisos.js";
+import { asegurarSesiones } from "../services/sesiones.js";
 
 export const visitasRouter = Router();
 visitasRouter.use(autenticar);
+
+const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// Jornada máxima admisible. No es una regla laboral, es un cortafuegos: sin
+// ella un dedazo ("09:00" en vez de "19:00" al cerrar) se convierte en horas
+// facturadas que nadie revisa.
+const MAX_HORAS_JORNADA = 16;
+
+// El tiempo trabajado se guarda como dos marcas absolutas, pero se introduce
+// como dos horas del día de la visita. Si la hora de fin es anterior a la de
+// inicio es un turno de noche, así que cae al día siguiente.
+function marcasDeTiempo(fecha: Date, horaInicio: string, horaFin: string) {
+  const [hi, mi] = horaInicio.split(":").map(Number);
+  const [hf, mf] = horaFin.split(":").map(Number);
+
+  const inicio = new Date(fecha);
+  inicio.setHours(hi, mi, 0, 0);
+  const fin = new Date(fecha);
+  fin.setHours(hf, mf, 0, 0);
+  if (fin <= inicio) fin.setDate(fin.getDate() + 1);
+
+  const horas = (fin.getTime() - inicio.getTime()) / 3600000;
+  return { inicio, fin, horas };
+}
+
+// Devuelve el mensaje de error, o null si el tiempo es admisible.
+function revisarTiempo(horaInicio: string, horaFin: string, horas: number): string | null {
+  if (horaInicio === horaFin) return "La hora de inicio y la de fin no pueden ser la misma: el servicio tiene que haber durado algo";
+  if (horas > MAX_HORAS_JORNADA) {
+    return `El tiempo indicado son ${horas.toFixed(1)} h, más de ${MAX_HORAS_JORNADA} h seguidas. Revisa las horas: si de verdad fue así, pártelo en dos jornadas`;
+  }
+  return null;
+}
 
 async function cargarVisitaConPermiso(req: Request<{ id: string }>) {
   const visita = await prisma.visita.findUnique({
@@ -74,7 +108,15 @@ visitasRouter.post("/:id/iniciar", async (req, res) => {
   res.json(actualizada);
 });
 
-const finalizarSchema = z.object({ observacion: z.string().optional() });
+// Cerrar una tarea obliga a decir cuánto ha durado. El cronómetro propone las
+// horas, pero quien cierra las confirma: si nadie las confirmaba, una visita
+// podía llegar a facturación con cero horas y nadie se enteraba hasta ver la
+// factura.
+const finalizarSchema = z.object({
+  horaInicio: z.string().regex(HORA, "Indica la hora de inicio en formato HH:MM"),
+  horaFin: z.string().regex(HORA, "Indica la hora de fin en formato HH:MM"),
+  observacion: z.string().optional(),
+});
 
 visitasRouter.post("/:id/finalizar", async (req, res) => {
   const { visita, permitido } = await cargarVisitaConPermiso(req);
@@ -91,9 +133,13 @@ visitasRouter.post("/:id/finalizar", async (req, res) => {
     throw err;
   }
 
+  const { inicio, fin, horas } = marcasDeTiempo(visita.fecha, parsed.data.horaInicio, parsed.data.horaFin);
+  const problema = revisarTiempo(parsed.data.horaInicio, parsed.data.horaFin, horas);
+  if (problema) return res.status(400).json({ error: problema });
+
   const actualizada = await prisma.visita.update({
     where: { id: visita.id },
-    data: { estado: "FINALIZADA", horaFinReal: new Date() },
+    data: { estado: "FINALIZADA", horaInicioReal: inicio, horaFinReal: fin },
   });
 
   if (parsed.data.observacion) {
@@ -106,6 +152,7 @@ visitasRouter.post("/:id/finalizar", async (req, res) => {
     entidadTipo: "Visita",
     estadoAnterior: visita.estado,
     estadoNuevo: "FINALIZADA",
+    motivo: `${parsed.data.horaInicio}-${parsed.data.horaFin} · ${horas.toFixed(2)} h trabajadas`,
     visitaId: visita.id,
   });
 
@@ -125,6 +172,55 @@ visitasRouter.post("/:id/finalizar", async (req, res) => {
     `La visita ${visita.codigo} ha finalizado. Verifícala con la persona o su familia antes de archivarla.`,
     visita.servicio.solicitudId,
   );
+
+  res.json(actualizada);
+});
+
+const tiempoSchema = z.object({
+  horaInicio: z.string().regex(HORA, "Indica la hora de inicio en formato HH:MM"),
+  horaFin: z.string().regex(HORA, "Indica la hora de fin en formato HH:MM"),
+  motivo: z.string().optional(),
+});
+
+// Corregir el tiempo de una visita ya cerrada. Pasa cuando el profesional se
+// olvidó de parar el cronómetro o lo apuntó mal, y coordinación lo detecta al
+// verificar o al repasar el mes. Una vez la visita está en una factura ya no
+// se toca: habría que rectificar la factura, no el dato de origen.
+visitasRouter.patch("/:id/tiempo", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const visita = await prisma.visita.findUnique({ where: { id: req.params.id }, include: { servicio: true } });
+  if (!visita) return res.status(404).json({ error: "No encontrada" });
+  if (visita.servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+  if (visita.facturaId) {
+    return res.status(409).json({ error: "Esta visita ya está facturada; para cambiar sus horas hay que rectificar la factura" });
+  }
+
+  const parsed = tiempoSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const { inicio, fin, horas } = marcasDeTiempo(visita.fecha, parsed.data.horaInicio, parsed.data.horaFin);
+  const problema = revisarTiempo(parsed.data.horaInicio, parsed.data.horaFin, horas);
+  if (problema) return res.status(400).json({ error: problema });
+
+  const actualizada = await prisma.visita.update({
+    where: { id: visita.id },
+    data: { horaInicioReal: inicio, horaFinReal: fin },
+  });
+
+  await registrarHistorial({
+    entidadTipo: "Visita",
+    estadoAnterior: visita.estado,
+    estadoNuevo: visita.estado,
+    motivo: `Tiempo corregido a ${parsed.data.horaInicio}-${parsed.data.horaFin} (${horas.toFixed(2)} h)${parsed.data.motivo ? `: ${parsed.data.motivo}` : ""}`,
+    visitaId: visita.id,
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: visita.servicio.organizacionId,
+    accion: "corregir_tiempo_visita",
+    entidadTipo: "Visita",
+    entidadId: visita.id,
+  });
 
   res.json(actualizada);
 });
@@ -175,10 +271,20 @@ visitasRouter.post("/:id/actuaciones", async (req, res) => {
 // Coordinación verifica con la familia que todo fue bien y archiva la
 // visita (sección Profesional: "lo verifican... y ya se verifica y
 // archiva"). Solo gestores; el profesional no se autoverifica.
+// Coordinación puede rellenar aquí el tiempo si falta (una visita cargada a
+// mano, un cierre antiguo), pero no puede verificar sin él.
+const revisarSchema = z.object({
+  horaInicio: z.string().regex(HORA).optional(),
+  horaFin: z.string().regex(HORA).optional(),
+});
+
 visitasRouter.post("/:id/revisar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
   const visita = await prisma.visita.findUnique({ where: { id: req.params.id }, include: { servicio: true } });
   if (!visita) return res.status(404).json({ error: "No encontrada" });
   if (visita.servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+
+  const parsed = revisarSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   try {
     validaciones.visita(visita.estado, "REVISADA");
@@ -187,13 +293,31 @@ visitasRouter.post("/:id/revisar", requiereRol("COORDINADOR", "ORGANIZACION", "A
     throw err;
   }
 
-  const actualizada = await prisma.visita.update({ where: { id: visita.id }, data: { estado: "REVISADA" } });
+  // Verificar es el último punto en el que alguien mira la visita antes de
+  // que se convierta en dinero. Una visita sin horas facturaba cero y salía
+  // de aquí sin que nadie lo notara.
+  const tiempo: { horaInicioReal?: Date; horaFinReal?: Date } = {};
+  let notaTiempo = "";
+  if (parsed.data.horaInicio && parsed.data.horaFin) {
+    const { inicio, fin, horas } = marcasDeTiempo(visita.fecha, parsed.data.horaInicio, parsed.data.horaFin);
+    const problema = revisarTiempo(parsed.data.horaInicio, parsed.data.horaFin, horas);
+    if (problema) return res.status(400).json({ error: problema });
+    tiempo.horaInicioReal = inicio;
+    tiempo.horaFinReal = fin;
+    notaTiempo = ` · tiempo corregido por coordinación a ${parsed.data.horaInicio}-${parsed.data.horaFin} (${horas.toFixed(2)} h)`;
+  } else if (!visita.horaInicioReal || !visita.horaFinReal) {
+    return res.status(409).json({
+      error: "Esta visita no tiene registrado el tiempo trabajado. Indica a qué hora empezó y terminó antes de verificarla: es lo que se factura",
+    });
+  }
+
+  const actualizada = await prisma.visita.update({ where: { id: visita.id }, data: { estado: "REVISADA", ...tiempo } });
 
   await registrarHistorial({
     entidadTipo: "Visita",
     estadoAnterior: visita.estado,
     estadoNuevo: "REVISADA",
-    motivo: "Verificada con la persona/familia",
+    motivo: `Verificada con la persona/familia${notaTiempo}`,
     visitaId: visita.id,
   });
 
@@ -235,6 +359,23 @@ visitasRouter.post("/:id/revisar", requiereRol("COORDINADOR", "ORGANIZACION", "A
         });
         estadoActual = siguiente;
       }
+    }
+  }
+
+  // Un servicio recurrente no se cierra al verificar una jornada: genera la
+  // siguiente. Así el contrato queda siempre con un día por delante en la
+  // agenda sin que nadie tenga que ir pidiéndolos uno a uno, que era lo que
+  // convertía "servicio" y "visita" en dos cosas distintas de gestionar.
+  if (servicioActualizado?.tipoServicio === "RECURRENTE") {
+    const sesiones = await asegurarSesiones(servicioActualizado.id);
+    if (sesiones.creadas.length > 0) {
+      await registrarHistorial({
+        entidadTipo: "Servicio",
+        estadoAnterior: servicioActualizado.estado,
+        estadoNuevo: servicioActualizado.estado,
+        motivo: `Siguiente jornada ${sesiones.creadas.join(", ")} creada automáticamente`,
+        servicioId: servicioActualizado.id,
+      });
     }
   }
 

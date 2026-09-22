@@ -4,6 +4,7 @@ import { api } from "../../lib/api.js";
 import { ActividadFeed } from "./ActividadTab.js";
 import { CargaTrabajo } from "./CargaTrabajo.js";
 import { Cronometro, horasTrabajadas } from "../../components/Cronometro.js";
+import { TiempoTrabajadoModal } from "../../components/TiempoTrabajadoModal.js";
 import { IconAlert, IconBriefcase, IconCalendar, IconClipboard, IconReceipt, IconUsers } from "../../components/icons.js";
 import { ICONOS_NECESIDAD } from "../../lib/necesidadIconos.js";
 import type { Factura, Incidencia, Profesional, Servicio, Solicitud, Visita } from "../../lib/types.js";
@@ -86,6 +87,8 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const [ahora, setAhora] = useState(() => Date.now());
   const [refrescando, setRefrescando] = useState(false);
   const [verificando, setVerificando] = useState<string | null>(null);
+  // Jornada a la que hay que ponerle el tiempo antes de poder verificarla.
+  const [pidiendoTiempo, setPidiendoTiempo] = useState<FilaAgenda | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const cargarPropios = useCallback(async () => {
@@ -123,17 +126,23 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
     }
   }
 
-  // Verificar una visita finalizada sin salir del escritorio: es el paso que
-  // más veces al día repite coordinación y obligaba a ir al calendario,
-  // abrir la visita y volver.
-  async function verificar(visitaId: string) {
-    setVerificando(visitaId);
+  // Verificar una jornada sin salir del escritorio: es el paso que más veces
+  // al día repite coordinación y obligaba a ir al calendario, abrir la visita
+  // y volver. Si le falta el tiempo trabajado no se puede verificar a ciegas
+  // —se facturaría a cero—, así que primero se pide.
+  async function verificar(fila: FilaAgenda) {
+    const { visita } = fila;
+    if (!visita.horaInicioReal || !visita.horaFinReal) {
+      setPidiendoTiempo(fila);
+      return;
+    }
+    setVerificando(visita.id);
     setError(null);
     try {
-      await api.post(`/visitas/${visitaId}/revisar`, {}, token);
+      await api.post(`/visitas/${visita.id}/revisar`, {}, token);
       await refrescar();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se ha podido verificar la visita");
+      setError(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido verificar la jornada");
     } finally {
       setVerificando(null);
     }
@@ -410,7 +419,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                           <Cronometro inicio={visita.horaInicioReal} fin={visita.horaFinReal} />
                         ) : visita.estado === "FINALIZADA" ? (
                           <button
-                            onClick={() => verificar(visita.id)}
+                            onClick={() => verificar({ visita, servicio })}
                             disabled={verificando === visita.id}
                             className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700 transition hover:bg-orange-200 disabled:opacity-60"
                           >
@@ -487,11 +496,17 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                       <p className="truncate text-sm text-slate-800">{nombrePersona(servicio)}</p>
                       <p className="text-xs text-slate-400">
                         {new Date(visita.fecha).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })} ·{" "}
-                        {horasTrabajadas(visita.horaInicioReal, visita.horaFinReal).toFixed(1)} h trabajadas
+                        {/* Sin tiempo registrado no se dice "0,0 h": eso se lee
+                            como un dato, y lo que pasa es que falta. */}
+                        {visita.horaInicioReal && visita.horaFinReal ? (
+                          `${horasTrabajadas(visita.horaInicioReal, visita.horaFinReal).toFixed(1)} h trabajadas`
+                        ) : (
+                          <span className="font-medium text-amber-600">sin tiempo registrado</span>
+                        )}
                       </p>
                     </div>
                     <button
-                      onClick={() => verificar(visita.id)}
+                      onClick={() => verificar({ visita, servicio })}
                       disabled={verificando === visita.id}
                       className="shrink-0 rounded-md border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white disabled:opacity-60"
                     >
@@ -608,6 +623,24 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
           )}
         </div>
       </div>
+
+      {pidiendoTiempo && (
+        <TiempoTrabajadoModal
+          titulo="¿Cuánto duró esta jornada?"
+          explicacion={`${nombrePersona(pidiendoTiempo.servicio)} · ${new Date(pidiendoTiempo.visita.fecha).toLocaleDateString("es-ES", {
+            day: "numeric",
+            month: "long",
+          })}. Nadie registró el tiempo, y es lo que se factura. Confírmalo para poder verificarla.`}
+          etiquetaConfirmar="Guardar y verificar"
+          horaInicioProg={pidiendoTiempo.visita.horaInicioProg}
+          horaFinProg={pidiendoTiempo.visita.horaFinProg}
+          onConfirmar={async ({ horaInicio, horaFin }) => {
+            await api.post(`/visitas/${pidiendoTiempo.visita.id}/revisar`, { horaInicio, horaFin }, token);
+            await refrescar();
+          }}
+          onClose={() => setPidiendoTiempo(null)}
+        />
+      )}
 
       <section>
         <div className="mb-2 flex items-center justify-between">

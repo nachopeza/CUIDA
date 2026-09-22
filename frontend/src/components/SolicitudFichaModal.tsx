@@ -4,12 +4,13 @@ import { api } from "../lib/api.js";
 import { Modal } from "./Modal.js";
 import { EstadoBadge } from "./EstadoBadge.js";
 import { Cronometro, horasTrabajadas } from "./Cronometro.js";
+import { TiempoTrabajadoModal, formatearDuracion } from "./TiempoTrabajadoModal.js";
 import { PersonaDetalleModal } from "../pages/coordinador/PersonaDetalleModal.js";
 import { ProfesionalFormModal } from "../pages/coordinador/ProfesionalFormModal.js";
 import { IncidenciaFichaModal } from "../pages/coordinador/IncidenciaFichaModal.js";
 import { parsearDisponibilidad } from "../lib/disponibilidad.js";
 import { resumenDisponibilidad } from "./DisponibilidadPicker.js";
-import type { EmpresaColaboradora, Necesidad, Profesional, Solicitud } from "../lib/types.js";
+import type { EmpresaColaboradora, Necesidad, Profesional, Solicitud, Visita } from "../lib/types.js";
 
 // Espejo de TRANSICIONES_SERVICIO del backend (backend/src/services/estados.ts):
 // un desplegable solo debe ofrecer estados a los que realmente se pueda pasar
@@ -86,6 +87,8 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
     ivaPorcentaje: "",
   });
   const [nuevaVisita, setNuevaVisita] = useState({ fecha: "", horaInicio: "", horaFin: "", tareas: "" });
+  const [diaSueltoAbierto, setDiaSueltoAbierto] = useState(false);
+  const [pidiendoTiempo, setPidiendoTiempo] = useState<Visita | null>(null);
 
   async function cargar() {
     const [sol, necs, pros, emps] = await Promise.all([
@@ -231,8 +234,14 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
     await recargar();
   }
 
-  async function revisarVisita(visitaId: string) {
-    await api.post(`/visitas/${visitaId}/revisar`, {}, token);
+  // Sin tiempo trabajado no se verifica: se facturaría a cero. Si falta, se
+  // pide antes de dar el paso.
+  async function revisarVisita(visita: Visita) {
+    if (!visita.horaInicioReal || !visita.horaFinReal) {
+      setPidiendoTiempo(visita);
+      return;
+    }
+    await api.post(`/visitas/${visita.id}/revisar`, {}, token);
     await recargar();
   }
 
@@ -252,6 +261,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
       token,
     );
     setNuevaVisita({ fecha: "", horaInicio: "", horaFin: "", tareas: "" });
+    setDiaSueltoAbierto(false);
     await recargar();
   }
 
@@ -729,79 +739,113 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
 
             {srv.estado === "FINALIZADO" && (
               <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                El profesional ha terminado. Verifica las visitas abajo para cerrar el servicio.
+                El profesional ha terminado. Verifica la jornada abajo para cerrar el servicio.
               </p>
             )}
 
-            {/* Visitas: relevantes desde que hay profesional confirmado hasta
-                que se verifica el trabajo. */}
-            {["CONFIRMADO", "EN_CURSO", "FINALIZADO", "VALIDADO", "CERRADO"].includes(srv.estado) && (
-              <div>
-                <div className="mb-1 flex items-center justify-between">
-                  <p className="text-xs font-medium text-slate-500">Visitas</p>
-                  {(() => {
-                    const total = (srv.visitas ?? []).reduce((acc, v) => acc + horasTrabajadas(v.horaInicioReal, v.horaFinReal), 0);
-                    if (total === 0) return null;
-                    return <p className="text-xs text-slate-500">Tiempo total trabajado: <strong>{total.toFixed(2)} h</strong></p>;
-                  })()}
-                </div>
-                {srv.visitas && srv.visitas.length > 0 && (
-                  <ul className="mb-2 space-y-1">
-                    {srv.visitas.map((v) => (
-                      <li key={v.id} className="flex items-center justify-between rounded-md bg-slate-50 px-2 py-1.5 text-xs">
-                        <span>
-                          {new Date(v.fecha).toLocaleDateString("es-ES")} {v.horaInicioProg && `· ${v.horaInicioProg}-${v.horaFinProg}`}
-                          {v.profesional && <span className="text-slate-400"> · {v.profesional.nombre}</span>}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          {/* Tiempo real trabajado: es lo que se factura en
-                              los servicios recurrentes. */}
-                          <Cronometro inicio={v.horaInicioReal} fin={v.horaFinReal} />
-                          <EstadoBadge estado={v.estado} />
-                          {v.estado === "FINALIZADA" && (
-                            <button onClick={() => revisarVisita(v.id)} className="rounded-md border border-slate-300 px-2 py-0.5 hover:bg-slate-100">
-                              Verificar
-                            </button>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {["CONFIRMADO", "EN_CURSO"].includes(srv.estado) && (
-                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                    <input
-                      type="date"
-                      value={nuevaVisita.fecha}
-                      onChange={(e) => setNuevaVisita((v) => ({ ...v, fecha: e.target.value }))}
-                      className="rounded-md border border-slate-300 px-2 py-1.5"
-                    />
-                    <input
-                      type="time"
-                      value={nuevaVisita.horaInicio}
-                      onChange={(e) => setNuevaVisita((v) => ({ ...v, horaInicio: e.target.value }))}
-                      className="rounded-md border border-slate-300 px-2 py-1.5"
-                    />
-                    <input
-                      type="time"
-                      value={nuevaVisita.horaFin}
-                      onChange={(e) => setNuevaVisita((v) => ({ ...v, horaFin: e.target.value }))}
-                      className="rounded-md border border-slate-300 px-2 py-1.5"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Tareas, separadas por coma"
-                      value={nuevaVisita.tareas}
-                      onChange={(e) => setNuevaVisita((v) => ({ ...v, tareas: e.target.value }))}
-                      className="rounded-md border border-slate-300 px-2 py-1.5"
-                    />
-                    <button onClick={programarVisita} className="col-span-2 rounded-md border border-slate-300 px-2 py-1.5 hover:bg-slate-100 sm:col-span-4">
-                      Programar visita
-                    </button>
+            {/* El servicio y su jornada son la misma cosa, no dos que haya
+                que casar a mano: las jornadas salen del plan al confirmar y,
+                en un recurrente, la siguiente aparece sola al verificar la
+                anterior. Nadie "solicita una visita". */}
+            {["CONFIRMADO", "EN_CURSO", "FINALIZADO", "VALIDADO", "CERRADO"].includes(srv.estado) && (() => {
+              const jornadas = [...(srv.visitas ?? [])].sort((a, b) => a.fecha.localeCompare(b.fecha));
+              const recurrente = srv.tipoServicio === "RECURRENTE";
+              const totalHoras = jornadas.reduce((acc, v) => acc + horasTrabajadas(v.horaInicioReal, v.horaFinReal), 0);
+
+              return (
+                <div>
+                  <div className="mb-1.5 flex items-baseline justify-between">
+                    <p className="text-xs font-medium text-slate-500">{recurrente ? `Jornadas (${jornadas.length})` : "Cuándo se hace"}</p>
+                    {totalHoras > 0 && (
+                      <p className="text-xs text-slate-500">
+                        Trabajado: <strong className="text-slate-700">{formatearDuracion(totalHoras)}</strong>
+                      </p>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
+
+                  {jornadas.length === 0 ? (
+                    <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      Este servicio no tiene ninguna jornada en la agenda. Normalmente se crea sola al confirmarlo: revisa que el plan tenga fecha y
+                      horas, o añade un día abajo.
+                    </p>
+                  ) : (
+                    <ul className="mb-2 space-y-1">
+                      {jornadas.map((v) => (
+                        <li key={v.id} className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-2 py-1.5 text-xs">
+                          <span className="min-w-0">
+                            <span className="font-medium text-slate-700">
+                              {new Date(v.fecha).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}
+                            </span>
+                            {v.horaInicioProg && <span className="text-slate-500"> · {v.horaInicioProg}–{v.horaFinProg}</span>}
+                            {v.profesional && <span className="text-slate-400"> · {v.profesional.nombre}</span>}
+                          </span>
+                          <div className="flex shrink-0 items-center gap-2">
+                            {/* El tiempo real es lo que se factura, no el previsto. */}
+                            <Cronometro inicio={v.horaInicioReal} fin={v.horaFinReal} />
+                            <EstadoBadge estado={v.estado} />
+                            {v.estado === "FINALIZADA" && (
+                              <button onClick={() => revisarVisita(v)} className="rounded-md border border-slate-300 px-2 py-0.5 hover:bg-slate-100">
+                                Verificar
+                              </button>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {["CONFIRMADO", "EN_CURSO"].includes(srv.estado) && (
+                    <div>
+                      {/* Excepción, no el camino normal: un día extra que no
+                          sale de la recurrencia (una sustitución, un refuerzo
+                          puntual). Por eso está replegado. */}
+                      <button
+                        onClick={() => setDiaSueltoAbierto((v) => !v)}
+                        className="text-xs font-medium text-slate-400 hover:text-slate-600"
+                      >
+                        {diaSueltoAbierto ? "Cancelar" : "+ Añadir un día suelto"}
+                      </button>
+                      {diaSueltoAbierto && (
+                        <div className="mt-1.5 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                          <input
+                            type="date"
+                            value={nuevaVisita.fecha}
+                            onChange={(e) => setNuevaVisita((v) => ({ ...v, fecha: e.target.value }))}
+                            className="rounded-md border border-slate-300 px-2 py-1.5"
+                          />
+                          <input
+                            type="time"
+                            value={nuevaVisita.horaInicio}
+                            onChange={(e) => setNuevaVisita((v) => ({ ...v, horaInicio: e.target.value }))}
+                            className="rounded-md border border-slate-300 px-2 py-1.5"
+                          />
+                          <input
+                            type="time"
+                            value={nuevaVisita.horaFin}
+                            onChange={(e) => setNuevaVisita((v) => ({ ...v, horaFin: e.target.value }))}
+                            className="rounded-md border border-slate-300 px-2 py-1.5"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Tareas, separadas por coma"
+                            value={nuevaVisita.tareas}
+                            onChange={(e) => setNuevaVisita((v) => ({ ...v, tareas: e.target.value }))}
+                            className="rounded-md border border-slate-300 px-2 py-1.5"
+                          />
+                          <button
+                            onClick={programarVisita}
+                            disabled={!nuevaVisita.fecha}
+                            className="col-span-2 rounded-md border border-slate-300 px-2 py-1.5 hover:bg-slate-100 disabled:opacity-50 sm:col-span-4"
+                          >
+                            Añadir el día
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Tarifa/empresa: se puede fijar desde el principio, pero se
                 repliega para no competir por atención con la fase actual. */}
@@ -952,6 +996,25 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
 
       {incidenciaAbierta && (
         <IncidenciaFichaModal incidenciaId={incidenciaAbierta} onClose={() => setIncidenciaAbierta(null)} onChanged={recargar} />
+      )}
+
+      {pidiendoTiempo && (
+        <TiempoTrabajadoModal
+          titulo="¿Cuánto duró esta jornada?"
+          explicacion={`${new Date(pidiendoTiempo.fecha).toLocaleDateString("es-ES", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+          })}. Nadie registró el tiempo, y es lo que se factura. Confírmalo para poder verificarla.`}
+          etiquetaConfirmar="Guardar y verificar"
+          horaInicioProg={pidiendoTiempo.horaInicioProg}
+          horaFinProg={pidiendoTiempo.horaFinProg}
+          onConfirmar={async ({ horaInicio, horaFin }) => {
+            await api.post(`/visitas/${pidiendoTiempo.id}/revisar`, { horaInicio, horaFin }, token);
+            await recargar();
+          }}
+          onClose={() => setPidiendoTiempo(null)}
+        />
       )}
     </Modal>
   );
