@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
-import { ICONOS_NECESIDAD } from "../../lib/necesidadIconos.js";
+import { IconoNecesidad } from "../../lib/necesidadIconos.js";
 import { useSeleccion } from "../../lib/useSeleccion.js";
 import { exportarCSV } from "../../lib/csv.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
@@ -270,7 +270,7 @@ export function ServiciosTab() {
                     <input type="checkbox" checked={seleccion.ids.has(s.id)} onChange={() => seleccion.toggle(s.id)} />
                   </td>
                   <td className="px-4 py-2.5">
-                    <span className="mr-1.5">{ICONOS_NECESIDAD[s.codigo] ?? "❓"}</span>
+                    <IconoNecesidad codigo={s.codigo} className="mr-1.5 inline h-4 w-4 shrink-0 align-text-bottom text-slate-400" />
                     <span className="font-medium text-slate-800">{s.nombre}</span>
                     {s.descripcion && <span className="ml-1.5 text-xs text-slate-400">— {s.descripcion}</span>}
                   </td>

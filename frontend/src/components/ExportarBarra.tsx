@@ -1,3 +1,5 @@
+import { IconDownload, IconTrash } from "./icons.js";
+
 // Barra de acciones sobre la selección de una tabla (secciones "en todos los
 // listados incluye selección y edición y descarga para exportación" y "si
 // selecciono todas las solicitudes pueda eliminarlo"): exporta la selección
@@ -48,11 +50,11 @@ export function ExportarBarra({
       <div className="ml-auto flex items-center gap-2">
         {onEliminar && seleccionadas > 0 && (
           <button onClick={onEliminar} className="rounded-md border border-rose-300 px-2.5 py-1 font-medium text-rose-600 hover:bg-rose-50">
-            🗑 {etiquetaEliminar} ({seleccionadas})
+            <IconTrash className="h-3.5 w-3.5" /> {etiquetaEliminar} ({seleccionadas})
           </button>
         )}
         <button onClick={onExportar} className="rounded-md border border-slate-300 px-2.5 py-1 font-medium hover:bg-slate-100">
-          ⬇ Exportar CSV{seleccionadas > 0 ? ` (${seleccionadas})` : ` (${total})`}
+          <IconDownload className="h-3.5 w-3.5" /> Exportar CSV{seleccionadas > 0 ? ` (${seleccionadas})` : ` (${total})`}
         </button>
       </div>
     </div>

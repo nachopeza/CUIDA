@@ -397,6 +397,23 @@ model Servicio {
   // Información económica: solo visible para gestores de la organización y
   // para el familiar autorizado con permiso explícito (sección 4/14 —
   // minimización). La persona atendida nunca la recibe.
+  //
+  // CUIDA cobra por tiempo, así que el precio se fija por hora y el importe
+  // sale de las horas acordadas: 2 h a 13 €/h son 26 €. Antes tarifaImporte
+  // era un total a ojo y no se podía comprobar contra lo fichado.
+  precioHora Decimal? @db.Decimal(10, 2)
+  // Duración acordada de una jornada, en minutos. Sale del plan (de la hora
+  // de inicio a la de fin) pero se congela aquí: es contra esto contra lo
+  // que se compara lo fichado al verificar.
+  minutosPrevistos Int?
+  // % de CUIDA para este servicio. Se copia del de la organización al fijar
+  // la tarifa y queda congelado, para que cambiar el % general no reescriba
+  // servicios ya acordados.
+  comisionPorcentaje Decimal? @db.Decimal(5, 2)
+
+  // Importe de una jornada al precio y la duración de arriba. Se recalcula
+  // solo cuando se cambian esos dos; el resto del sistema (facturación,
+  // glosario de pagos) sigue leyendo de aquí.
   tarifaImporte Decimal?    @db.Decimal(10, 2)
   tarifaTipo    TipoTarifa?
   tarifaNotas   String?
@@ -617,6 +634,10 @@ enum MotivoIncidencia {
   TRATO // desacuerdo o queja sobre el trato
   MATERIAL // falta material o algo está estropeado
   HORARIO // cambio o confusión de horario
+  // Las horas fichadas no cuadran con lo acordado: se ha trabajado de más,
+  // de menos, o coordinación quiere confirmarlo antes de verificar. Es el
+  // camino cuando no cuadra un fichaje, porque el fichaje no se reescribe.
+  HORAS
   OTRO
 }
 

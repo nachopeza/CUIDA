@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../lib/auth.js";
 import { NotificationBell } from "./NotificationBell.js";
+import { IconChevronDown } from "./icons.js";
 import { MiCuentaModal } from "./MiCuentaModal.js";
 import logoCuida from "../assets/logo-cuida.svg";
 
@@ -51,20 +52,24 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <img src={logoCuida} alt="CUIDA" className="h-9 w-auto sm:h-10" />
+        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
+          {/* El logo manda: la denominación se alinea a su centro óptico, no
+              a la línea base del texto — antes flotaba por encima. */}
+          <div className="flex shrink-0 items-center gap-3 self-center">
+            <img src={logoCuida} alt="CUIDA" className="block h-9 w-auto sm:h-10" />
             {muestraDenominacion && (
               <>
-                <span className="h-6 w-px bg-slate-200" aria-hidden />
-                <span className="text-sm font-medium text-slate-500">{AREA_LABEL[usuario!.rol] ?? ""}</span>
+                <span className="h-6 w-px shrink-0 bg-slate-200" aria-hidden />
+                <span className="text-sm font-medium leading-none text-slate-500">{AREA_LABEL[usuario!.rol] ?? ""}</span>
               </>
             )}
           </div>
           {usuario && (
-            <div className="flex items-center gap-3 text-sm">
-              <NotificationBell />
-              <div className="relative" ref={menuRef}>
+            // Todo lo de la derecha empujado al extremo, y la campana la
+            // última: es lo que se busca sin leer, así que va siempre en la
+            // misma esquina.
+            <div className="ml-auto flex items-center gap-1 text-sm sm:gap-2">
+              <div className="relative order-2" ref={menuRef}>
                 <button
                   onClick={() => setMenuAbierto((v) => !v)}
                   className="flex items-center gap-2 rounded-md px-2 py-1 text-slate-600 hover:bg-slate-100"
@@ -75,7 +80,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   <span className="hidden sm:inline">
                     {usuario.email} <span className="text-slate-400">· {ROL_LABEL[usuario.rol] ?? usuario.rol}</span>
                   </span>
-                  <span className="text-xs text-slate-400">▾</span>
+                  <IconChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                 </button>
                 {menuAbierto && (
                   <div className="absolute right-0 z-40 mt-1 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
@@ -93,6 +98,9 @@ export function Layout({ children }: { children: ReactNode }) {
                     </button>
                   </div>
                 )}
+              </div>
+              <div className="order-3">
+                <NotificationBell />
               </div>
             </div>
           )}

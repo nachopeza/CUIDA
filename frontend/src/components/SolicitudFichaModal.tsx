@@ -2,6 +2,17 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { Modal } from "./Modal.js";
+import {
+  IconAlert,
+  IconBan,
+  IconCheck,
+  IconChevronDown,
+  IconMail,
+  IconPhone,
+  IconRefresh,
+  IconSearch,
+  IconTarget,
+} from "./icons.js";
 import { EstadoBadge } from "./EstadoBadge.js";
 import { Cronometro, horasTrabajadas } from "./Cronometro.js";
 import { TiempoTrabajadoModal, formatearDuracion } from "./TiempoTrabajadoModal.js";
@@ -325,7 +336,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                       i < indiceFase ? "bg-brand-green-600 text-white" : i === indiceFase ? "bg-brand text-white" : "bg-slate-200 text-slate-500"
                     }`}
                   >
-                    {i < indiceFase ? "✓" : i + 1}
+                    {i < indiceFase ? <IconCheck className="h-3.5 w-3.5" /> : i + 1}
                   </div>
                   <span className={`text-center text-[10px] leading-tight ${i === indiceFase ? "font-semibold text-slate-700" : "text-slate-400"}`} style={{ maxWidth: "64px" }}>
                     {f.etiqueta}
@@ -339,7 +350,10 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
 
         {cancelacionPendiente && (
           <div className="rounded-lg border-2 border-rose-300 bg-rose-50 p-3">
-            <p className="text-sm font-medium text-rose-700">🚫 Piden cancelar este servicio: {cancelacionPendiente.descripcion}</p>
+            <p className="flex items-start gap-1.5 text-sm font-medium text-rose-700">
+                <IconBan className="mt-0.5 h-4 w-4 shrink-0" />
+                Piden cancelar este servicio: {cancelacionPendiente.descripcion}
+              </p>
             <div className="mt-2 flex gap-2">
               <button onClick={confirmarCancelacion} className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700">
                 Confirmar cancelación
@@ -357,7 +371,8 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
         {incidenciaGeneralAbierta && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
             <span>
-              ⚠ Incidencia {incidenciaGeneralAbierta.codigo} abierta ({incidenciaGeneralAbierta.descripcion}) — resuélvela antes de finalizar/validar/cerrar el servicio.
+              <IconAlert className="mr-1.5 inline h-4 w-4 align-text-bottom" />
+                Incidencia {incidenciaGeneralAbierta.codigo} abierta ({incidenciaGeneralAbierta.descripcion}) — resuélvela antes de finalizar/validar/cerrar el servicio.
             </span>
             <button
               onClick={() => setIncidenciaAbierta(incidenciaGeneralAbierta.id)}
@@ -381,7 +396,8 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                   Editar perfil completo
                 </button>
                 <button onClick={() => setPerfilPersonaAbierto((v) => !v)} className="text-xs text-slate-400 underline decoration-dotted hover:text-slate-600">
-                  {perfilPersonaAbierto ? "Ocultar ▲" : "Ver perfil ▼"}
+                  {perfilPersonaAbierto ? "Ocultar" : "Ver perfil"}
+                  <IconChevronDown className={`ml-0.5 inline h-3 w-3 transition ${perfilPersonaAbierto ? "rotate-180" : ""}`} />
                 </button>
               </div>
             </div>
@@ -391,12 +407,14 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             <div className="mt-1 flex flex-wrap gap-2 text-xs">
               {s.persona.telefono && (
                 <a href={`tel:${s.persona.telefono}`} className="rounded-md border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50">
-                  📞 {s.persona.telefono}
+                  <IconPhone className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
+                    {s.persona.telefono}
                 </a>
               )}
               {s.persona.usuario?.email && (
                 <a href={`mailto:${s.persona.usuario.email}`} className="rounded-md border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50">
-                  ✉️ {s.persona.usuario.email}
+                  <IconMail className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
+                    {s.persona.usuario.email}
                 </a>
               )}
             </div>
@@ -439,7 +457,8 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                     Editar perfil completo
                   </button>
                   <button onClick={() => setPerfilProfesionalAbierto((v) => !v)} className="text-xs text-slate-400 underline decoration-dotted hover:text-slate-600">
-                    {perfilProfesionalAbierto ? "Ocultar ▲" : "Ver perfil ▼"}
+                    {perfilProfesionalAbierto ? "Ocultar" : "Ver perfil"}
+                  <IconChevronDown className={`ml-0.5 inline h-3 w-3 transition ${perfilProfesionalAbierto ? "rotate-180" : ""}`} />
                   </button>
                 </div>
               </div>
@@ -452,12 +471,14 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                 {srv.profesional.telefono && (
                   <a href={`tel:${srv.profesional.telefono}`} className="rounded-md border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50">
-                    📞 {srv.profesional.telefono}
+                    <IconPhone className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
+                    {srv.profesional.telefono}
                   </a>
                 )}
                 {["CONFIRMADO", "EN_CURSO"].includes(srv.estado) && (
                   <button onClick={() => setReemplazoAbierto((v) => !v)} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-amber-700 hover:bg-amber-100">
-                    🔄 Reemplazar
+                    <IconRefresh className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
+                    Reemplazar
                   </button>
                 )}
               </div>
@@ -634,7 +655,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                       .filter((estado) => !incidenciaGeneralAbierta || !ESTADOS_BLOQUEADOS_CON_INCIDENCIA.includes(estado))
                       .map((estado) => (
                         <option key={estado} value={estado}>
-                          → {estado.replace(/_/g, " ")}
+                          {estado.replace(/_/g, " ")}
                         </option>
                       ))}
                   </select>
@@ -660,13 +681,15 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                     onClick={() => setModoAsignacion("mercado")}
                     className={`rounded-full px-3 py-1.5 ${modoAsignacion === "mercado" ? "bg-brand text-white" : "border border-slate-200 text-slate-500 hover:bg-slate-50"}`}
                   >
-                    🔍 Buscar por profesionales
+                    <IconSearch className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" />
+                  Buscar por profesionales
                   </button>
                   <button
                     onClick={() => setModoAsignacion("directo")}
                     className={`rounded-full px-3 py-1.5 ${modoAsignacion === "directo" ? "bg-brand text-white" : "border border-slate-200 text-slate-500 hover:bg-slate-50"}`}
                   >
-                    🎯 Escoger profesional directamente
+                    <IconTarget className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" />
+                  Escoger profesional directamente
                   </button>
                 </div>
 

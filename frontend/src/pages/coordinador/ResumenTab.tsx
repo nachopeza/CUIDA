@@ -4,9 +4,9 @@ import { api } from "../../lib/api.js";
 import { ActividadFeed } from "./ActividadTab.js";
 import { CargaTrabajo } from "./CargaTrabajo.js";
 import { Cronometro, horasTrabajadas } from "../../components/Cronometro.js";
-import { TiempoTrabajadoModal } from "../../components/TiempoTrabajadoModal.js";
-import { IconAlert, IconBriefcase, IconCalendar, IconClipboard, IconReceipt, IconUsers } from "../../components/icons.js";
-import { ICONOS_NECESIDAD } from "../../lib/necesidadIconos.js";
+import { compararConAcordado, duracion, euros, minutosFichados } from "../../lib/economia.js";
+import { IconAlert, IconArrowDown, IconArrowUp, IconBriefcase, IconCalendar, IconCheck, IconClipboard, IconReceipt, IconRefresh, IconUsers } from "../../components/icons.js";
+import { IconoNecesidad } from "../../lib/necesidadIconos.js";
 import type { Factura, Incidencia, Profesional, Servicio, Solicitud, Visita } from "../../lib/types.js";
 
 interface Props {
@@ -43,10 +43,6 @@ function iso(d: Date) {
 
 function mesDe(d: Date) {
   return iso(d).slice(0, 7);
-}
-
-function euros(n: number) {
-  return `${n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 }
 
 // Saludo según la hora (sección "cuando entras debe saludarte buenos días,
@@ -87,8 +83,6 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const [ahora, setAhora] = useState(() => Date.now());
   const [refrescando, setRefrescando] = useState(false);
   const [verificando, setVerificando] = useState<string | null>(null);
-  // Jornada a la que hay que ponerle el tiempo antes de poder verificarla.
-  const [pidiendoTiempo, setPidiendoTiempo] = useState<FilaAgenda | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const cargarPropios = useCallback(async () => {
@@ -127,15 +121,11 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   }
 
   // Verificar una jornada sin salir del escritorio: es el paso que más veces
-  // al día repite coordinación y obligaba a ir al calendario, abrir la visita
-  // y volver. Si le falta el tiempo trabajado no se puede verificar a ciegas
-  // —se facturaría a cero—, así que primero se pide.
+  // al día repite coordinación. El fichaje lo pone quien trabaja, así que
+  // aquí solo se comprueba y se da el visto bueno; si falta, lo dice el
+  // backend y hay que reclamarlo o abrir una incidencia.
   async function verificar(fila: FilaAgenda) {
     const { visita } = fila;
-    if (!visita.horaInicioReal || !visita.horaFinReal) {
-      setPidiendoTiempo(fila);
-      return;
-    }
     setVerificando(visita.id);
     setError(null);
     try {
@@ -310,6 +300,18 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const pendienteCobroMes = facturasMes.filter((f) => f.estado !== "PAGADA").reduce((acc, f) => acc + Number(f.totalConIva ?? f.importeTotal), 0);
   const comisionMes = facturasMes.reduce((acc, f) => acc + Number(f.comisionTotal), 0);
 
+  // La comisión del mes pasado, para saber si el negocio sube o baja. Es la
+  // comparación que le sirve a coordinación, no la de horas.
+  const comisionMesAnterior = useMemo(
+    () => facturas.filter((f) => f.mes === mesAnterior).reduce((acc, f) => acc + Number(f.comisionTotal), 0),
+    [facturas, mesAnterior],
+  );
+  const deltaComision = comisionMesAnterior > 0 ? ((comisionMes - comisionMesAnterior) / comisionMesAnterior) * 100 : null;
+  const aProfesionalesMes = useMemo(
+    () => facturasMes.reduce((acc, f) => acc + Number(f.importeProfesionales ?? 0), 0),
+    [facturasMes],
+  );
+
   const profesionalesActivos = profesionales.filter((p) => p.estado === "ACTIVO").length;
   const profesionalesOcupados = useMemo(
     () => new Set(servicios.filter((s) => ["CONFIRMADO", "EN_CURSO"].includes(s.estado) && s.profesionalId).map((s) => s.profesionalId as string)).size,
@@ -337,7 +339,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
         <div>
           <h2 className="text-xl font-semibold text-slate-800">
             {saludo()}
-            {nombre ? `, ${nombre.split(" ")[0]}` : ""} 👋
+            {nombre ? `, ${nombre.split(" ")[0]}` : ""}
           </h2>
           <p className="text-sm text-slate-500">
             {new Date().toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })} ·{" "}
@@ -351,7 +353,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
           className="flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 disabled:opacity-60"
           title="Volver a cargar los datos del escritorio"
         >
-          <span className={refrescando ? "animate-spin" : ""}>↻</span>
+          <IconRefresh className={`h-3.5 w-3.5 ${refrescando ? "animate-spin" : ""}`} />
           {refrescando ? "Actualizando…" : `Actualizado ${haceCuanto(ultimaCarga, ahora)}`}
         </button>
       </header>
@@ -407,7 +409,8 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm text-slate-800">
-                          {ICONOS_NECESIDAD[servicio.solicitud?.necesidad.codigo ?? ""] ?? "•"} {nombrePersona(servicio)}
+                          <IconoNecesidad codigo={servicio.solicitud?.necesidad.codigo} className="mr-1.5 inline h-4 w-4 shrink-0 align-text-bottom text-slate-400" />
+                          {nombrePersona(servicio)}
                         </p>
                         <p className="truncate text-xs text-slate-400">
                           {servicio.solicitud?.necesidad.nombre}
@@ -426,7 +429,9 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                             {verificando === visita.id ? "…" : "Verificar"}
                           </button>
                         ) : visita.estado === "REVISADA" ? (
-                          <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-medium text-teal-700">✓ Verificada</span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-medium text-teal-700">
+                            <IconCheck className="h-3 w-3" /> Verificada
+                          </span>
                         ) : retrasada ? (
                           <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-medium text-rose-700">Sin empezar</span>
                         ) : (
@@ -489,31 +494,51 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                   </li>
                 ))}
 
-                {visitasPorVerificar.slice(0, 4).map(({ visita, servicio }) => (
-                  <li key={visita.id} className="flex items-center gap-3 py-2">
-                    <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700">Verificar</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-slate-800">{nombrePersona(servicio)}</p>
-                      <p className="text-xs text-slate-400">
-                        {new Date(visita.fecha).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })} ·{" "}
-                        {/* Sin tiempo registrado no se dice "0,0 h": eso se lee
-                            como un dato, y lo que pasa es que falta. */}
-                        {visita.horaInicioReal && visita.horaFinReal ? (
-                          `${horasTrabajadas(visita.horaInicioReal, visita.horaFinReal).toFixed(1)} h trabajadas`
-                        ) : (
-                          <span className="font-medium text-amber-600">sin tiempo registrado</span>
-                        )}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => verificar({ visita, servicio })}
-                      disabled={verificando === visita.id}
-                      className="shrink-0 rounded-md border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white disabled:opacity-60"
-                    >
-                      {verificando === visita.id ? "…" : "Verificar"}
-                    </button>
-                  </li>
-                ))}
+                {visitasPorVerificar.slice(0, 4).map(({ visita, servicio }) => {
+                  const fichados = minutosFichados(visita.horaInicioReal, visita.horaFinReal);
+                  const acordados = servicio.minutosPrevistos ?? null;
+                  const comparacion = fichados != null && acordados != null ? compararConAcordado(fichados, acordados) : null;
+                  const solicitudId = servicio.solicitud?.id;
+                  return (
+                    <li key={visita.id} className="flex items-center gap-3 py-2">
+                      <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700">Verificar</span>
+                      {/* Toda la fila entra en la solicitud: antes solo había
+                          un botón de verificar y no se podía mirar nada antes
+                          de decidir. */}
+                      <button
+                        onClick={() => solicitudId && onAbrirSolicitud(solicitudId)}
+                        disabled={!solicitudId}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <p className="truncate text-sm text-slate-800 hover:underline">{nombrePersona(servicio)}</p>
+                        <p className="text-xs text-slate-400">
+                          {new Date(visita.fecha).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })} ·{" "}
+                          {fichados != null ? (
+                            <>
+                              {duracion(fichados)} fichados
+                              {comparacion && comparacion.desvio !== "exacto" && (
+                                <span className={comparacion.desvio === "de_mas" ? "text-amber-600" : "text-rose-600"}>
+                                  {" "}
+                                  ({comparacion.diferencia > 0 ? "+" : ""}
+                                  {duracion(comparacion.diferencia)})
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="font-medium text-amber-600">sin fichaje</span>
+                          )}
+                        </p>
+                      </button>
+                      <button
+                        onClick={() => verificar({ visita, servicio })}
+                        disabled={verificando === visita.id}
+                        className="shrink-0 rounded-md border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white disabled:opacity-60"
+                      >
+                        {verificando === visita.id ? "…" : "Verificar"}
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
@@ -531,16 +556,16 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                 Facturación
               </button>
             </div>
-            {/* La cifra con la que abre el escritorio: las horas realmente
-                trabajadas, que son la base de todo lo que se factura. */}
-            <p className="text-xs text-slate-500">Horas trabajadas</p>
-            <p className="text-5xl font-semibold leading-tight text-slate-900">
-              {horasMes.toLocaleString("es-ES", { maximumFractionDigits: 1 })}
-              <span className="ml-1 text-base font-medium text-slate-400">h</span>
-            </p>
-            {deltaHoras !== null && (
-              <p className={`text-xs font-medium ${deltaHoras >= 0 ? "text-brand-green-700" : "text-amber-600"}`}>
-                {deltaHoras >= 0 ? "▲" : "▼"} {Math.abs(deltaHoras).toFixed(0)}% respecto al mes pasado
+            {/* Las horas trabajadas son la cifra del profesional, no la de
+                coordinación: aquí lo que se gestiona es el margen de CUIDA,
+                que es de lo que vive la intermediación. Las horas siguen
+                estando debajo, como el dato del que sale. */}
+            <p className="text-xs text-slate-500">Comisión de CUIDA</p>
+            <p className="text-5xl font-semibold leading-tight text-slate-900">{euros(comisionMes)}</p>
+            {deltaComision !== null && (
+              <p className={`text-xs font-medium ${deltaComision >= 0 ? "text-brand-green-700" : "text-amber-600"}`}>
+                {deltaComision >= 0 ? <IconArrowUp className="inline h-3 w-3 align-text-bottom" /> : <IconArrowDown className="inline h-3 w-3 align-text-bottom" />}{" "}
+                {Math.abs(deltaComision).toFixed(0)}% respecto al mes pasado
               </p>
             )}
             <dl className="mt-3 space-y-1.5 border-t border-slate-100 pt-2 text-xs">
@@ -553,8 +578,12 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                 <dd className={`font-semibold tabular-nums ${pendienteCobroMes > 0 ? "text-amber-600" : "text-slate-800"}`}>{euros(pendienteCobroMes)}</dd>
               </div>
               <div className="flex items-center justify-between">
-                <dt className="text-slate-500">Comisión CUIDA</dt>
-                <dd className="font-semibold tabular-nums text-slate-800">{euros(comisionMes)}</dd>
+                <dt className="text-slate-500">Horas prestadas</dt>
+                <dd className="font-semibold tabular-nums text-slate-800">{duracion(Math.round(horasMes * 60))}</dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-slate-500">A pagar a profesionales</dt>
+                <dd className="font-semibold tabular-nums text-slate-800">{euros(aProfesionalesMes)}</dd>
               </div>
               {facturasVencidas.length > 0 && (
                 <div className="flex items-center justify-between border-t border-slate-100 pt-1.5">
@@ -608,8 +637,9 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                     title={`${d.nombre}: ${d.valor} solicitudes`}
                   >
                     <span className="flex items-baseline justify-between gap-2">
-                      <span className="min-w-0 truncate text-slate-600">
-                        {ICONOS_NECESIDAD[d.codigo] ?? "•"} {d.nombre}
+                      <span className="flex min-w-0 items-center gap-1.5 truncate text-slate-600">
+                        <IconoNecesidad codigo={d.codigo} className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        {d.nombre}
                       </span>
                       <span className="shrink-0 font-semibold tabular-nums text-slate-800">{d.valor}</span>
                     </span>
@@ -623,24 +653,6 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
           )}
         </div>
       </div>
-
-      {pidiendoTiempo && (
-        <TiempoTrabajadoModal
-          titulo="¿Cuánto duró esta jornada?"
-          explicacion={`${nombrePersona(pidiendoTiempo.servicio)} · ${new Date(pidiendoTiempo.visita.fecha).toLocaleDateString("es-ES", {
-            day: "numeric",
-            month: "long",
-          })}. Nadie registró el tiempo, y es lo que se factura. Confírmalo para poder verificarla.`}
-          etiquetaConfirmar="Guardar y verificar"
-          horaInicioProg={pidiendoTiempo.visita.horaInicioProg}
-          horaFinProg={pidiendoTiempo.visita.horaFinProg}
-          onConfirmar={async ({ horaInicio, horaFin }) => {
-            await api.post(`/visitas/${pidiendoTiempo.visita.id}/revisar`, { horaInicio, horaFin }, token);
-            await refrescar();
-          }}
-          onClose={() => setPidiendoTiempo(null)}
-        />
-      )}
 
       <section>
         <div className="mb-2 flex items-center justify-between">

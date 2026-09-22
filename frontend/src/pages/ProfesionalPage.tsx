@@ -4,6 +4,7 @@ import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { Cronometro } from "../components/Cronometro.js";
+import { IconAlert, IconFlag, IconNote, IconPin, IconPlay, IconStop } from "../components/icons.js";
 import { TiempoTrabajadoModal } from "../components/TiempoTrabajadoModal.js";
 import { ConversacionesPanel } from "../components/ConversacionesPanel.js";
 import { BuscarSolicitudesTab } from "./profesional/BuscarSolicitudesTab.js";
@@ -109,7 +110,7 @@ export function ProfesionalPage() {
     <div>
       {profesional && (
         <div className="mb-4 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
-          <p className="text-base font-semibold text-slate-800">Hola {profesional.nombre} 👋</p>
+          <p className="text-base font-semibold text-slate-800">Hola {profesional.nombre}</p>
           {proximaVisita ? (
             <p className="mt-0.5 text-sm text-slate-600">
               {proximaVisita.estado === "EN_CURSO" ? "Ahora mismo: " : "Próximamente: "}
@@ -177,13 +178,18 @@ export function ProfesionalPage() {
                     <p className="text-xs text-slate-400">
                       {v.codigo} · {new Date(v.fecha).toLocaleDateString("es-ES")} {v.horaInicioProg ? `· ${v.horaInicioProg}-${v.horaFinProg}` : ""}
                     </p>
-                    {persona?.direccion && <p className="mt-0.5 text-xs text-slate-500">📍 {persona.direccion}</p>}
+                    {persona?.direccion && (
+                    <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+                      <IconPin className="h-3.5 w-3.5 shrink-0" />
+                      {persona.direccion}
+                    </p>
+                  )}
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Cronometro inicio={v.horaInicioReal} fin={v.horaFinReal} />
                     {incidenciaAbiertaEnVisita && (
                       <span className="text-amber-600" title="Incidencia abierta">
-                        ⚠
+                        <IconAlert className="inline h-3.5 w-3.5 align-text-bottom" />
                       </span>
                     )}
                     <EstadoBadge estado={v.estado} />
@@ -203,14 +209,16 @@ export function ProfesionalPage() {
                         onClick={() => setNotaAbierta(notaAbierta === v.id ? null : v.id)}
                         className="text-xs font-medium text-slate-500 underline decoration-dotted hover:text-slate-700"
                       >
-                        📝 Añadir nota
+                        <IconNote className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
+                    Añadir nota
                       </button>
                     )}
                     <button
                       onClick={() => setIncidenciaAbierta(incidenciaAbierta === v.id ? null : v.id)}
                       className="text-xs font-medium text-rose-500 underline decoration-dotted hover:text-rose-700"
                     >
-                      🚩 Reportar incidencia
+                      <IconFlag className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
+                    Reportar incidencia
                     </button>
                   </div>
                 )}
@@ -293,7 +301,8 @@ export function ProfesionalPage() {
                   <ul className="mb-3 space-y-1 rounded-lg bg-slate-50 p-2">
                     {v.actuaciones.map((a) => (
                       <li key={a.id} className="text-xs text-slate-600">
-                        📝 {a.descripcion}
+                        <IconNote className="mr-1 inline h-3.5 w-3.5 align-text-bottom text-slate-400" />
+                        {a.descripcion}
                       </li>
                     ))}
                   </ul>
@@ -318,7 +327,8 @@ export function ProfesionalPage() {
                 <div className="flex items-center gap-2">
                   {(v.estado === "PROGRAMADA" || v.estado === "CONFIRMADA") && (
                     <button onClick={() => iniciar(v.id)} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800">
-                      ▶ He llegado — empezar a contar
+                      <IconPlay className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" />
+                      He llegado — empezar a contar
                     </button>
                   )}
                   {v.estado === "EN_CURSO" && (
@@ -326,7 +336,8 @@ export function ProfesionalPage() {
                       onClick={() => setCerrando(v)}
                       className="rounded-md bg-brand-green-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-green-800"
                     >
-                      ⏹ He terminado — confirmar el tiempo
+                      <IconStop className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" />
+                      He terminado — confirmar el tiempo
                     </button>
                   )}
                   {v.estado === "FINALIZADA" && <span className="text-xs text-slate-400">Enviada a coordinación para verificar</span>}

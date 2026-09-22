@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { ChatPanel } from "./ChatPanel.js";
+import { IconChat } from "./icons.js";
 import type { Conversacion } from "../lib/types.js";
 
 // Bandeja de conversaciones (sección "el panel de chat debe ser más
@@ -29,7 +30,9 @@ export function ConversacionesPanel({ verNombrePersona }: { verNombrePersona?: b
 
   return (
     <div className="mb-4 rounded-lg border border-slate-200 bg-white">
-      <div className="border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700">💬 Mensajes</div>
+      <div className="flex items-center gap-1.5 border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700">
+        <IconChat className="h-4 w-4 text-slate-400" /> Mensajes
+      </div>
       <ul className="divide-y divide-slate-100">
         {conversaciones.map((c) => {
           const clave = `${c.profesionalId}:${c.personaId}`;

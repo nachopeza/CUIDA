@@ -6,7 +6,7 @@ import { EstadoBadge } from "../components/EstadoBadge.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
 import { cuentaAtras } from "../lib/fechas.js";
-import { ICONOS_NECESIDAD as ICONOS } from "../lib/necesidadIconos.js";
+import { IconoNecesidad } from "../lib/necesidadIconos.js";
 import type { Necesidad, Solicitud } from "../lib/types.js";
 
 const SERVICIO_CANCELABLE = ["PENDIENTE", "ASIGNADO", "CONFIRMADO", "EN_CURSO"];
@@ -90,7 +90,7 @@ export function PersonaPage() {
             onClick={() => setNecesidadModal(n)}
             className="flex min-h-[110px] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-slate-200 bg-white px-3 py-4 text-center shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
           >
-            <span className="text-3xl">{ICONOS[n.codigo] ?? "❓"}</span>
+            <IconoNecesidad codigo={n.codigo} className="h-9 w-9 text-brand" />
             <span className="text-base font-medium leading-tight text-slate-800">{n.nombre}</span>
           </button>
         ))}
@@ -102,7 +102,7 @@ export function PersonaPage() {
           {solicitudes.map((s) => (
             <li key={s.id} className="flex items-center justify-between py-3 text-base">
               <span className="flex items-center gap-2 font-medium text-slate-800">
-                <span className="text-xl">{ICONOS[s.necesidad.codigo] ?? "❓"}</span>
+                <IconoNecesidad codigo={s.necesidad.codigo} className="h-5 w-5 shrink-0 text-slate-400" />
                 {s.necesidad.nombre}
               </span>
               <EstadoBadge estado={s.estado} />

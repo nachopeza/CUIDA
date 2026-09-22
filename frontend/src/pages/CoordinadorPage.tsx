@@ -17,17 +17,21 @@ import {
   IconBriefcase,
   IconBuilding,
   IconCalendar,
+  IconCheckCircle,
   IconClipboard,
   IconHome,
+  IconInfinity,
   IconMenu,
   IconPlus,
   IconReceipt,
+  IconSettings,
   IconTag,
   IconUsers,
   IconX,
 } from "../components/icons.js";
 import { ResumenTab } from "./coordinador/ResumenTab.js";
 import { GlobalSearch } from "./coordinador/GlobalSearch.js";
+import { Navegacion } from "../components/Navegacion.js";
 import { PersonasTab } from "./coordinador/PersonasTab.js";
 import { NuevoUsuarioModal } from "./coordinador/NuevoUsuarioModal.js";
 import { PersonaDetalleModal } from "./coordinador/PersonaDetalleModal.js";
@@ -37,17 +41,30 @@ import { CalendarioTab } from "./coordinador/CalendarioTab.js";
 import { ActividadTab } from "./coordinador/ActividadTab.js";
 import { FacturacionTab } from "./coordinador/FacturacionTab.js";
 import { ServiciosTab } from "./coordinador/ServiciosTab.js";
+import { VerificacionTab } from "./coordinador/VerificacionTab.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
 import { SolicitudFichaModal } from "../components/SolicitudFichaModal.js";
 import { IncidenciaFichaModal } from "./coordinador/IncidenciaFichaModal.js";
 import { IncidenciasTab } from "./coordinador/IncidenciasTab.js";
 import type { EmpresaColaboradora, Incidencia, Necesidad, Persona, Profesional, Servicio, Solicitud } from "../lib/types.js";
 
-type Tab = "escritorio" | "solicitudes" | "servicios" | "incidencias" | "personas" | "profesionales" | "empresas" | "calendario" | "facturacion" | "actividad";
+type Tab =
+  | "escritorio"
+  | "solicitudes"
+  | "verificacion"
+  | "servicios"
+  | "incidencias"
+  | "personas"
+  | "profesionales"
+  | "empresas"
+  | "calendario"
+  | "facturacion"
+  | "actividad";
 
 const NAV: { key: Tab; label: string; icon: typeof IconHome }[] = [
   { key: "escritorio", label: "Escritorio", icon: IconHome },
   { key: "solicitudes", label: "Solicitudes", icon: IconClipboard },
+  { key: "verificacion", label: "Verificación", icon: IconCheckCircle },
   { key: "servicios", label: "Servicios", icon: IconTag },
   { key: "incidencias", label: "Incidencias", icon: IconAlert },
   { key: "personas", label: "Usuarios", icon: IconUsers },
@@ -258,56 +275,36 @@ export function CoordinadorPage() {
 
   return (
     <div className="flex flex-col gap-4 md:flex-row">
-      {/* Barra lateral (desktop) */}
-      <aside className="hidden shrink-0 md:block md:w-56">
-        <div className="sticky top-6">
-          <div className="mb-3">
-            <GlobalSearch
-              personas={personas}
-              solicitudes={solicitudes}
-              onAbrirPersona={abrirPersona}
-              onAbrirSolicitud={(id) => {
-                setTab("solicitudes");
-                setFichaAbierta(id);
-              }}
-            />
-          </div>
-          <nav className="space-y-0.5">
-            {NAV.map((n) => {
-              const badge = badges[n.key];
-              return (
-                <button
-                  key={n.key}
-                  onClick={() => irA(n.key)}
-                  className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition ${
-                    tab === n.key ? "bg-brand text-white" : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  <span className="flex items-center gap-2.5">
-                    <n.icon className="h-4 w-4 shrink-0" />
-                    {n.label}
-                  </span>
-                  {badge && badge.valor > 0 && (
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                        tab === n.key ? "bg-white/25 text-white" : badge.tono === "rose" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"
-                      }`}
-                    >
-                      {badge.valor}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-      </aside>
+      <Navegacion
+        items={NAV}
+        activo={tab}
+        onIr={irA}
+        badges={badges}
+        abierto={menuMovilAbierto}
+        onCerrar={() => setMenuMovilAbierto(false)}
+        cabecera={
+          <GlobalSearch
+            personas={personas}
+            solicitudes={solicitudes}
+            onAbrirPersona={abrirPersona}
+            onAbrirSolicitud={(id) => {
+              setTab("solicitudes");
+              setFichaAbierta(id);
+            }}
+          />
+        }
+      />
 
-      {/* Navegación móvil */}
+      {/* Barra de la pestaña actual en móvil: el botón de menú y el buscador,
+          nada más. La navegación entera vive en el cajón. */}
       <div className="flex items-center gap-2 md:hidden">
-        <button onClick={() => setMenuMovilAbierto((v) => !v)} className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700">
-          {menuMovilAbierto ? <IconX className="h-4 w-4" /> : <IconMenu className="h-4 w-4" />}
-          {tituloTab}
+        <button
+          onClick={() => setMenuMovilAbierto(true)}
+          aria-label="Abrir menú"
+          className="flex shrink-0 items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
+        >
+          <IconMenu className="h-4 w-4" />
+          <span className="max-w-[8rem] truncate">{tituloTab}</span>
         </button>
         <div className="min-w-0 flex-1">
           <GlobalSearch
@@ -321,20 +318,6 @@ export function CoordinadorPage() {
           />
         </div>
       </div>
-      {menuMovilAbierto && (
-        <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-slate-200 bg-white p-2 md:hidden">
-          {NAV.map((n) => (
-            <button
-              key={n.key}
-              onClick={() => irA(n.key)}
-              className={`flex items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium ${tab === n.key ? "bg-brand text-white" : "text-slate-600 hover:bg-slate-100"}`}
-            >
-              <n.icon className="h-4 w-4 shrink-0" />
-              {n.label}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Contenido principal */}
       <div className="min-w-0 flex-1">
@@ -424,7 +407,8 @@ export function CoordinadorPage() {
                       : "border-rose-200 text-rose-600 hover:bg-rose-50"
                 }`}
               >
-                ⚠ Con incidencia ({conIncidenciaCount})
+                <IconAlert className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
+                Con incidencia ({conIncidenciaCount})
               </button>
               {filtro && filtro !== "con_incidencia" && <span className="text-xs text-slate-500">{infoEstado(filtro).ayuda}.</span>}
             </div>
@@ -453,7 +437,8 @@ export function CoordinadorPage() {
                   tipoFiltro || profesionalFiltro ? "border-brand bg-brand-50 text-brand-800" : "border-slate-300 text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                ⚙ Filtros avanzados{[tipoFiltro, profesionalFiltro].filter(Boolean).length > 0 && ` (${[tipoFiltro, profesionalFiltro].filter(Boolean).length})`}
+                <IconSettings className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
+                Filtros avanzados{[tipoFiltro, profesionalFiltro].filter(Boolean).length > 0 && ` (${[tipoFiltro, profesionalFiltro].filter(Boolean).length})`}
               </button>
               {(filtro || tipoFiltro || profesionalFiltro || busquedaSolicitudes) && (
                 <button
@@ -556,7 +541,8 @@ export function CoordinadorPage() {
                               recurrente que sí termina en una fecha. */}
                           {s.plan && !s.plan.fechaFin && (
                             <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600" title="Sin fecha de fin">
-                              📌 Indefinido
+                              <IconInfinity className="mr-0.5 inline h-3 w-3 align-text-bottom" />
+                              Indefinido
                             </span>
                           )}
                         </td>
@@ -564,9 +550,7 @@ export function CoordinadorPage() {
                           <div className="flex items-center gap-1.5">
                             <EstadoUnificadoBadge clave={estadoDeSolicitud(s)} />
                             {tieneIncidencia(s) && (
-                              <span className="text-amber-600" title="Incidencia abierta">
-                                ⚠
-                              </span>
+                              <IconAlert className="h-3.5 w-3.5 text-amber-600" aria-label="Incidencia abierta" />
                             )}
                           </div>
                         </td>
@@ -586,6 +570,15 @@ export function CoordinadorPage() {
           </div>
         )}
 
+        {tab === "verificacion" && (
+          <VerificacionTab
+            solicitudes={solicitudes}
+            servicios={servicios}
+            onAbrirSolicitud={(id) => setFichaAbierta(id)}
+            onCambiado={cargar}
+          />
+        )}
+
         {tab === "servicios" && <ServiciosTab />}
 
         {tab === "incidencias" && (
@@ -602,7 +595,7 @@ export function CoordinadorPage() {
         {tab === "personas" && <PersonasTab onAbrirFicha={abrirPersona} refreshKey={personasRefreshKey} />}
         {tab === "profesionales" && <ProfesionalesTab />}
         {tab === "empresas" && <EmpresasTab />}
-        {tab === "calendario" && <CalendarioTab />}
+        {tab === "calendario" && <CalendarioTab onAbrirSolicitud={(id) => setFichaAbierta(id)} />}
         {tab === "facturacion" && <FacturacionTab />}
         {tab === "actividad" && <ActividadTab />}
 

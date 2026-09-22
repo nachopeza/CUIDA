@@ -3,7 +3,7 @@ import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
 import { SearchBox } from "../../components/SearchBox.js";
-import { ICONOS_NECESIDAD } from "../../lib/necesidadIconos.js";
+import { IconoNecesidad } from "../../lib/necesidadIconos.js";
 import type { Servicio } from "../../lib/types.js";
 
 function fecha(iso: string | null | undefined) {
@@ -59,7 +59,7 @@ export function BuscarSolicitudesTab() {
               <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="font-medium text-slate-800">
-                    <span className="mr-1">{ICONOS_NECESIDAD[s.solicitud?.necesidad.codigo ?? ""] ?? "❓"}</span>
+                    <IconoNecesidad codigo={s.solicitud?.necesidad.codigo} className="mr-1.5 inline h-4 w-4 shrink-0 align-text-bottom" />
                     {s.solicitud?.necesidad.nombre}
                   </p>
                   <p className="text-xs text-slate-400">
@@ -87,7 +87,7 @@ export function BuscarSolicitudesTab() {
                   <dt className="text-slate-400">Cuándo</dt>
                   <dd className="text-slate-700">
                     {fecha(plan?.fechaInicio) ?? "A concretar"}
-                    {plan?.fechaFin ? ` → ${fecha(plan.fechaFin)}` : indefinido ? " → indefinido" : ""}
+                    {plan?.fechaFin ? ` a ${fecha(plan.fechaFin)}` : indefinido ? " · indefinido" : ""}
                   </dd>
                 </div>
                 <div>

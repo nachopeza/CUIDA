@@ -3,7 +3,8 @@ import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { Modal } from "./Modal.js";
 import { SearchBox } from "./SearchBox.js";
-import { ICONOS_NECESIDAD } from "../lib/necesidadIconos.js";
+import { IconoNecesidad } from "../lib/necesidadIconos.js";
+import { IconInfinity } from "./icons.js";
 import { aISO, etiquetaDia, proximosDias } from "../lib/fechas.js";
 import type { Necesidad, Persona } from "../lib/types.js";
 
@@ -157,7 +158,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
               <div className="flex flex-wrap gap-1.5">
                 {necesidades?.map((n) => (
                   <Chip key={n.id} activo={necesidadSel === n.id} onClick={() => setNecesidadSel(n.id)}>
-                    <span className="mr-1">{ICONOS_NECESIDAD[n.codigo] ?? "❓"}</span>
+                    <IconoNecesidad codigo={n.codigo} className="mr-1.5 inline h-4 w-4 shrink-0 align-text-bottom" />
                     {n.nombre}
                   </Chip>
                 ))}
@@ -192,7 +193,8 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
                     </Chip>
                   ))}
                   <Chip activo={indefinido} onClick={() => setIndefinido(true)}>
-                    📌 Indefinido
+                    <IconInfinity className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
+                  Indefinido
                   </Chip>
                   {!indefinido && (
                     <input

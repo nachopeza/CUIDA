@@ -4,6 +4,7 @@ import { api } from "../../lib/api.js";
 import { Modal } from "../../components/Modal.js";
 import { EstadoBadge } from "../../components/EstadoBadge.js";
 import type { Incidencia } from "../../lib/types.js";
+import { IconArrowRight } from "../../components/icons.js";
 
 // Espejo de TRANSICIONES_INCIDENCIA del backend (backend/src/services/estados.ts).
 const TRANSICIONES_INCIDENCIA: Record<string, string[]> = {
@@ -94,7 +95,7 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged }: Props
             <div className="flex flex-wrap gap-2">
               {siguientes.map((estado) => (
                 <button key={estado} onClick={() => cambiarEstado(estado)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-100">
-                  → {estado.replace(/_/g, " ")}
+                  {estado.replace(/_/g, " ")}
                 </button>
               ))}
             </div>
@@ -130,7 +131,7 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged }: Props
                   <span className="text-slate-400">{new Date(h.createdAt).toLocaleString("es-ES")}</span>
                   {h.estadoAnterior !== h.estadoNuevo && (
                     <span className="ml-2 font-medium text-slate-700">
-                      {h.estadoAnterior?.replace(/_/g, " ")} → {h.estadoNuevo.replace(/_/g, " ")}
+                      {h.estadoAnterior?.replace(/_/g, " ")} <IconArrowRight className="inline h-3 w-3 align-text-bottom text-slate-300" /> {h.estadoNuevo.replace(/_/g, " ")}
                     </span>
                   )}
                   {h.motivo && <p className="mt-0.5">{h.motivo}</p>}

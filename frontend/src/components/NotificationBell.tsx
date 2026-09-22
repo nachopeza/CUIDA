@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
+import { IconBell } from "./icons.js";
 import type { Notificacion } from "../lib/types.js";
 
 export function NotificationBell() {
@@ -53,7 +54,7 @@ export function NotificationBell() {
         className="relative rounded-md border border-slate-300 px-2.5 py-1.5 text-slate-600 hover:bg-slate-100"
         aria-label="Notificaciones"
       >
-        🔔
+        <IconBell className="h-5 w-5" />
         {noLeidas > 0 && (
           <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold text-white">
             {noLeidas}

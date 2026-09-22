@@ -6,7 +6,7 @@ import { SearchBox } from "../../components/SearchBox.js";
 import { ThOrdenable } from "../../components/ThOrdenable.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
 import { Pagination, usePaginacion } from "../../components/Pagination.js";
-import { IconAlert, IconPlus } from "../../components/icons.js";
+import { IconAlert, IconBan, IconPlus } from "../../components/icons.js";
 import { useOrdenacion } from "../../lib/useOrdenacion.js";
 import { useSeleccion } from "../../lib/useSeleccion.js";
 import { exportarCSV } from "../../lib/csv.js";
@@ -118,7 +118,7 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
           <option value="">Todos los motivos</option>
           {MOTIVOS_INCIDENCIA.map((m) => (
             <option key={m.valor} value={m.valor}>
-              {m.icono} {m.etiqueta}
+              {m.etiqueta}
             </option>
           ))}
         </select>
@@ -221,7 +221,19 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
                         {i.servicio?.solicitud && <span className="block text-xs font-normal text-slate-400">{i.servicio.solicitud.necesidad.nombre}</span>}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-slate-600" title={motivo.ayuda}>
-                        {esCancelacion ? "🚫 Cancelación" : `${motivo.icono} ${motivo.etiqueta}`}
+                        <span className="flex items-center gap-1.5">
+                          {esCancelacion ? (
+                            <>
+                              <IconBan className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+                              Cancelación
+                            </>
+                          ) : (
+                            <>
+                              <motivo.Icono className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                              {motivo.etiqueta}
+                            </>
+                          )}
+                        </span>
                       </td>
                       <td className="max-w-xs truncate px-4 py-2.5 text-slate-500" title={i.descripcion}>
                         {i.descripcion}

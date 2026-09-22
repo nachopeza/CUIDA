@@ -19,19 +19,25 @@ const PRIORIDADES = [
 export function IncidenciaFormModal({
   servicios,
   servicioPreseleccionado,
+  motivoPreseleccionado,
+  descripcionSugerida,
   onClose,
   onCreada,
 }: {
   servicios: Servicio[];
   servicioPreseleccionado?: string;
+  motivoPreseleccionado?: MotivoIncidencia;
+  // Cuando se abre desde la verificación, el texto llega redactado con el
+  // descuadre concreto: se puede matizar, pero no hay que escribirlo entero.
+  descripcionSugerida?: string;
   onClose: () => void;
   onCreada: () => void;
 }) {
   const { token } = useAuth();
   const [servicioId, setServicioId] = useState(servicioPreseleccionado ?? "");
-  const [motivo, setMotivo] = useState<MotivoIncidencia>("OTRO");
+  const [motivo, setMotivo] = useState<MotivoIncidencia>(motivoPreseleccionado ?? "OTRO");
   const [prioridad, setPrioridad] = useState<(typeof PRIORIDADES)[number]["valor"]>("MEDIA");
-  const [descripcion, setDescripcion] = useState("");
+  const [descripcion, setDescripcion] = useState(descripcionSugerida ?? "");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,7 +97,8 @@ export function IncidenciaFormModal({
                   motivo === m.valor ? "border-brand bg-brand text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                {m.icono} {m.etiqueta}
+                <m.Icono className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
+                {m.etiqueta}
               </button>
             ))}
           </div>

@@ -10,7 +10,7 @@ import { validaciones, registrarHistorial, TransicionInvalidaError } from "../se
 export const incidenciasRouter = Router();
 incidenciasRouter.use(autenticar);
 
-const MOTIVOS = ["SALUD", "ACCESO", "AUSENCIA", "RETRASO", "TRATO", "MATERIAL", "HORARIO", "OTRO"] as const;
+const MOTIVOS = ["SALUD", "ACCESO", "AUSENCIA", "RETRASO", "TRATO", "MATERIAL", "HORARIO", "HORAS", "OTRO"] as const;
 
 const crearSchema = z.object({
   visitaId: z.string().optional(),

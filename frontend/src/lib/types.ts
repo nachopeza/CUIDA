@@ -41,6 +41,9 @@ export interface Plan {
   fechaInicio: string;
   fechaFin: string | null;
   recurrencia: string | null;
+  // Lo que hay que hacer, escrito una vez y heredado por cada jornada.
+  tareasPrevistas?: string | null;
+  notas?: string | null;
   franjaHoraria: string | null;
   horaInicio: string | null;
   horaFin: string | null;
@@ -69,6 +72,11 @@ export interface Servicio {
   codigo: string;
   estado: string;
   tipoServicio?: "PUNTUAL" | "RECURRENTE";
+  // CUIDA cobra por tiempo: el precio se fija por hora y el importe sale de
+  // los minutos acordados.
+  precioHora?: string | number | null;
+  minutosPrevistos?: number | null;
+  comisionPorcentaje?: string | number | null;
   profesionalId: string | null;
   profesional?: Profesional | null;
   empresaColaboradoraId?: string | null;
@@ -266,6 +274,9 @@ export interface VisitaAgenda extends Visita {
     id: string;
     profesionalId?: string | null;
     profesional: Profesional | null;
-    solicitud: { persona: Persona; necesidad: Necesidad };
+    // El id de la solicitud es lo que permite abrir su ficha desde la
+    // agenda: sin él el calendario era una lista que no llevaba a ninguna
+    // parte.
+    solicitud: { id: string; persona: Persona; necesidad: Necesidad };
   };
 }

@@ -6,8 +6,9 @@ import { EstadoBadge } from "../components/EstadoBadge.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
 import { ConversacionesPanel } from "../components/ConversacionesPanel.js";
-import { ICONOS_NECESIDAD as ICONOS } from "../lib/necesidadIconos.js";
+import { IconoNecesidad } from "../lib/necesidadIconos.js";
 import type { Factura, Incidencia, Necesidad, PersonaConFamiliares, Solicitud } from "../lib/types.js";
+import { IconBan } from "../components/icons.js";
 
 const SERVICIO_CANCELABLE = ["PENDIENTE", "ASIGNADO", "CONFIRMADO", "EN_CURSO"];
 const CAMPOS_EDITABLES = ["telefono", "direccion", "contactos", "preferencias"] as const;
@@ -167,7 +168,7 @@ export function FamiliaPage() {
                     onClick={() => setNecesidadModal(n)}
                     className="flex min-h-[90px] flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-slate-200 bg-white px-2 py-3 text-center hover:border-slate-400 hover:bg-slate-50"
                   >
-                    <span className="text-2xl">{ICONOS[n.codigo] ?? "❓"}</span>
+                    <IconoNecesidad codigo={n.codigo} className="h-7 w-7 text-brand" />
                     <span className="text-sm font-medium text-slate-800">{n.nombre}</span>
                   </button>
                 ))}
@@ -249,7 +250,7 @@ export function FamiliaPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">
-                      {i.tipo === "SOLICITUD_CANCELACION" && "🚫 "}
+                      {i.tipo === "SOLICITUD_CANCELACION" && <IconBan className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />}
                       {i.descripcion}
                     </p>
                     <p className="text-xs text-slate-400">
@@ -273,7 +274,7 @@ export function FamiliaPage() {
                 onClick={() => setNecesidadModal(n)}
                 className="flex min-h-[90px] flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-slate-200 bg-white px-2 py-3 text-center hover:border-slate-400 hover:bg-slate-50"
               >
-                <span className="text-2xl">{ICONOS[n.codigo] ?? "❓"}</span>
+                <IconoNecesidad codigo={n.codigo} className="h-7 w-7 text-brand" />
                 <span className="text-sm font-medium text-slate-800">{n.nombre}</span>
               </button>
             ))}

@@ -9,6 +9,7 @@ import { useSeleccion } from "../../lib/useSeleccion.js";
 import { useOrdenacion } from "../../lib/useOrdenacion.js";
 import { exportarCSV } from "../../lib/csv.js";
 import type { Persona } from "../../lib/types.js";
+import { IconSettings } from "../../components/icons.js";
 
 // Portal de usuarios (sección "el portal de usuarios es muy importante.
 // Buscar usuarios, saber qué servicios han solicitado"): buscador, columnas
@@ -103,7 +104,8 @@ export function PersonasTab({ onAbrirFicha, refreshKey }: { onAbrirFicha: (id: s
           onClick={() => setFiltrosAbiertos((v) => !v)}
           className={`rounded-md border px-3 py-2 text-xs font-medium ${conAcceso ? "border-brand bg-brand-50 text-brand-800" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}
         >
-          ⚙ Filtros avanzados
+          <IconSettings className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
+            Filtros avanzados
         </button>
       </div>
 

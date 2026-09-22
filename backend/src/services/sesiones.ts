@@ -112,7 +112,16 @@ export async function asegurarSesiones(servicioId: string): Promise<ResultadoSes
 
   const horaInicio = plan.horaInicio;
   const horaFin = plan.horaFin;
-  const tarea = servicio.solicitud.necesidad.nombre;
+
+  // Lo que hay que hacer ese día. Coordinación lo escribe una vez en el plan
+  // ("levantar, desayunar, duchar, vestir, limpiar la habitación") y baja a
+  // cada jornada para que la profesional lo vaya marcando. Si no se ha
+  // detallado nada, queda el nombre del servicio como tarea única.
+  const tareas = (plan.tareasPrevistas ?? "")
+    .split(/[\n,;]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const descripciones = tareas.length > 0 ? tareas : [servicio.solicitud.necesidad.nombre];
 
   async function crear(fecha: Date): Promise<string | null> {
     if (await hayConflicto(servicio!.profesionalId, fecha, horaInicio, horaFin)) return null;
@@ -127,7 +136,7 @@ export async function asegurarSesiones(servicioId: string): Promise<ResultadoSes
         // jornada ya creada sigue contando para quien de verdad la hizo.
         profesionalId: servicio!.profesionalId,
         estado: "PROGRAMADA",
-        tareas: { create: [{ descripcion: tarea }] },
+        tareas: { create: descripciones.map((descripcion) => ({ descripcion })) },
       },
     });
     return visita.codigo;

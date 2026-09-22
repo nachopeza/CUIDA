@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
+import { IconFile } from "./icons.js";
 import type { Documento } from "../lib/types.js";
 
 // Documentos del profesional (sección "ver toda su información...
@@ -49,7 +50,8 @@ export function DocumentosProfesional({ profesionalId }: { profesionalId: string
           {documentos.map((d) => (
             <li key={d.id} className="flex items-center justify-between rounded-md bg-slate-50 px-2.5 py-1.5 text-xs">
               <a href={d.url} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                📄 {d.nombre}
+                <IconFile className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
+                      {d.nombre}
               </a>
               <button onClick={() => eliminar(d.id)} className="text-slate-400 hover:text-rose-600">
                 Quitar

@@ -1,32 +1,57 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type SVGProps } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
+import {
+  IconActivity,
+  IconAlert,
+  IconBan,
+  IconBriefcase,
+  IconCheck,
+  IconCheckCircle,
+  IconClipboard,
+  IconClock,
+  IconEuro,
+  IconFamily,
+  IconFlag,
+  IconHandshake,
+  IconKey,
+  IconPencil,
+  IconPlus,
+  IconReceipt,
+  IconRefresh,
+  IconTrash,
+} from "../../components/icons.js";
 import type { AuditLogEntry } from "../../lib/types.js";
 
 // Ruido que no aporta al equipo de coordinación (accesos técnicos), fuera.
 const OCULTAR = new Set(["login", "ver_persona"]);
 
-export const ICONOS_ACTIVIDAD: Record<string, string> = {
-  solicitar_cancelacion_servicio: "🚫",
-  confirmar_cancelacion_servicio: "❌",
-  rechazar_cancelacion_servicio: "↩️",
-  crear_incidencia: "⚠️",
-  cambiar_estado_incidencia: "⚠️",
-  aceptar_servicio: "✅",
-  crear_solicitud: "📝",
-  crear_servicio: "🛠️",
-  finalizar_visita: "🏁",
-  revisar_visita: "📋",
-  editar_persona: "✏️",
-  crear_persona: "➕",
-  crear_cuenta_persona: "🔑",
-  crear_profesional: "➕",
-  crear_empresa_colaboradora: "➕",
-  vincular_familiar: "👪",
-  actualizar_tarifa_servicio: "💶",
-  asignar_servicio: "🤝",
-  generar_factura: "🧾",
+// Icono por tipo de acción. Agrupado por lo que hace, no por la entidad que
+// toca: al repasar la actividad lo que se busca es "qué ha pasado".
+const ICONOS_ACTIVIDAD: Record<string, (p: SVGProps<SVGSVGElement>) => JSX.Element> = {
+  solicitar_cancelacion_servicio: IconBan,
+  confirmar_cancelacion_servicio: IconBan,
+  rechazar_cancelacion_servicio: IconRefresh,
+  crear_incidencia: IconAlert,
+  cambiar_estado_incidencia: IconAlert,
+  eliminar_incidencia: IconTrash,
+  aceptar_servicio: IconCheckCircle,
+  crear_solicitud: IconClipboard,
+  crear_servicio: IconBriefcase,
+  finalizar_visita: IconFlag,
+  revisar_visita: IconCheck,
+  corregir_tiempo_visita: IconClock,
+  editar_persona: IconPencil,
+  crear_persona: IconPlus,
+  crear_cuenta_persona: IconKey,
+  crear_profesional: IconPlus,
+  crear_empresa_colaboradora: IconPlus,
+  vincular_familiar: IconFamily,
+  actualizar_tarifa_servicio: IconEuro,
+  asignar_servicio: IconHandshake,
+  reemplazar_profesional_servicio: IconRefresh,
+  generar_factura: IconReceipt,
 };
 
 // Feed reutilizable: la pestaña Actividad lo usa completo, el Resumen del
@@ -48,8 +73,11 @@ export function ActividadFeed({ limit, sinTitulo }: { limit?: number; sinTitulo?
         {visibles.map((log) => (
           <li key={log.id} className="py-2 text-sm">
             <div className="flex items-center justify-between">
-              <span className="font-medium">
-                {ICONOS_ACTIVIDAD[log.accion] ? `${ICONOS_ACTIVIDAD[log.accion]} ` : ""}
+              <span className="flex items-center gap-1.5 font-medium">
+                {(() => {
+                  const Pinta = ICONOS_ACTIVIDAD[log.accion] ?? IconActivity;
+                  return <Pinta className="h-3.5 w-3.5 shrink-0 text-slate-400" />;
+                })()}
                 {log.accion.replace(/_/g, " ")}
               </span>
               <span className="text-xs text-slate-400">{new Date(log.createdAt).toLocaleString("es-ES")}</span>

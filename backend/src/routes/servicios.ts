@@ -8,6 +8,7 @@ import { esGestorOrganizacion, puedeVerImportes, ocultarTarifaSiProcede } from "
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
 import { asegurarSesiones } from "../services/sesiones.js";
+import { calcularReparto, minutosEntre } from "../services/economia.js";
 
 export const serviciosRouter = Router();
 serviciosRouter.use(autenticar);
@@ -38,7 +39,15 @@ serviciosRouter.get("/", async (req, res) => {
     // bancarios del profesional no tienen por qué viajar en este listado.
     include: {
       ...INCLUDE_SERVICIO,
-      visitas: { include: { profesional: { select: { id: true, codigo: true, nombre: true, apellidos: true, foto: true } } } },
+      // La verificación necesita, por jornada, quién la hizo, qué tareas
+      // quedaron marcadas y qué anotó: es lo que se compara con el fichaje.
+      visitas: {
+        include: {
+          profesional: { select: { id: true, codigo: true, nombre: true, apellidos: true, foto: true } },
+          tareas: true,
+          actuaciones: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -152,7 +161,13 @@ serviciosRouter.get("/:id", async (req, res) => {
 
 const tarifaSchema = z.object({
   empresaColaboradoraId: z.string().nullable().optional(),
-  tarifaImporte: z.number().nonnegative().nullable().optional(),
+  // CUIDA cobra por tiempo: lo que se fija es el precio de la hora, no un
+  // total a ojo. El importe sale de multiplicarlo por los minutos acordados.
+  precioHora: z.number().nonnegative().nullable().optional(),
+  // Duración acordada de una jornada. Si no se manda, se deduce del plan.
+  minutosPrevistos: z.number().int().positive().max(24 * 60).nullable().optional(),
+  // % de CUIDA para este servicio. Si no se manda, el de la organización.
+  comisionPorcentaje: z.number().min(0).max(100).nullable().optional(),
   tarifaTipo: z.enum(["PAGADO", "VOLUNTARIO"]).nullable().optional(),
   tarifaNotas: z.string().optional(),
   tipoServicio: z.enum(["PUNTUAL", "RECURRENTE"]).optional(),
@@ -163,7 +178,7 @@ const tarifaSchema = z.object({
   ivaPorcentaje: z.number().min(0).max(21).nullable().optional(),
 });
 
-// Asignar empresa colaboradora y/o estimar tarifa. Solo gestores; nunca
+// Asignar empresa colaboradora y/o fijar el precio. Solo gestores; nunca
 // visible para la persona atendida (sección 4/14).
 serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
   const parsed = tarifaSchema.safeParse(req.body);
@@ -171,7 +186,7 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
 
   const servicio = await prisma.servicio.findUnique({
     where: { id: req.params.id },
-    include: { solicitud: { include: { necesidad: true } } },
+    include: { solicitud: { include: { necesidad: true, plan: true } } },
   });
   if (!servicio) return res.status(404).json({ error: "No encontrado" });
   if (servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
@@ -183,44 +198,44 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
     }
   }
 
-  // Comisión de gestión (sección "cobrar por gestión un pequeño
-  // porcentaje"): se calcula al fijar/actualizar la tarifa, con el % vigente
-  // de la organización, y queda congelada en el servicio.
-  let comisionImporte: number | null = null;
-  let importeProfesional: number | null = null;
-  if (parsed.data.tarifaTipo === "PAGADO" && parsed.data.tarifaImporte != null) {
-    const organizacion = await prisma.organizacion.findUnique({ where: { id: servicio.organizacionId } });
-    const porcentaje = Number(organizacion?.comisionPorcentaje ?? 15);
-    comisionImporte = Math.round(parsed.data.tarifaImporte * (porcentaje / 100) * 100) / 100;
-    importeProfesional = Math.round((parsed.data.tarifaImporte - comisionImporte) * 100) / 100;
-  }
+  const organizacion = await prisma.organizacion.findUnique({ where: { id: servicio.organizacionId } });
 
-  // IVA (sección "aplicar el 4% o el 10% de IVA"): heredado por defecto del
-  // servicio del catálogo elegido en la solicitud (necesidad); igual que la
-  // comisión, se calcula al fijar la tarifa y queda congelado en el
-  // servicio aunque el % del catálogo cambie después.
-  let ivaPorcentaje: number | null = null;
-  let ivaImporte: number | null = null;
-  let totalConIva: number | null = null;
-  if (parsed.data.tarifaImporte != null) {
-    ivaPorcentaje = parsed.data.ivaPorcentaje ?? Number(servicio.solicitud.necesidad.ivaPorcentaje);
-    ivaImporte = Math.round(parsed.data.tarifaImporte * (ivaPorcentaje / 100) * 100) / 100;
-    totalConIva = Math.round((parsed.data.tarifaImporte + ivaImporte) * 100) / 100;
-  }
+  // Precio por hora, duración y % de comisión: lo que se manda ahora, o lo
+  // que ya tenía el servicio, o lo que se deduce del plan.
+  const precioHora = parsed.data.precioHora ?? (servicio.precioHora != null ? Number(servicio.precioHora) : null);
+  const minutosPlan = minutosEntre(servicio.solicitud.plan?.horaInicio, servicio.solicitud.plan?.horaFin);
+  const minutosPrevistos = parsed.data.minutosPrevistos ?? servicio.minutosPrevistos ?? minutosPlan;
+  const comisionPorcentaje =
+    parsed.data.comisionPorcentaje ??
+    (servicio.comisionPorcentaje != null ? Number(servicio.comisionPorcentaje) : null) ??
+    Number(organizacion?.comisionPorcentaje ?? 15);
+
+  const ivaPorcentaje = parsed.data.ivaPorcentaje ?? Number(servicio.solicitud.necesidad.ivaPorcentaje);
+
+  // Un servicio voluntario no genera ni cobro ni comisión: las cifras se
+  // dejan a cero en vez de quedarse con las del último precio fijado.
+  const voluntario = parsed.data.tarifaTipo === "VOLUNTARIO";
+  const reparto =
+    !voluntario && precioHora != null && minutosPrevistos != null
+      ? calcularReparto({ minutos: minutosPrevistos, precioHora, comisionPorcentaje, ivaPorcentaje })
+      : null;
 
   const actualizado = await prisma.servicio.update({
     where: { id: servicio.id },
     data: {
       empresaColaboradoraId: parsed.data.empresaColaboradoraId,
-      tarifaImporte: parsed.data.tarifaImporte,
+      precioHora: voluntario ? null : precioHora,
+      minutosPrevistos: minutosPrevistos ?? undefined,
+      comisionPorcentaje: voluntario ? null : comisionPorcentaje,
       tarifaTipo: parsed.data.tarifaTipo,
       tarifaNotas: parsed.data.tarifaNotas,
       tipoServicio: parsed.data.tipoServicio,
-      comisionImporte,
-      importeProfesional,
-      ivaPorcentaje,
-      ivaImporte,
-      totalConIva,
+      tarifaImporte: reparto ? reparto.base : voluntario ? null : undefined,
+      comisionImporte: reparto ? reparto.comision : voluntario ? null : undefined,
+      importeProfesional: reparto ? reparto.importeProfesional : voluntario ? null : undefined,
+      ivaPorcentaje: reparto ? reparto.ivaPorcentaje : voluntario ? null : undefined,
+      ivaImporte: reparto ? reparto.ivaImporte : voluntario ? null : undefined,
+      totalConIva: reparto ? reparto.totalConIva : voluntario ? null : undefined,
     },
     include: INCLUDE_SERVICIO,
   });
@@ -231,6 +246,7 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
     accion: "actualizar_tarifa_servicio",
     entidadTipo: "Servicio",
     entidadId: servicio.id,
+    detalle: reparto ? `${reparto.precioHora} €/h × ${reparto.minutos} min = ${reparto.base} €` : "voluntario",
   });
 
   res.json(actualizado);

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { calcularReparto, minutosEntre } from "../services/economia.js";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
@@ -298,6 +299,37 @@ solicitudesRouter.post("/:id/plan", async (req, res) => {
       fechaFin,
     },
   });
+
+  // El precio se fija por hora, así que cambiar el horario cambia el importe:
+  // pasar de 2 h a 3 h con el mismo precio/hora son 13 € más. Se recalcula
+  // aquí para que no haya que volver a entrar en la tarifa a mano.
+  const servicio = await prisma.servicio.findUnique({
+    where: { solicitudId: solicitud.id },
+    include: { solicitud: { include: { necesidad: true } } },
+  });
+  if (servicio && servicio.precioHora != null && servicio.tarifaTipo !== "VOLUNTARIO") {
+    const minutos = minutosEntre(plan.horaInicio, plan.horaFin);
+    if (minutos != null) {
+      const organizacion = await prisma.organizacion.findUnique({ where: { id: servicio.organizacionId } });
+      const reparto = calcularReparto({
+        minutos,
+        precioHora: Number(servicio.precioHora),
+        comisionPorcentaje: Number(servicio.comisionPorcentaje ?? organizacion?.comisionPorcentaje ?? 15),
+        ivaPorcentaje: Number(servicio.ivaPorcentaje ?? servicio.solicitud.necesidad.ivaPorcentaje),
+      });
+      await prisma.servicio.update({
+        where: { id: servicio.id },
+        data: {
+          minutosPrevistos: reparto.minutos,
+          tarifaImporte: reparto.base,
+          comisionImporte: reparto.comision,
+          importeProfesional: reparto.importeProfesional,
+          ivaImporte: reparto.ivaImporte,
+          totalConIva: reparto.totalConIva,
+        },
+      });
+    }
+  }
 
   res.status(201).json(plan);
 });
