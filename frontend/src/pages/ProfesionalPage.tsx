@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
+import { Novedades } from "../components/Novedades.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { Cronometro } from "../components/Cronometro.js";
 import { IconAlert, IconCalendar, IconChat, IconClock, IconFlag, IconHome, IconMenu, IconNote, IconPin, IconPlay, IconSearch, IconStop, IconUsers } from "../components/icons.js";
 import { IconoNecesidad } from "../lib/necesidadIconos.js";
-import { cobroDeJornada, duracion, euros, minutosEntre, minutosFichados } from "../lib/economia.js";
+import { cobroDeJornada, duracion, euros, minutosEntre, minutosFichados, porHora } from "../lib/economia.js";
 import { Modal } from "../components/Modal.js";
 import { TiempoTrabajadoModal } from "../components/TiempoTrabajadoModal.js";
 import { ChatPanel } from "../components/ChatPanel.js";
@@ -214,6 +215,10 @@ export function ProfesionalPage() {
         </div>
       )}
 
+      {/* Si le mueven la jornada o le cambian el horario, tiene que verlo al
+          abrir la app, no sólo si le da a la campana. */}
+      {tab === "proximos" && <Novedades />}
+
       {tab === "buscar" && <BuscarSolicitudesTab />}
       {tab === "perfil" && <MiPerfilTab />}
       {tab === "jornadas" && <MisJornadasTab visitas={visitas} />}
@@ -243,10 +248,17 @@ export function ProfesionalPage() {
                           </p>
                         </div>
                         {cobro > 0 && (
-                          <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-sm font-semibold text-brand-green-700">
-                            {euros(cobro)}
-                            {s.tipoServicio === "RECURRENTE" && <span className="text-xs font-normal text-slate-400">/jornada</span>}
-                          </span>
+                          <div className="shrink-0 text-right">
+                            <span className="inline-block rounded-full bg-white px-2.5 py-1 text-sm font-semibold text-brand-green-700">
+                              {euros(cobro)}
+                              {s.tipoServicio === "RECURRENTE" && <span className="text-xs font-normal text-slate-400">/jornada</span>}
+                            </span>
+                            {/* A cuánto le sale la hora: es con lo que se
+                                decide si compensa. */}
+                            {porHora(cobro, minutos ?? s.minutosPrevistos) && (
+                              <p className="mt-0.5 text-[11px] text-slate-500">{porHora(cobro, minutos ?? s.minutosPrevistos)}</p>
+                            )}
+                          </div>
                         )}
                       </div>
 
@@ -364,14 +376,20 @@ export function ProfesionalPage() {
                     Reportar incidencia
                     </button>
                     {/* El chat, donde está la persona con la que se habla, en
-                        vez de en una pestaña suelta que repetía la lista. */}
+                        vez de en una pestaña suelta que repetía la lista. Es
+                        un botón y no otro enlace subrayado: hablar con la
+                        familia es de lo que más se hace desde aquí. */}
                     {persona && usuario?.profesionalId && (
                       <button
                         onClick={() => setChatAbierto(chatAbierto === v.id ? null : v.id)}
-                        className="text-xs font-medium text-slate-500 underline decoration-dotted hover:text-slate-700"
+                        className={`ml-auto flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+                          chatAbierto === v.id
+                            ? "border-brand bg-brand text-white"
+                            : "border-brand text-brand hover:bg-brand hover:text-white"
+                        }`}
                       >
-                        <IconChat className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
-                        {chatAbierto === v.id ? "Cerrar chat" : "Escribir a la familia"}
+                        <IconChat className="h-3.5 w-3.5" />
+                        {chatAbierto === v.id ? "Cerrar chat" : "Chat con la familia"}
                       </button>
                     )}
                   </div>

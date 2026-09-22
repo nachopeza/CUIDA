@@ -203,7 +203,7 @@ export function CoordinadorPage() {
   }
 
   const conteoEstados = useMemo(() => {
-    const conteo = { nueva: 0, buscando: 0, en_curso: 0, por_verificar: 0, finalizada: 0, cancelada: 0 } as Record<ClaveEstado, number>;
+    const conteo = { nueva: 0, buscando: 0, por_confirmar: 0, en_curso: 0, por_verificar: 0, finalizada: 0, cancelada: 0 } as Record<ClaveEstado, number>;
     for (const s of solicitudes) conteo[estadoDeSolicitud(s)]++;
     return conteo;
   }, [solicitudes]);
@@ -393,7 +393,7 @@ export function CoordinadorPage() {
                 mismo nombre y mismo color que el badge de cada fila, así no
                 hay dos vocabularios que aprender (sección "simplifica
                 estados de solicitudes, que sea más práctico y visual"). */}
-            <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+            <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
               <button
                 onClick={() => setFiltro(null)}
                 className={`rounded-lg border px-2.5 py-2 text-left transition ${!filtro ? "border-brand bg-brand-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}

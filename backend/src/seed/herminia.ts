@@ -535,6 +535,9 @@ async function main() {
       horaInicioProg: "09:00",
       horaFinProg: "12:00",
       servicioId: servicio.id,
+      // Sello de quién la hizo: sin él, la jornada no aparecía al filtrar
+      // por profesional.
+      profesionalId: profesional.id,
       estado: "PROGRAMADA",
       tareas: {
         create: [{ descripcion: "Realizar la compra semanal" }, { descripcion: "Preparar la comida" }, { descripcion: "Hacer compañía" }],

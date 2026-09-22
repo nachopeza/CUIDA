@@ -12,7 +12,9 @@ const COLORES: Record<string, string> = {
   PROPUESTA: "bg-amber-100 text-amber-700",
   ACEPTADA: "bg-brand-green-100 text-brand-green-700",
   PENDIENTE: "bg-slate-200 text-slate-700",
-  ASIGNADO: "bg-amber-100 text-amber-700",
+  // Asignado no es "buscando": ya hay alguien elegido y lo que falta es que
+  // lo confirme. Compartía el ámbar de "buscando" y no se distinguía.
+  ASIGNADO: "bg-violet-100 text-violet-700",
   CONFIRMADO: "bg-indigo-100 text-indigo-700",
   EN_CURSO: "bg-brand-green-100 text-brand-green-700",
   // Finalizado por el profesional pero todavía no verificado por

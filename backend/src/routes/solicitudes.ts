@@ -7,7 +7,8 @@ import { autenticar } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
 import { puedeAccederPersona, esGestorOrganizacion, ocultarTarifaSiProcede, puedeVerImportes } from "../services/permisos.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
-import { notificarGestores } from "../services/notificaciones.js";
+import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
+import { sincronizarSesionesConPlan } from "../services/sesiones.js";
 
 export const solicitudesRouter = Router();
 solicitudesRouter.use(autenticar);
@@ -307,7 +308,7 @@ solicitudesRouter.post("/:id/plan", async (req, res) => {
   // aquí para que no haya que volver a entrar en la tarifa a mano.
   const servicio = await prisma.servicio.findUnique({
     where: { solicitudId: solicitud.id },
-    include: { solicitud: { include: { necesidad: true } } },
+    include: { solicitud: { include: { necesidad: true, persona: true } } },
   });
   if (servicio && servicio.precioHora != null && servicio.tarifaTipo !== "VOLUNTARIO") {
     const minutos = minutosEntre(plan.horaInicio, plan.horaFin);
@@ -330,6 +331,25 @@ solicitudesRouter.post("/:id/plan", async (req, res) => {
           totalConIva: reparto.totalConIva,
         },
       });
+    }
+  }
+
+  // Guardar el plan no bastaba: las jornadas ya creadas se quedaban en el día
+  // y la hora viejos, así que coordinación veía el cambio en su ficha y el
+  // profesional seguía con lo de antes en su panel. Se mueve lo que aún no ha
+  // empezado y se le avisa de lo que le ha cambiado.
+  if (servicio) {
+    const sincronizado = await sincronizarSesionesConPlan(servicio.id);
+    if (sincronizado.cambios.length > 0 && servicio.profesionalId) {
+      const cuenta = await prisma.usuario.findFirst({ where: { profesionalId: servicio.profesionalId }, select: { id: true } });
+      if (cuenta) {
+        await notificarUsuario(
+          cuenta.id,
+          "plan_cambiado",
+          `Cambia el servicio ${servicio.codigo} de ${servicio.solicitud.persona.nombre} ${servicio.solicitud.persona.apellidos}: ${[...new Set(sincronizado.cambios)].join("; ")}.`,
+          solicitud.id,
+        );
+      }
     }
   }
 

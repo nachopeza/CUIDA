@@ -7,7 +7,7 @@ import type { Solicitud } from "./types.js";
 // solicitud en curso con incidencia desaparecía de "En proceso". Ahora hay
 // cinco fases de trabajo más "Cancelada", y la incidencia es una marca
 // transversal (ver `tieneIncidencia`), no un estado.
-export type ClaveEstado = "nueva" | "buscando" | "en_curso" | "por_verificar" | "finalizada" | "cancelada";
+export type ClaveEstado = "nueva" | "buscando" | "por_confirmar" | "en_curso" | "por_verificar" | "finalizada" | "cancelada";
 
 export interface InfoEstado {
   clave: ClaveEstado;
@@ -42,6 +42,20 @@ export const ESTADOS: InfoEstado[] = [
     borde: "border-amber-300",
     fondo: "bg-amber-50",
     texto: "text-amber-700",
+  },
+  {
+    // Ya hay alguien elegido pero todavía no ha dicho que sí. Antes caía en
+    // "Buscando" junto a las que no tienen a nadie, y eran dos situaciones
+    // muy distintas: en una hay que salir a buscar profesional y en la otra
+    // sólo hay que esperar (o recordárselo).
+    clave: "por_confirmar",
+    etiqueta: "Por confirmar",
+    ayuda: "Asignada a un profesional, pendiente de que la confirme",
+    badge: "bg-violet-100 text-violet-700",
+    dot: "bg-violet-400",
+    borde: "border-violet-300",
+    fondo: "bg-violet-50",
+    texto: "text-violet-700",
   },
   {
     clave: "en_curso",
@@ -97,8 +111,9 @@ export function estadoDeSolicitud(s: Solicitud): ClaveEstado {
   if (!s.servicio) return "nueva";
   switch (s.servicio.estado) {
     case "PENDIENTE":
-    case "ASIGNADO":
       return "buscando";
+    case "ASIGNADO":
+      return "por_confirmar";
     case "CONFIRMADO":
     case "EN_CURSO":
       return "en_curso";

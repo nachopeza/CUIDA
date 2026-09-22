@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
 import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
-import { esGestorOrganizacion, puedeVerImportes, ocultarTarifaSiProcede } from "../services/permisos.js";
+import { esGestorOrganizacion, puedeVerImportes, ocultarTarifaSiProcede, soloLoQueCobraElProfesional } from "../services/permisos.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
 import { asegurarSesiones } from "../services/sesiones.js";
@@ -65,6 +65,10 @@ serviciosRouter.get("/", async (req, res) => {
   }
 
   const resultado = servicios.map((s) => {
+    // Al profesional se le aplicaba el mismo filtro que a la familia sin
+    // permiso, y ese borra también lo que él cobra: por eso una propuesta le
+    // llegaba sin importe y no podía saber qué le ofrecían.
+    if (usuario.rol === "PROFESIONAL") return soloLoQueCobraElProfesional(s);
     const visible = esGestorOrganizacion(usuario)
       ? true
       : usuario.rol === "FAMILIAR"
@@ -97,10 +101,10 @@ serviciosRouter.get("/disponibles", requiereRol("PROFESIONAL"), async (req, res)
   // sí ve lo que cobraría él (importeProfesional), pero nunca la tarifa que
   // se le cobra a la familia, la comisión de CUIDA ni con qué empresa
   // colaboradora se factura eso.
-  const resultado = servicios.map((s) => {
-    const { tarifaImporte, comisionImporte, tarifaNotas, empresaColaboradora, empresaColaboradoraId, facturaId, ivaPorcentaje, ivaImporte, totalConIva, pagoProfesionalEstado, ...visible } = s;
-    return visible;
-  });
+  // Se usa el mismo filtro que en el resto de sus vistas: la lista escrita a
+  // mano que había aquí se había quedado sin precioHora ni comisionPorcentaje,
+  // y con esos dos se reconstruye lo que paga la familia y el margen.
+  const resultado = servicios.map(soloLoQueCobraElProfesional);
   res.json(resultado);
 });
 
@@ -155,7 +159,11 @@ serviciosRouter.get("/:id", async (req, res) => {
   if (!servicio) return res.status(404).json({ error: "No encontrado" });
 
   const usuario = req.usuario!;
-  const visible = usuario.rol === "PROFESIONAL" ? false : await puedeVerImportes(usuario, servicio.solicitud.personaId);
+  if (usuario.rol === "PROFESIONAL") {
+    const suyo = usuario.profesionalId != null && usuario.profesionalId === servicio.profesionalId;
+    return res.json(suyo ? soloLoQueCobraElProfesional(servicio) : ocultarTarifaSiProcede(servicio, false));
+  }
+  const visible = await puedeVerImportes(usuario, servicio.solicitud.personaId);
   res.json(ocultarTarifaSiProcede(servicio, visible));
 });
 
@@ -366,7 +374,9 @@ serviciosRouter.post("/:id/rechazar", requiereRol("PROFESIONAL"), async (req, re
   await notificarGestores(
     servicio.organizacionId,
     "servicio_rechazado",
-    `${quien} ha rechazado el servicio ${servicio.codigo}${parsed.data.motivo ? `: ${parsed.data.motivo}` : ""}. Vuelve a estar sin cubrir.`,
+    // El motivo lo escribe una persona y suele acabar en punto: pegarle
+    // otra frase detrás dejaba "…ocupados.. Vuelve a estar sin cubrir".
+    `${quien} ha rechazado el servicio ${servicio.codigo}${parsed.data.motivo ? `: ${parsed.data.motivo.trim().replace(/[.\s]+$/, "")}` : ""}. Vuelve a estar sin cubrir.`,
     servicio.solicitudId,
   ).catch(() => undefined);
 

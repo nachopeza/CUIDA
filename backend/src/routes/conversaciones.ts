@@ -87,6 +87,42 @@ conversacionesRouter.get("/", async (req, res) => {
   res.json(conversaciones);
 });
 
+// Con quién se habla exactamente. El profesional veía un botón genérico
+// ("escribir a la familia") sin saber si al otro lado está la hija autorizada
+// o la propia persona atendida, que puede no usar la aplicación. Saberlo
+// cambia cómo se escribe y si merece la pena escribir.
+conversacionesRouter.get("/:profesionalId/:personaId", async (req, res) => {
+  const { profesionalId, personaId } = req.params;
+  const permitido = await puedeVerConversacion(req.usuario!, profesionalId, personaId);
+  if (!permitido) return res.status(403).json({ error: "Sin permiso" });
+
+  const [persona, cuentaPersona, relaciones] = await Promise.all([
+    prisma.persona.findUnique({ where: { id: personaId }, select: { id: true, nombre: true, apellidos: true } }),
+    prisma.usuario.findFirst({ where: { personaId, activo: true }, select: { id: true } }),
+    prisma.familiarRelacion.findMany({
+      where: { personaId, revocadoAt: null },
+      include: { usuario: { select: { id: true, nombre: true, email: true, activo: true } } },
+      orderBy: { esRepresentante: "desc" },
+    }),
+  ]);
+  if (!persona) return res.status(404).json({ error: "Persona no encontrada" });
+
+  // Solo cuenta quien puede leerlo de verdad: una relación revocada o una
+  // cuenta desactivada no es un interlocutor.
+  const familiares = relaciones
+    .filter((r) => r.usuario.activo)
+    .map((r) => ({
+      nombre: r.usuario.nombre ?? r.usuario.email,
+      parentesco: r.parentesco,
+      esRepresentante: r.esRepresentante,
+    }));
+
+  res.json({
+    persona: { id: persona.id, nombre: persona.nombre, apellidos: persona.apellidos, tieneCuenta: cuentaPersona != null },
+    familiares,
+  });
+});
+
 conversacionesRouter.get("/:profesionalId/:personaId/mensajes", async (req, res) => {
   const { profesionalId, personaId } = req.params;
   const permitido = await puedeVerConversacion(req.usuario!, profesionalId, personaId);
@@ -94,7 +130,7 @@ conversacionesRouter.get("/:profesionalId/:personaId/mensajes", async (req, res)
 
   const mensajes = await prisma.mensaje.findMany({
     where: { profesionalId, personaId },
-    include: { autor: { select: { id: true, rol: true, email: true } } },
+    include: { autor: { select: { id: true, rol: true, email: true, nombre: true } } },
     orderBy: { createdAt: "asc" },
   });
   res.json(mensajes);
@@ -117,7 +153,7 @@ conversacionesRouter.post("/:profesionalId/:personaId/mensajes", async (req, res
       autorUsuarioId: req.usuario!.sub,
       texto: parsed.data.texto,
     },
-    include: { autor: { select: { id: true, rol: true, email: true } } },
+    include: { autor: { select: { id: true, rol: true, email: true, nombre: true } } },
   });
 
   res.status(201).json(mensaje);

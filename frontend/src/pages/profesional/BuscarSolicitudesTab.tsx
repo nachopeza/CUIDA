@@ -4,6 +4,7 @@ import { api } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
 import { SearchBox } from "../../components/SearchBox.js";
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
+import { euros, minutosEntre, porHora } from "../../lib/economia.js";
 import type { Servicio } from "../../lib/types.js";
 
 function fecha(iso: string | null | undefined) {
@@ -54,6 +55,7 @@ export function BuscarSolicitudesTab() {
           const plan = s.solicitud?.plan;
           const recurrente = s.tipoServicio === "RECURRENTE";
           const indefinido = plan != null && !plan.fechaFin;
+          const tarifaPorHora = porHora(s.importeProfesional, minutosEntre(plan?.horaInicio, plan?.horaFin) ?? s.minutosPrevistos);
           return (
             <div key={s.id} className="rounded-lg border border-slate-200 p-3">
               <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
@@ -102,12 +104,16 @@ export function BuscarSolicitudesTab() {
                 </div>
                 <div className="col-span-2 sm:col-span-4">
                   <dt className="text-slate-400">Lo que cobrarías</dt>
+                  {/* Ponía "por hora" en los recurrentes y no lo es: el
+                      importe es de la jornada. El precio de la hora se saca
+                      de ese importe y su duración. */}
                   <dd className="font-medium text-brand-green-700">
                     {s.tarifaTipo === "VOLUNTARIO"
                       ? "Voluntario (sin remuneración)"
                       : s.importeProfesional != null
-                        ? `${Number(s.importeProfesional).toFixed(2)} €${recurrente ? " por hora" : " por el servicio"}`
+                        ? `${euros(s.importeProfesional)}${recurrente ? " por jornada" : " por el servicio"}`
                         : "Pendiente de concretar con coordinación"}
+                    {tarifaPorHora && <span className="ml-1.5 font-normal text-slate-500">· {tarifaPorHora}</span>}
                   </dd>
                 </div>
               </dl>

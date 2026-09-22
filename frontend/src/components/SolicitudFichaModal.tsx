@@ -1031,9 +1031,9 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             )}
 
             {srv.estado === "ASIGNADO" && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+              <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2">
                 <p className="text-sm text-slate-700">
-                  {srv.profesional?.nombre} {srv.profesional?.apellidos} — esperando que acepte el servicio.
+                  Pendiente de confirmación por {srv.profesional?.nombre} {srv.profesional?.apellidos}.
                 </p>
                 <label className="mt-2 block text-xs text-slate-500">
                   Reasignar a otro profesional

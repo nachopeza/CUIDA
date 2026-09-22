@@ -61,6 +61,12 @@ const CAMPOS_TARIFA = [
   "empresaColaboradoraId",
   "pagoProfesionalEstado",
   "comisionImporte",
+  // El precio de la hora y el porcentaje de CUIDA faltaban en esta lista, así
+  // que viajaban a cualquiera que no tuviera permiso para ver importes: con
+  // el precio/hora y los minutos se reconstruye lo que paga la familia, y con
+  // el porcentaje, el margen.
+  "precioHora",
+  "comisionPorcentaje",
   "importeProfesional",
   "facturaId",
   "ivaPorcentaje",
@@ -84,6 +90,9 @@ export function ocultarTarifaSiProcede<T extends Record<string, unknown>>(servic
 const CAMPOS_SOLO_DE_COORDINACION = [
   "tarifaImporte",
   "tarifaNotas",
+  // Con qué empresa se factura a la familia es un acuerdo de coordinación.
+  "empresaColaboradora",
+  "empresaColaboradoraId",
   "comisionImporte",
   "comisionPorcentaje",
   "precioHora",

@@ -24,3 +24,13 @@ notificacionesRouter.post("/:id/leida", async (req, res) => {
   });
   res.json(actualizada);
 });
+
+// Marcar de golpe. El escritorio enseña las novedades recientes y pedía una
+// petición por cada una para darlas por vistas.
+notificacionesRouter.post("/leidas", async (req, res) => {
+  const { count } = await prisma.notificacion.updateMany({
+    where: { usuarioId: req.usuario!.sub, leida: false },
+    data: { leida: true },
+  });
+  res.json({ marcadas: count });
+});

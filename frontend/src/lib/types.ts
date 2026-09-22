@@ -267,7 +267,14 @@ export interface Mensaje {
   texto: string;
   createdAt: string;
   autorUsuarioId: string;
-  autor: { id: string; rol: string; email: string };
+  autor: { id: string; rol: string; email: string; nombre?: string | null };
+}
+
+// Quién está al otro lado del chat: la persona atendida si usa la aplicación,
+// y los familiares autorizados que pueden leer y contestar.
+export interface Interlocutores {
+  persona: { id: string; nombre: string; apellidos: string; tieneCuenta: boolean };
+  familiares: { nombre: string; parentesco: string; esRepresentante: boolean }[];
 }
 
 export interface Conversacion {

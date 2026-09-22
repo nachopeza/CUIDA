@@ -169,3 +169,109 @@ export async function asegurarSesiones(servicioId: string): Promise<ResultadoSes
   const codigo = await crear(dia);
   return codigo ? { creadas: [codigo] } : { creadas: [], motivo: "El profesional ya tiene algo a esa hora" };
 }
+
+export interface ResultadoSincronizacion {
+  movidas: string[];
+  reprogramadas: string[];
+  retiradas: string[];
+  cambios: string[];
+}
+
+function mismoDia(a: Date, b: Date) {
+  return aMedianoche(a).getTime() === aMedianoche(b).getTime();
+}
+
+function comoFecha(f: Date) {
+  return f.toLocaleDateString("es-ES", { day: "2-digit", month: "long" });
+}
+
+// Cambiar el plan tiene que mover lo que ya está en la agenda, no solo
+// guardarse. `asegurarSesiones` es idempotente y por eso no tocaba nada: veía
+// que la jornada ya existía y la dejaba donde estaba. El resultado era que
+// coordinación cambiaba la fecha de una solicitud, lo veía en su ficha, y el
+// profesional seguía con el día viejo en su panel.
+//
+// Solo se tocan las jornadas que aún no han empezado: una que ya se fichó es
+// un hecho ocurrido y no se reescribe.
+export async function sincronizarSesionesConPlan(servicioId: string): Promise<ResultadoSincronizacion> {
+  const vacio: ResultadoSincronizacion = { movidas: [], reprogramadas: [], retiradas: [], cambios: [] };
+  const servicio = await prisma.servicio.findUnique({
+    where: { id: servicioId },
+    include: { visitas: { orderBy: { fecha: "asc" }, include: { tareas: true } }, solicitud: { include: { plan: true, necesidad: true } } },
+  });
+  if (!servicio) return vacio;
+  const plan = servicio.solicitud.plan;
+  if (!plan) return vacio;
+
+  // Sin empezar: ni fichada ni cerrada. Lo pasado no se reescribe.
+  const porHacer = servicio.visitas.filter(
+    (v) => ["PROGRAMADA", "CONFIRMADA"].includes(v.estado) && v.horaInicioReal == null,
+  );
+  if (porHacer.length === 0) return vacio;
+
+  const resultado: ResultadoSincronizacion = { movidas: [], reprogramadas: [], retiradas: [], cambios: [] };
+  const hoy = aMedianoche(new Date());
+  const dias = diasDeRecurrencia(plan.recurrencia);
+
+  const tareasDelPlan = (plan.tareasPrevistas ?? "")
+    .split(/[\n,;]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const descripciones = tareasDelPlan.length > 0 ? tareasDelPlan : [servicio.solicitud.necesidad.nombre];
+
+  for (const visita of porHacer) {
+    // A qué día le toca ahora esta jornada según el plan.
+    let destino: Date | null;
+    if (servicio.tipoServicio !== "RECURRENTE") {
+      // Puntual: el servicio es la jornada, así que va donde diga el plan.
+      destino = aMedianoche(plan.fechaInicio);
+    } else if (aMedianoche(visita.fecha) < aMedianoche(plan.fechaInicio) || !dias.includes(visita.fecha.getDay())) {
+      // Recurrente: si se ha quedado antes del comienzo o en un día que ya no
+      // toca, se corre al primero válido.
+      destino = siguienteDia(new Date(Math.max(hoy.getTime(), aMedianoche(plan.fechaInicio).getTime())), dias);
+    } else {
+      destino = aMedianoche(visita.fecha);
+    }
+
+    // Pasada la fecha de fin, esa jornada ya no existe: se retira en vez de
+    // dejarla colgando en la agenda de alguien.
+    if (destino && plan.fechaFin && destino > aMedianoche(plan.fechaFin)) {
+      await prisma.visita.delete({ where: { id: visita.id } });
+      resultado.retiradas.push(visita.codigo);
+      continue;
+    }
+
+    const cambiaDia = destino != null && !mismoDia(destino, visita.fecha);
+    const cambiaHora = visita.horaInicioProg !== plan.horaInicio || visita.horaFinProg !== plan.horaFin;
+    if (cambiaDia || cambiaHora) {
+      await prisma.visita.update({
+        where: { id: visita.id },
+        data: {
+          ...(cambiaDia && destino ? { fecha: destino } : {}),
+          horaInicioProg: plan.horaInicio,
+          horaFinProg: plan.horaFin,
+        },
+      });
+      if (cambiaDia && destino) {
+        resultado.movidas.push(visita.codigo);
+        resultado.cambios.push(`${comoFecha(visita.fecha)} pasa al ${comoFecha(destino)}`);
+      }
+      if (cambiaHora) {
+        resultado.reprogramadas.push(visita.codigo);
+        resultado.cambios.push(`nuevo horario ${plan.horaInicio ?? "?"}–${plan.horaFin ?? "?"}`);
+      }
+    }
+
+    // Las tareas del día vienen del plan. Solo se reescriben si de verdad han
+    // cambiado: recrearlas por gusto borraría lo ya marcado.
+    const actuales = visita.tareas.map((t) => t.descripcion);
+    const distintas = actuales.length !== descripciones.length || actuales.some((d, i) => d !== descripciones[i]);
+    if (distintas) {
+      await prisma.tarea.deleteMany({ where: { visitaId: visita.id } });
+      await prisma.tarea.createMany({ data: descripciones.map((descripcion) => ({ visitaId: visita.id, descripcion })) });
+      resultado.cambios.push("cambian las tareas previstas");
+    }
+  }
+
+  return resultado;
+}

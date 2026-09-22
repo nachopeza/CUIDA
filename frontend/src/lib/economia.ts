@@ -72,6 +72,15 @@ export function euros(n: number | string | null | undefined): string {
   return `${v.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 }
 
+// Lo que sale por hora. El profesional cobra por jornada, pero para decidir si
+// le compensa lo que quiere saber es a cuánto le sale la hora — y ese cálculo
+// se hace sobre SU importe, no sobre el precio de la familia, que no ve.
+export function porHora(importe: number | string | null | undefined, minutos: number | null | undefined): string | null {
+  const total = Number(importe ?? 0);
+  if (!minutos || minutos <= 0 || total <= 0) return null;
+  return `${euros((total * 60) / minutos)}/h`;
+}
+
 export function horaDe(iso?: string | null): string {
   if (!iso) return "--:--";
   const d = new Date(iso);

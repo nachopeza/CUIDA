@@ -4,6 +4,7 @@ import { api } from "../../lib/api.js";
 import { ActividadFeed } from "./ActividadTab.js";
 import { CargaTrabajo } from "./CargaTrabajo.js";
 import { Cronometro, horasTrabajadas } from "../../components/Cronometro.js";
+import { Novedades } from "../../components/Novedades.js";
 import { compararConAcordado, duracion, euros, minutosFichados } from "../../lib/economia.js";
 import { IconAlert, IconArrowDown, IconArrowUp, IconBriefcase, IconCalendar, IconCheck, IconClipboard, IconReceipt, IconRefresh, IconUsers } from "../../components/icons.js";
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
@@ -378,6 +379,15 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
       </header>
 
       {error && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
+
+      {/* Lo que ha cambiado desde la última vez. Antes sólo estaba en la
+          campana, y la campana hay que abrirla para enterarse. */}
+      <Novedades
+        onAbrir={(tipo, id) => {
+          if (tipo === "Solicitud") onAbrirSolicitud(id);
+          if (tipo === "Incidencia") onAbrirIncidencia(id);
+        }}
+      />
 
       {avisos.length === 0 ? (
         <div className="rounded-lg border border-brand-green-200 bg-brand-green-50 px-4 py-3 text-sm text-brand-green-700">
