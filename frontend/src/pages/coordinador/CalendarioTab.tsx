@@ -5,7 +5,7 @@ import { EstadoBadge } from "../../components/EstadoBadge.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
 import { IconChevronLeft, IconChevronRight, IconGrid, IconList, IconCalendar } from "../../components/icons.js";
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
-import { duracion, minutosEntre } from "../../lib/economia.js";
+import { conMayusculaInicial, duracion, minutosEntre } from "../../lib/economia.js";
 import { exportarCSV } from "../../lib/csv.js";
 import type { VisitaAgenda } from "../../lib/types.js";
 
@@ -198,7 +198,7 @@ export function CalendarioTab({ onAbrirSolicitud }: { onAbrirSolicitud: (solicit
           </button>
         </div>
 
-        <p className="text-sm font-semibold text-slate-700 first-letter:uppercase">{titulo}</p>
+        <p className="text-sm font-semibold text-slate-700">{conMayusculaInicial(titulo)}</p>
 
         <select value={profesionalFiltro} onChange={(e) => setProfesionalFiltro(e.target.value)} className="ml-auto rounded-md border border-slate-300 px-2 py-1.5 text-xs">
           <option value="">Todos los profesionales</option>

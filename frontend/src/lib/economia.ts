@@ -87,3 +87,10 @@ export function compararConAcordado(fichados: number, acordados: number, margenM
   if (Math.abs(diferencia) <= margenMinutos) return { desvio: "exacto", diferencia };
   return { desvio: diferencia > 0 ? "de_mas" : "de_menos", diferencia };
 }
+
+// Primera letra en mayúscula y nada más. `capitalize` de CSS sube cada
+// palabra ("22 De Septiembre") y `first-letter` no aplica a elementos en
+// línea, que es donde van casi siempre las fechas.
+export function conMayusculaInicial(texto: string): string {
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
