@@ -290,6 +290,7 @@ export function VerificacionTab({ solicitudes, servicios, onAbrirSolicitud, onCa
         <IncidenciaFormModal
           servicios={servicios}
           servicioPreseleccionado={incidenciaPara.servicio.id}
+          visitaPreseleccionada={incidenciaPara.visita.id}
           motivoPreseleccionado="HORAS"
           descripcionSugerida={(() => {
             const f = incidenciaPara;

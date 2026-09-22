@@ -6,6 +6,7 @@ import { autenticar } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
 import { esGestorOrganizacion, ocultarTarifaSiProcede } from "../services/permisos.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
+import { notificarGestores } from "../services/notificaciones.js";
 
 export const incidenciasRouter = Router();
 incidenciasRouter.use(autenticar);
@@ -61,6 +62,7 @@ incidenciasRouter.post("/", async (req, res) => {
       descripcion: parsed.data.descripcion,
       prioridad: parsed.data.prioridad,
       estado: "NUEVA",
+      creadoPorUsuarioId: usuario.sub,
     },
   });
 
@@ -80,8 +82,41 @@ incidenciasRouter.post("/", async (req, res) => {
     entidadId: incidencia.id,
   });
 
+  // Que coordinación se entere sin tener que mirar la pestaña, y que el aviso
+  // abra la ficha de la incidencia al pincharlo. Si la abre la propia
+  // coordinación no tiene sentido avisarse a sí misma.
+  if (organizacionId && esProfesionalDueño) {
+    const cuenta = await prisma.usuario.findUnique({ where: { id: usuario.sub }, select: { nombre: true, email: true } });
+    const quien = cuenta?.nombre ?? cuenta?.email ?? "Un profesional";
+    await notificarGestores(
+      organizacionId,
+      "incidencia_abierta",
+      `${quien} ha abierto la incidencia ${incidencia.codigo}: ${parsed.data.descripcion}`,
+      { tipo: "Incidencia", id: incidencia.id },
+    );
+  }
+
   res.status(201).json(incidencia);
 });
+
+// El caso de una incidencia puede colgar del servicio o de la jornada. El
+// listado tiene que resolver la persona por los dos caminos: si no, una
+// incidencia abierta por un profesional desde su jornada salía sin nombre.
+const CASO_EN_LISTADO = {
+  servicio: { include: { solicitud: { include: { persona: true, necesidad: true } } } },
+  visita: { include: { servicio: { include: { solicitud: { include: { persona: true, necesidad: true } } } } } },
+} as const;
+
+// Tapar la tarifa venga por donde venga el servicio.
+function sinTarifa<T extends { servicio?: unknown; visita?: { servicio?: unknown } | null }>(incidencia: T) {
+  return {
+    ...incidencia,
+    servicio: ocultarTarifaSiProcede(incidencia.servicio as Record<string, unknown> | null, false),
+    visita: incidencia.visita
+      ? { ...incidencia.visita, servicio: ocultarTarifaSiProcede(incidencia.visita.servicio as Record<string, unknown> | null, false) }
+      : incidencia.visita,
+  };
+}
 
 incidenciasRouter.get("/", async (req, res) => {
   const usuario = req.usuario!;
@@ -91,11 +126,7 @@ incidenciasRouter.get("/", async (req, res) => {
         usuario.rol === "SUPERADMIN"
           ? {}
           : { OR: [{ servicio: { organizacionId: usuario.organizacionId ?? "__none__" } }, { visita: { servicio: { organizacionId: usuario.organizacionId ?? "__none__" } } }] },
-      include: {
-        visita: true,
-        servicio: { include: { solicitud: { include: { persona: true, necesidad: true } } } },
-        responsable: true,
-      },
+      include: { ...CASO_EN_LISTADO, responsable: true },
       orderBy: { createdAt: "desc" },
     });
     return res.json(incidencias);
@@ -103,11 +134,10 @@ incidenciasRouter.get("/", async (req, res) => {
   if (usuario.rol === "PROFESIONAL") {
     const incidencias = await prisma.incidencia.findMany({
       where: { visita: { servicio: { profesionalId: usuario.profesionalId ?? "__none__" } } },
-      include: { visita: true, servicio: { include: { solicitud: { include: { persona: true, necesidad: true } } } } },
+      include: CASO_EN_LISTADO,
       orderBy: { createdAt: "desc" },
     });
-    const sinTarifa = incidencias.map((i) => ({ ...i, servicio: ocultarTarifaSiProcede(i.servicio, false) }));
-    return res.json(sinTarifa);
+    return res.json(incidencias.map(sinTarifa));
   }
   // Familiar/persona (sección panel familiar: "menú con... incidencias"):
   // solo las de las personas a las que tiene acceso, nunca la tarifa.
@@ -126,22 +156,35 @@ incidenciasRouter.get("/", async (req, res) => {
       where: {
         OR: [{ servicio: { solicitud: { personaId: { in: personaIds } } } }, { visita: { servicio: { solicitud: { personaId: { in: personaIds } } } } }],
       },
-      include: { visita: true, servicio: { include: { solicitud: { include: { persona: true, necesidad: true } } } } },
+      include: CASO_EN_LISTADO,
       orderBy: { createdAt: "desc" },
     });
-    const sinTarifa = incidencias.map((i) => ({ ...i, servicio: ocultarTarifaSiProcede(i.servicio, false) }));
-    return res.json(sinTarifa);
+    return res.json(incidencias.map(sinTarifa));
   }
   res.json([]);
 });
 
 async function cargarIncidenciaConPermiso(id: string, usuario: NonNullable<Express.Request["usuario"]>) {
+  // La ficha trae todo el contexto del caso, no solo la descripción: de qué
+  // servicio y solicitud viene, quién es la persona atendida, qué profesional
+  // la tiene asignada, qué jornada se vio afectada y quién abrió el aviso.
+  // Antes había que salir a buscar cada dato en otra pestaña.
+  // Del profesional solo lo que sirve para localizarle: el DNI y la cuenta
+  // bancaria no pintan nada en una incidencia.
+  const profesionalIdentificativo = {
+    select: { id: true, codigo: true, nombre: true, apellidos: true, telefono: true, foto: true, usuario: { select: { email: true } } },
+  } as const;
+  const contextoServicio = {
+    profesional: profesionalIdentificativo,
+    solicitud: { include: { persona: true, necesidad: true, plan: true, creadaPor: { select: { id: true, nombre: true, email: true, rol: true } } } },
+  } as const;
   const incidencia = await prisma.incidencia.findUnique({
     where: { id },
     include: {
-      visita: { include: { servicio: true } },
-      servicio: { include: { solicitud: { include: { persona: true, necesidad: true } } } },
+      visita: { include: { profesional: profesionalIdentificativo, servicio: { include: contextoServicio } } },
+      servicio: { include: contextoServicio },
       responsable: true,
+      creadoPor: { select: { id: true, nombre: true, email: true, rol: true } },
       estadoHistorial: { orderBy: { createdAt: "asc" } },
     },
   });
@@ -159,7 +202,14 @@ incidenciasRouter.get("/:id", async (req, res) => {
   const { incidencia, permitido } = await cargarIncidenciaConPermiso(req.params.id, req.usuario!);
   if (!incidencia) return res.status(404).json({ error: "No encontrada" });
   if (!permitido) return res.status(403).json({ error: "Sin permiso" });
-  res.json({ ...incidencia, servicio: ocultarTarifaSiProcede(incidencia.servicio, esGestorOrganizacion(req.usuario!)) });
+  // El servicio puede venir directo o colgando de la jornada: hay que tapar
+  // la tarifa en los dos sitios, no solo en el primero.
+  const veTarifa = esGestorOrganizacion(req.usuario!);
+  res.json({
+    ...incidencia,
+    servicio: ocultarTarifaSiProcede(incidencia.servicio, veTarifa),
+    visita: incidencia.visita ? { ...incidencia.visita, servicio: ocultarTarifaSiProcede(incidencia.visita.servicio, veTarifa) } : incidencia.visita,
+  });
 });
 
 const estadoSchema = z.object({

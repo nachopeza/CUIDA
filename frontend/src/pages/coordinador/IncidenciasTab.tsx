@@ -20,8 +20,14 @@ const PIPELINE = ["NUEVA", "EN_REVISION", "ASIGNADA", "EN_RESOLUCION", "RESUELTA
 const PRIORIDAD_PUNTO: Record<string, string> = { ALTA: "bg-rose-500", MEDIA: "bg-amber-400", BAJA: "bg-slate-300" };
 const PRIORIDAD_ORDEN: Record<string, number> = { ALTA: 0, MEDIA: 1, BAJA: 2 };
 
+// El caso cuelga del servicio o de la jornada. Mirando solo el servicio, una
+// incidencia abierta por un profesional desde su jornada salía sin nombre.
+function casoDe(i: Incidencia) {
+  return i.servicio?.solicitud ?? i.visita?.servicio?.solicitud ?? null;
+}
+
 function personaDe(i: Incidencia) {
-  const p = i.servicio?.solicitud?.persona;
+  const p = casoDe(i)?.persona;
   return p ? `${p.nombre} ${p.apellidos}` : "—";
 }
 
@@ -60,7 +66,7 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
       if (estadoFiltro === "abiertas" && !abierta(i)) return false;
       if (estadoFiltro === "archivadas" && abierta(i)) return false;
       if (!q) return true;
-      return [i.codigo, i.descripcion, personaDe(i), i.servicio?.codigo ?? "", infoMotivo(i.motivo).etiqueta].join(" ").toLowerCase().includes(q);
+      return [i.codigo, i.descripcion, personaDe(i), i.servicio?.codigo ?? i.visita?.servicio?.codigo ?? "", infoMotivo(i.motivo).etiqueta].join(" ").toLowerCase().includes(q);
     });
   }, [incidencias, prioridadFiltro, motivoFiltro, estadoFiltro, busqueda]);
 
@@ -234,7 +240,7 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5 font-medium text-slate-800">
                         {personaDe(i)}
-                        {i.servicio?.solicitud && <span className="block text-xs font-normal text-slate-400">{i.servicio.solicitud.necesidad.nombre}</span>}
+                        {casoDe(i) && <span className="block text-xs font-normal text-slate-400">{casoDe(i)!.necesidad.nombre}</span>}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-slate-600" title={motivo.ayuda}>
                         <span className="flex items-center gap-1.5">

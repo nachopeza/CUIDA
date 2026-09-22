@@ -96,6 +96,7 @@ model Usuario {
   familiarDe           FamiliarRelacion[] @relation("UsuarioFamiliar")
   solicitudesCreadas   Solicitud[]        @relation("SolicitudCreadaPor")
   incidenciasAsignadas Incidencia[]       @relation("IncidenciaResponsable")
+  incidenciasCreadas   Incidencia[]       @relation("IncidenciaCreadaPor")
   notificaciones       Notificacion[]
   mensajes             Mensaje[]
   auditLogs            AuditLog[]
@@ -696,6 +697,12 @@ model Incidencia {
 
   responsableUsuarioId String?
   responsable          Usuario? @relation("IncidenciaResponsable", fields: [responsableUsuarioId], references: [id])
+
+  // Quién la abrió. Sin esto, en la ficha ponía el caso pero no de quién
+  // venía el aviso, y coordinación no sabía a quién llamar para
+  // preguntar. Opcional porque las incidencias anteriores no lo guardaban.
+  creadoPorUsuarioId String?
+  creadoPor          Usuario? @relation("IncidenciaCreadaPor", fields: [creadoPorUsuarioId], references: [id])
 
   estadoHistorial EstadoHistorial[]
 

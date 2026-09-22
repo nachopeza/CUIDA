@@ -16,6 +16,7 @@ import { agendaRouter } from "./routes/agenda.js";
 import { conversacionesRouter } from "./routes/conversaciones.js";
 import { facturasRouter } from "./routes/facturas.js";
 import { cuentaRouter } from "./routes/cuenta.js";
+import { conErroresAsincronos } from "./lib/asincrono.js";
 
 const app = express();
 
@@ -24,21 +25,21 @@ app.use(express.json());
 
 app.get("/health", (_req, res) => res.json({ status: "ok", proyecto: "CUIDA", fase: 1 }));
 
-app.use("/auth", authRouter);
-app.use("/personas", personasRouter);
-app.use("/necesidades", necesidadesRouter);
-app.use("/solicitudes", solicitudesRouter);
-app.use("/servicios", serviciosRouter);
-app.use("/profesionales", profesionalesRouter);
-app.use("/visitas", visitasRouter);
-app.use("/incidencias", incidenciasRouter);
-app.use("/notificaciones", notificacionesRouter);
-app.use("/auditoria", auditoriaRouter);
-app.use("/empresas-colaboradoras", empresasColaboradorasRouter);
-app.use("/agenda", agendaRouter);
-app.use("/conversaciones", conversacionesRouter);
-app.use("/facturas", facturasRouter);
-app.use("/cuenta", cuentaRouter);
+app.use("/auth", conErroresAsincronos(authRouter));
+app.use("/personas", conErroresAsincronos(personasRouter));
+app.use("/necesidades", conErroresAsincronos(necesidadesRouter));
+app.use("/solicitudes", conErroresAsincronos(solicitudesRouter));
+app.use("/servicios", conErroresAsincronos(serviciosRouter));
+app.use("/profesionales", conErroresAsincronos(profesionalesRouter));
+app.use("/visitas", conErroresAsincronos(visitasRouter));
+app.use("/incidencias", conErroresAsincronos(incidenciasRouter));
+app.use("/notificaciones", conErroresAsincronos(notificacionesRouter));
+app.use("/auditoria", conErroresAsincronos(auditoriaRouter));
+app.use("/empresas-colaboradoras", conErroresAsincronos(empresasColaboradorasRouter));
+app.use("/agenda", conErroresAsincronos(agendaRouter));
+app.use("/conversaciones", conErroresAsincronos(conversacionesRouter));
+app.use("/facturas", conErroresAsincronos(facturasRouter));
+app.use("/cuenta", conErroresAsincronos(cuentaRouter));
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

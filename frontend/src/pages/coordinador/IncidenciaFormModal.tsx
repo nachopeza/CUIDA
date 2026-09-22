@@ -19,6 +19,7 @@ const PRIORIDADES = [
 export function IncidenciaFormModal({
   servicios,
   servicioPreseleccionado,
+  visitaPreseleccionada,
   motivoPreseleccionado,
   descripcionSugerida,
   onClose,
@@ -26,6 +27,10 @@ export function IncidenciaFormModal({
 }: {
   servicios: Servicio[];
   servicioPreseleccionado?: string;
+  // La jornada concreta, cuando la hay. Sin esto una incidencia de horas se
+  // ataba al servicio entero y en su ficha no se podía ver el fichaje del que
+  // iba la discusión.
+  visitaPreseleccionada?: string;
   motivoPreseleccionado?: MotivoIncidencia;
   // Cuando se abre desde la verificación, el texto llega redactado con el
   // descuadre concreto: se puede matizar, pero no hay que escribirlo entero.
@@ -56,7 +61,13 @@ export function IncidenciaFormModal({
     setGuardando(true);
     setError(null);
     try {
-      await api.post("/incidencias", { servicioId, motivo, prioridad, descripcion: descripcion.trim() }, token);
+      // Se mandan los dos: el servicio para que el listado sepa de quién es
+      // y la jornada para que la ficha enseñe el fichaje.
+      await api.post(
+        "/incidencias",
+        { servicioId, visitaId: servicioId === servicioPreseleccionado ? visitaPreseleccionada : undefined, motivo, prioridad, descripcion: descripcion.trim() },
+        token,
+      );
       onCreada();
       onClose();
     } catch (e) {

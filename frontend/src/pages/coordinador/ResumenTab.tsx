@@ -16,6 +16,9 @@ interface Props {
   incidencias: Incidencia[];
   onIrA: (tab: string, filtro?: string) => void;
   onAbrirSolicitud: (solicitudId: string) => void;
+  // Abrir la incidencia en su ficha. Antes el aviso solo llevaba a la
+  // pestaña de incidencias y había que volver a buscarla en el listado.
+  onAbrirIncidencia: (incidenciaId: string) => void;
   onCambiado: () => void;
 }
 
@@ -89,7 +92,7 @@ function nombrePersona(s?: Servicio) {
 // bandeja de lo que sólo puede resolver coordinación (se resuelve desde
 // aquí, sin navegar); a la derecha la situación del mes, la plantilla y la
 // demanda. La actividad reciente cierra, porque es contexto, no tarea.
-export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrirSolicitud, onCambiado }: Props) {
+export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrirSolicitud, onAbrirIncidencia, onCambiado }: Props) {
   const { token } = useAuth();
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [profesionales, setProfesionales] = useState<Profesional[]>([]);
@@ -501,14 +504,16 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                 {nuevas.slice(0, 4).map((s) => (
                   <li key={s.id} className="flex items-center gap-3 py-2">
                     <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700">Nueva</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-slate-800">
+                    {/* El nombre y el código también entran: el aviso se leía
+                        pero no se podía pinchar para mirarlo antes de decidir. */}
+                    <button onClick={() => onAbrirSolicitud(s.id)} className="min-w-0 flex-1 text-left">
+                      <p className="truncate text-sm text-slate-800 hover:underline">
                         {s.persona.nombre} {s.persona.apellidos} · {s.necesidad.nombre}
                       </p>
                       <p className="text-xs text-slate-400">
                         {s.codigo} · recibida el {new Date(s.createdAt).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })}
                       </p>
-                    </div>
+                    </button>
                     <button
                       onClick={() => onAbrirSolicitud(s.id)}
                       className="shrink-0 rounded-md border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white"
@@ -521,14 +526,16 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                 {cancelacionesPendientes.slice(0, 3).map((i) => (
                   <li key={i.id} className="flex items-center gap-3 py-2">
                     <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-700">Cancelar</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-slate-800">
+                    <button onClick={() => onAbrirIncidencia(i.id)} className="min-w-0 flex-1 text-left">
+                      <p className="truncate text-sm text-slate-800 hover:underline">
                         {i.servicio?.solicitud ? `${i.servicio.solicitud.persona.nombre} ${i.servicio.solicitud.persona.apellidos}` : i.codigo}
                       </p>
-                      <p className="truncate text-xs text-slate-400">{i.descripcion}</p>
-                    </div>
+                      <p className="truncate text-xs text-slate-400">
+                        {i.codigo} · {i.descripcion}
+                      </p>
+                    </button>
                     <button
-                      onClick={() => onIrA("incidencias")}
+                      onClick={() => onAbrirIncidencia(i.id)}
                       className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
                     >
                       Corroborar

@@ -3,8 +3,10 @@ import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Modal } from "../../components/Modal.js";
 import { EstadoBadge } from "../../components/EstadoBadge.js";
-import type { CuentaResumen, Incidencia } from "../../lib/types.js";
-import { IconArrowRight, IconCheckCircle } from "../../components/icons.js";
+import { infoMotivo } from "../../lib/incidencias.js";
+import { duracion, horaDe, minutosFichados, minutosEntre, compararConAcordado } from "../../lib/economia.js";
+import type { CuentaResumen, Incidencia, IncidenciaServicio } from "../../lib/types.js";
+import { IconArrowRight, IconCheckCircle, IconClipboard, IconClock, IconMail, IconPhone } from "../../components/icons.js";
 
 // Espejo de TRANSICIONES_INCIDENCIA del backend (backend/src/services/estados.ts).
 const TRANSICIONES_INCIDENCIA: Record<string, string[]> = {
@@ -16,18 +18,46 @@ const TRANSICIONES_INCIDENCIA: Record<string, string[]> = {
   CERRADA: [],
 };
 
+const ROL_LEGIBLE: Record<string, string> = {
+  PERSONA: "persona atendida",
+  FAMILIAR: "familiar",
+  PROFESIONAL: "profesional",
+  COORDINADOR: "coordinación",
+  ORGANIZACION: "coordinación",
+  ADMIN: "coordinación",
+  SUPERADMIN: "coordinación",
+};
+
+function fechaCorta(iso?: string | null) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+// Un dato de la ficha: etiqueta arriba, valor abajo. Sirve para que todo el
+// contexto se lea en rejilla en vez de en un párrafo corrido.
+function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{etiqueta}</p>
+      <div className="mt-0.5 text-sm text-slate-700">{children}</div>
+    </div>
+  );
+}
+
 interface Props {
   incidenciaId: string;
   onClose: () => void;
   onChanged: () => void;
+  // Abrir la solicitud del caso sin tener que buscarla en otra pestaña.
+  onAbrirSolicitud?: (solicitudId: string) => void;
 }
 
-// Ficha de incidencia (sección "cuando llega una incidencia no se puede
-// hacer nada, queda solamente avanzar a en revisión — se debe poder abrir
-// el panel, escribir anotaciones o cambiar el estado más dinámicamente"):
-// historial completo + notas libres + todas las transiciones válidas desde
-// el estado actual, no solo "avanzar un paso".
-export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged }: Props) {
+// Ficha de incidencia. Además de gestionarla, reúne aquí todo el caso
+// (sección "la información de la incidencia se debe fusionar con la ficha:
+// debo ver de qué solicitud es, qué profesional está asignada, quién envió
+// la incidencia"): antes contaba el problema pero no de quién venía ni a qué
+// servicio pertenecía, y había que ir a buscarlo a tres sitios distintos.
+export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged, onAbrirSolicitud }: Props) {
   const { token } = useAuth();
   const [i, setI] = useState<Incidencia | null>(null);
   const [nota, setNota] = useState("");
@@ -108,20 +138,155 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged }: Props
 
   const esCancelacion = i.tipo === "SOLICITUD_CANCELACION";
   const siguientes = TRANSICIONES_INCIDENCIA[i.estado] ?? [];
+  const motivo = infoMotivo(i.motivo);
+  const IconoMotivo = motivo.Icono;
+
+  // El caso puede colgar del servicio entero o de una jornada concreta; el
+  // contexto es el mismo, solo cambia de dónde se saca.
+  const servicio: IncidenciaServicio | null | undefined = i.servicio ?? i.visita?.servicio;
+  const solicitud = servicio?.solicitud;
+  const persona = solicitud?.persona;
+  const profesional = i.visita?.profesional ?? servicio?.profesional;
+  const plan = solicitud?.plan;
+  const visita = i.visita;
+
+  const fichados = visita ? minutosFichados(visita.horaInicioReal, visita.horaFinReal) : null;
+  const previstos = visita ? minutosEntre(visita.horaInicioProg, visita.horaFinProg) ?? servicio?.minutosPrevistos ?? null : null;
+  const desvio = fichados != null && previstos != null ? compararConAcordado(fichados, previstos) : null;
+
+  const autor = i.creadoPor;
+  const autorNombre = autor?.nombre ?? autor?.email ?? null;
+  const autorRol = autor?.rol ? ROL_LEGIBLE[autor.rol] ?? autor.rol.toLowerCase() : null;
 
   return (
     <Modal title={`${i.codigo} · ${esCancelacion ? "Solicitud de cancelación" : "Incidencia"}`} onClose={onClose} size="lg">
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-slate-700">{i.descripcion}</p>
+        {/* Qué ha pasado, de qué va y en qué estado está. */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              <IconoMotivo className="h-3.5 w-3.5" /> {motivo.etiqueta} · prioridad {i.prioridad.toLowerCase()}
+            </p>
+            <p className="mt-1 text-sm text-slate-800">{i.descripcion}</p>
             <p className="mt-1 text-xs text-slate-400">
-              Prioridad {i.prioridad.toLowerCase()}
-              {i.servicio?.solicitud && ` · ${i.servicio.solicitud.persona.nombre} · ${i.servicio.solicitud.necesidad.nombre}`}
+              {autorNombre ? (
+                <>
+                  Abierta por <span className="font-medium text-slate-600">{autorNombre}</span>
+                  {autorRol && ` (${autorRol})`}
+                </>
+              ) : (
+                "No consta quién la abrió"
+              )}
+              {i.createdAt && ` · ${new Date(i.createdAt).toLocaleString("es-ES")}`}
             </p>
           </div>
           <EstadoBadge estado={i.estado} />
         </div>
+
+        {/* El caso: de qué solicitud viene, a quién se atiende y quién la
+            tiene asignada. Todo junto, que es lo que hace falta para poder
+            llamar a alguien y resolverla. */}
+        {(solicitud || profesional) && (
+          <section className="rounded-xl border border-slate-200 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <IconClipboard className="h-3.5 w-3.5 text-slate-400" /> El caso
+              </p>
+              {solicitud?.id && onAbrirSolicitud && (
+                <button
+                  onClick={() => onAbrirSolicitud(solicitud.id!)}
+                  className="flex items-center gap-1 text-xs font-medium text-brand hover:text-brand-800"
+                >
+                  Abrir la solicitud <IconArrowRight className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {solicitud && persona && (
+                <Dato etiqueta="Solicitud">
+                  {solicitud.codigo ?? servicio?.codigo} · {solicitud.necesidad.nombre}
+                  <span className="block text-xs text-slate-500">
+                    {persona.nombre} {persona.apellidos}
+                    {persona.telefono && ` · ${persona.telefono}`}
+                  </span>
+                </Dato>
+              )}
+
+              {servicio?.codigo && (
+                <Dato etiqueta="Servicio">
+                  {servicio.codigo}
+                  <span className="block text-xs text-slate-500">
+                    {servicio.tipoServicio === "RECURRENTE" ? "Recurrente" : "Puntual"}
+                    {servicio.estado && ` · ${servicio.estado.replace(/_/g, " ").toLowerCase()}`}
+                  </span>
+                </Dato>
+              )}
+
+              <Dato etiqueta="Profesional asignada">
+                {profesional ? (
+                  <>
+                    {profesional.nombre} {profesional.apellidos}
+                    <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-500">
+                      {profesional.telefono && (
+                        <span className="flex items-center gap-1">
+                          <IconPhone className="h-3 w-3" /> {profesional.telefono}
+                        </span>
+                      )}
+                      {profesional.usuario?.email && (
+                        <span className="flex items-center gap-1">
+                          <IconMail className="h-3 w-3" /> {profesional.usuario.email}
+                        </span>
+                      )}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-slate-400">Sin cubrir</span>
+                )}
+              </Dato>
+
+              {plan && (
+                <Dato etiqueta="Cuándo se hace">
+                  {plan.horaInicio && plan.horaFin ? `${plan.horaInicio}–${plan.horaFin}` : plan.franjaHoraria ?? "Sin horario fijado"}
+                  <span className="block text-xs text-slate-500">
+                    {plan.recurrencia ? plan.recurrencia : fechaCorta(plan.fechaInicio)}
+                    {plan.recurrencia && ` · desde el ${fechaCorta(plan.fechaInicio)}`}
+                    {plan.recurrencia && !plan.fechaFin && " · indefinido"}
+                  </span>
+                </Dato>
+              )}
+            </div>
+
+            {/* Si la incidencia va de una jornada concreta, se ve esa jornada
+                con su fichaje: es lo primero que se mira en una incidencia de
+                horas o de ausencia. */}
+            {visita && (
+              <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                  <IconClock className="h-3.5 w-3.5 text-slate-400" />
+                  Jornada {visita.codigo} · {fechaCorta(visita.fecha)}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {fichados != null ? (
+                    <>
+                      Fichó de {horaDe(visita.horaInicioReal)} a {horaDe(visita.horaFinReal)} · {duracion(fichados)}
+                      {visita.horaInicioProg && visita.horaFinProg && ` (previsto ${visita.horaInicioProg}–${visita.horaFinProg})`}
+                      {desvio && desvio.desvio !== "exacto" && (
+                        <span className={desvio.desvio === "de_mas" ? " text-amber-600" : " text-rose-600"}>
+                          {" "}
+                          {desvio.diferencia > 0 ? "+" : ""}
+                          {duracion(desvio.diferencia)}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="font-medium text-amber-600">Sin fichaje</span>
+                  )}
+                </p>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* El estado como desplegable, igual que en el servicio: ofrece solo
             los pasos a los que de verdad se puede ir desde donde está, en vez

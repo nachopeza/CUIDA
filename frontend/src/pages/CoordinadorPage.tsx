@@ -144,12 +144,27 @@ export function CoordinadorPage() {
       setTab("solicitudes");
       setFichaAbierta(id);
     }
+    // Lo mismo con ?incidencia=<id>: un aviso de incidencia también tiene que
+    // abrir su ficha, no dejarte en el listado buscándola.
+    const incidenciaId = searchParams.get("incidencia");
+    if (incidenciaId) {
+      setTab("incidencias");
+      setIncidenciaFichaAbierta(incidenciaId);
+    }
   }, [searchParams]);
 
   function cerrarFicha() {
     setFichaAbierta(null);
     if (searchParams.get("solicitud")) {
       searchParams.delete("solicitud");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }
+
+  function cerrarIncidencia() {
+    setIncidenciaFichaAbierta(null);
+    if (searchParams.get("incidencia")) {
+      searchParams.delete("incidencia");
       setSearchParams(searchParams, { replace: true });
     }
   }
@@ -367,6 +382,7 @@ export function CoordinadorPage() {
               setTab("solicitudes");
               setFichaAbierta(id);
             }}
+            onAbrirIncidencia={setIncidenciaFichaAbierta}
             onCambiado={cargar}
           />
         )}
@@ -659,7 +675,18 @@ export function CoordinadorPage() {
 
         {fichaAbierta && <SolicitudFichaModal solicitudId={fichaAbierta} onClose={cerrarFicha} onChanged={cargar} />}
         {incidenciaFichaAbierta && (
-          <IncidenciaFichaModal incidenciaId={incidenciaFichaAbierta} onClose={() => setIncidenciaFichaAbierta(null)} onChanged={cargar} />
+          <IncidenciaFichaModal
+            incidenciaId={incidenciaFichaAbierta}
+            onClose={cerrarIncidencia}
+            onChanged={cargar}
+            // Desde la incidencia se salta a su solicitud sin pasar por el
+            // listado: son el mismo caso visto desde dos sitios.
+            onAbrirSolicitud={(id) => {
+              setIncidenciaFichaAbierta(null);
+              setTab("solicitudes");
+              setFichaAbierta(id);
+            }}
+          />
         )}
       </div>
     </div>

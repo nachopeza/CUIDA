@@ -5,6 +5,10 @@ import { api } from "../lib/api.js";
 import { IconBell } from "./icons.js";
 import type { Notificacion } from "../lib/types.js";
 
+// A dónde lleva cada aviso. Si no sabemos abrir la entidad no se navega,
+// pero antes se pinchaba una notificación de incidencia y no pasaba nada.
+const DESTINO: Record<string, string> = { Solicitud: "solicitud", Incidencia: "incidencia" };
+
 export function NotificationBell() {
   const { token } = useAuth();
   const navigate = useNavigate();
@@ -40,9 +44,8 @@ export function NotificationBell() {
   function abrir(n: Notificacion) {
     marcarLeida(n.id);
     setAbierto(false);
-    if (n.entidadTipo === "Solicitud" && n.entidadId) {
-      navigate(`/?solicitud=${n.entidadId}`);
-    }
+    const parametro = n.entidadTipo ? DESTINO[n.entidadTipo] : undefined;
+    if (parametro && n.entidadId) navigate(`/?${parametro}=${n.entidadId}`);
   }
 
   const noLeidas = notificaciones.filter((n) => !n.leida).length;

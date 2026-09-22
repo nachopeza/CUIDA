@@ -140,11 +140,44 @@ export interface Incidencia {
   descripcion: string;
   prioridad: string;
   estado: string;
+  createdAt?: string;
   visitaId?: string | null;
   servicioId?: string | null;
-  servicio?: { codigo: string; solicitud?: { persona: Persona; necesidad: Necesidad } } | null;
+  servicio?: IncidenciaServicio | null;
+  // La jornada concreta a la que se refiere, cuando la incidencia se abrió
+  // desde una visita y no desde el servicio entero.
+  visita?: (Pick<Visita, "id" | "codigo" | "fecha" | "horaInicioProg" | "horaFinProg" | "horaInicioReal" | "horaFinReal" | "estado"> & {
+    profesional?: IncidenciaProfesional | null;
+    servicio?: IncidenciaServicio | null;
+  }) | null;
   responsable?: { email: string; nombre?: string | null } | null;
+  // Quién abrió el aviso: sin esto la ficha contaba el caso pero no de quién
+  // venía, y no se sabía a quién llamar para preguntar.
+  creadoPor?: { id: string; email: string; nombre?: string | null; rol?: string } | null;
   estadoHistorial?: EstadoHistorialEntry[];
+}
+
+// Lo que la ficha de incidencia necesita saber del servicio: de qué solicitud
+// viene, a quién se atiende, quién la tiene asignada y con qué horario.
+export type IncidenciaProfesional = Pick<Profesional, "id" | "codigo" | "nombre" | "apellidos" | "telefono" | "foto"> & {
+  usuario?: { email: string } | null;
+};
+export interface IncidenciaServicio {
+  id?: string;
+  codigo: string;
+  estado?: string;
+  tipoServicio?: "PUNTUAL" | "RECURRENTE";
+  minutosPrevistos?: number | null;
+  profesional?: IncidenciaProfesional | null;
+  solicitud?: {
+    id?: string;
+    codigo?: string;
+    persona: Persona;
+    necesidad: Necesidad;
+    plan?: Plan | null;
+    descripcionLibre?: string;
+    creadaPor?: { id: string; email: string; nombre?: string | null; rol?: string } | null;
+  };
 }
 
 export interface Visita {

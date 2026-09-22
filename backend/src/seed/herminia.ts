@@ -570,6 +570,10 @@ async function main() {
     data: { personaId: herminia.id, profesionalId: profesional.id, autorUsuarioId: usuarioFamiliar.id, texto: "Hola Carmen, gracias por venir hoy. ¿Todo bien con mi madre?" },
   });
   const usuarioCarmen = await prisma.usuario.findUnique({ where: { email: "carmen.profesional@cuida.demo" } });
+  // Quién abre cada incidencia: casi siempre la profesional que está en casa,
+  // porque es quien lo ve. La ficha lo enseña para saber a quién preguntar.
+  const usuarioRosa = await prisma.usuario.findUnique({ where: { email: "rosa.profesional@cuida.demo" } });
+  const usuarioJavier = await prisma.usuario.findUnique({ where: { email: "javier.profesional@cuida.demo" } });
   if (usuarioCarmen) {
     await prisma.mensaje.create({
       data: {
@@ -760,6 +764,7 @@ async function main() {
       descripcion: "La profesional no encuentra las llaves de repuesto para entrar.",
       prioridad: "ALTA",
       estado: "NUEVA",
+      creadoPorUsuarioId: usuarioCarmen?.id,
     },
   });
   await registrarHistorial({ entidadTipo: "Incidencia", estadoAnterior: "NUEVA", estadoNuevo: "NUEVA", motivo: "Creación (seed)", incidenciaId: incidencia5.id });
@@ -1013,6 +1018,7 @@ async function main() {
       descripcion: "La consulta se retrasó casi una hora y la jornada se alargó más de lo previsto.",
       prioridad: "BAJA",
       estado: "RESUELTA",
+      creadoPorUsuarioId: usuarioJavier?.id,
     },
   });
   await registrarHistorial({ entidadTipo: "Incidencia", estadoAnterior: "NUEVA", estadoNuevo: "RESUELTA", motivo: "Hablado con la hija: conforme con las horas de más (seed)", incidenciaId: incidenciaResuelta.id });
@@ -1026,6 +1032,7 @@ async function main() {
       descripcion: "Manuel ha tenido un mareo al levantarse del sofá. No se ha caído, pero conviene avisar al médico.",
       prioridad: "ALTA",
       estado: "EN_REVISION",
+      creadoPorUsuarioId: usuarioRosa?.id,
     },
   });
   await registrarHistorial({ entidadTipo: "Incidencia", estadoAnterior: "NUEVA", estadoNuevo: "EN_REVISION", motivo: "Avisado el hijo; pendiente de hablar con el centro de salud (seed)", incidenciaId: incidenciaSalud.id });
@@ -1036,6 +1043,10 @@ async function main() {
       usuarioId: usuarioFamiliar.id,
       tipo: "seguimiento_visita",
       mensaje: `Visita ${visita.codigo} finalizada: compra y comida realizadas, Herminia bien.`,
+      // Sin referencia la notificación no llevaba a ninguna parte: se
+      // pinchaba y no pasaba nada.
+      entidadTipo: "Solicitud",
+      entidadId: solicitud.id,
     },
   });
 
