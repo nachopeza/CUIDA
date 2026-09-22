@@ -5,7 +5,7 @@ import { Card } from "../components/Layout.js";
 import { Novedades } from "../components/Novedades.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { Cronometro } from "../components/Cronometro.js";
-import { IconAlert, IconCalendar, IconChat, IconClock, IconFlag, IconHome, IconMenu, IconNote, IconPin, IconPlay, IconSearch, IconStop, IconUsers } from "../components/icons.js";
+import { IconAlert, IconCalendar, IconChat, IconClock, IconFlag, IconHome, IconMenu, IconNote, IconPin, IconPlay, IconSearch, IconStop, IconUsers, IconIdCard } from "../components/icons.js";
 import { IconoNecesidad } from "../lib/necesidadIconos.js";
 import { cobroDeJornada, duracion, euros, minutosEntre, minutosFichados, porHora } from "../lib/economia.js";
 import { Modal } from "../components/Modal.js";
@@ -13,11 +13,12 @@ import { TiempoTrabajadoModal } from "../components/TiempoTrabajadoModal.js";
 import { ChatPanel } from "../components/ChatPanel.js";
 import { Navegacion, type ItemNav } from "../components/Navegacion.js";
 import { MisJornadasTab } from "./profesional/MisJornadasTab.js";
+import { MiExpedienteTab } from "./profesional/MiExpedienteTab.js";
 import { BuscarSolicitudesTab } from "./profesional/BuscarSolicitudesTab.js";
 import { MiPerfilTab } from "./profesional/MiPerfilTab.js";
 import type { Profesional, Servicio, Visita } from "../lib/types.js";
 
-type Tab = "proximos" | "jornadas" | "buscar" | "perfil";
+type Tab = "proximos" | "jornadas" | "expediente" | "buscar" | "perfil";
 
 // Misma barra lateral que coordinación: el panel del profesional era una
 // fila de pestañas sueltas y no se parecía a nada del resto de la app.
@@ -26,12 +27,14 @@ type Tab = "proximos" | "jornadas" | "buscar" | "perfil";
 const NAV: ItemNav[] = [
   { key: "proximos", label: "Hoy", icon: IconHome },
   { key: "jornadas", label: "Mis jornadas", icon: IconClock },
+  { key: "expediente", label: "Mi contrato", icon: IconIdCard },
   { key: "buscar", label: "Buscar solicitudes", icon: IconSearch },
   { key: "perfil", label: "Mi perfil", icon: IconUsers },
 ];
 const TAB_LABEL: Record<Tab, string> = {
   proximos: "Hoy",
   jornadas: "Mis jornadas",
+  expediente: "Mi contrato",
   buscar: "Buscar solicitudes",
   perfil: "Mi perfil",
 };
@@ -222,6 +225,7 @@ export function ProfesionalPage() {
       {tab === "buscar" && <BuscarSolicitudesTab />}
       {tab === "perfil" && <MiPerfilTab />}
       {tab === "jornadas" && <MisJornadasTab visitas={visitas} />}
+      {tab === "expediente" && usuario?.profesionalId && <MiExpedienteTab profesionalId={usuario.profesionalId} />}
 
       {tab === "proximos" && (
         <>

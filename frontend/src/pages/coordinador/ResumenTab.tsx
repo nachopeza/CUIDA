@@ -9,7 +9,7 @@ import { compararConAcordado, duracion, euros, minutosFichados } from "../../lib
 import { IconAlert, IconArrowDown, IconArrowUp, IconBriefcase, IconCalendar, IconCheck, IconClipboard, IconReceipt, IconRefresh, IconUsers } from "../../components/icons.js";
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
 import { IncidenciaFormModal } from "./IncidenciaFormModal.js";
-import type { Factura, Incidencia, Profesional, Servicio, Solicitud, Visita } from "../../lib/types.js";
+import type { Factura, Incidencia, Profesional, Servicio, Solicitud, Visita, Ausencia, MiembroEquipo } from "../../lib/types.js";
 
 interface Props {
   solicitudes: Solicitud[];
@@ -97,6 +97,8 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const { token } = useAuth();
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [profesionales, setProfesionales] = useState<Profesional[]>([]);
+  const [equipo, setEquipo] = useState<MiembroEquipo[]>([]);
+  const [ausencias, setAusencias] = useState<Ausencia[]>([]);
   const [nombre, setNombre] = useState<string | null>(null);
   const [ultimaCarga, setUltimaCarga] = useState(() => Date.now());
   const [ahora, setAhora] = useState(() => Date.now());
@@ -106,14 +108,18 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const [error, setError] = useState<string | null>(null);
 
   const cargarPropios = useCallback(async () => {
-    const [facs, pros, me] = await Promise.all([
+    const [facs, pros, me, eq, aus] = await Promise.all([
       api.get<Factura[]>("/facturas", token),
       api.get<Profesional[]>("/profesionales", token),
       api.get<{ nombre: string | null }>("/cuenta/me", token),
+      api.get<MiembroEquipo[]>("/equipo", token).catch(() => []),
+      api.get<Ausencia[]>("/equipo/ausencias", token).catch(() => []),
     ]);
     setFacturas(facs);
     setProfesionales(pros);
     setNombre(me.nombre);
+    setEquipo(eq);
+    setAusencias(aus);
   }, [token]);
 
   useEffect(() => {
@@ -300,6 +306,28 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
       icon: IconUsers,
       tono: "amber" as const,
       onClick: () => onIrA("profesionales"),
+    },
+    // Quien no tiene los papeles en regla no puede trabajar, y eso se
+    // descubría el día que había que asignarle a alguien.
+    {
+      clave: "sin_papeles",
+      valor: equipo.filter((m) => m.bloqueado).length,
+      singular: "persona del equipo no puede trabajar: le falta documentación",
+      plural: "personas del equipo no pueden trabajar: les falta documentación",
+      detalle: "Sin el certificado de delitos sexuales o el DNI no se les puede asignar ningún servicio",
+      icon: IconAlert,
+      tono: "rose" as const,
+      onClick: () => onIrA("equipo"),
+    },
+    {
+      clave: "ausencias_pendientes",
+      valor: ausencias.filter((a) => a.estado === "SOLICITADA").length,
+      singular: "petición de días pendiente de responder",
+      plural: "peticiones de días pendientes de responder",
+      detalle: "Alguien del equipo espera respuesta",
+      icon: IconCalendar,
+      tono: "amber" as const,
+      onClick: () => onIrA("equipo"),
     },
   ].filter((a) => a.valor > 0);
 

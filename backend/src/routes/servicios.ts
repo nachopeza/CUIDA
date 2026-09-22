@@ -5,6 +5,7 @@ import { generarCodigo } from "../lib/codes.js";
 import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
 import { esGestorOrganizacion, puedeVerImportes, ocultarTarifaSiProcede, soloLoQueCobraElProfesional } from "../services/permisos.js";
+import { ausenteEse, carenciasDe } from "../services/rrhh.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
 import { asegurarSesiones } from "../services/sesiones.js";
@@ -282,6 +283,39 @@ serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", 
   } catch (err) {
     if (err instanceof TransicionInvalidaError) return res.status(409).json({ error: err.message });
     throw err;
+  }
+
+  // Nadie entra en casa de una persona mayor sin los papeles en regla. El
+  // certificado de delitos sexuales es obligatorio por ley para trabajar con
+  // personas vulnerables, así que esto no es una política interna que se
+  // pueda saltar: se bloquea la asignación y se dice qué falta.
+  const documentos = await prisma.documento.findMany({
+    where: { profesionalId: profesional.id },
+    select: { tipo: true, fechaCaducidad: true },
+  });
+  const impedimentos = carenciasDe(documentos).filter((c) => c.motivo !== "por_caducar");
+  if (impedimentos.length > 0) {
+    return res.status(409).json({
+      error: `No se puede asignar a ${profesional.nombre}: ${impedimentos
+        .map((c) => (c.motivo === "falta" ? `falta ${c.etiqueta.toLowerCase()}` : `${c.etiqueta.toLowerCase()} caducado`))
+        .join("; ")}.`,
+    });
+  }
+
+  // Y tampoco se asigna a quien está de baja o de vacaciones el día en que
+  // toca el servicio: descubrirlo cuando nadie aparece es lo que hay que
+  // evitar.
+  const plan = await prisma.plan.findUnique({ where: { solicitudId: servicio.solicitudId } });
+  if (plan) {
+    const ausencias = await prisma.ausencia.findMany({
+      where: { profesionalId: profesional.id, estado: "APROBADA" },
+      select: { desde: true, hasta: true, estado: true },
+    });
+    if (ausenteEse(plan.fechaInicio, ausencias)) {
+      return res.status(409).json({
+        error: `${profesional.nombre} está de ausencia el ${plan.fechaInicio.toLocaleDateString("es-ES")}. Elige a otra persona o cambia la fecha.`,
+      });
+    }
   }
 
   // Autorrelleno: si la profesional trabaja para una empresa colaboradora

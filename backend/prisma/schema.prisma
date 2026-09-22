@@ -301,6 +301,12 @@ model Profesional {
   // nómina, que hace la gestoría fuera de aquí.
   tipoRelacion    TipoRelacionProfesional @default(AUTONOMO)
   irpfPorcentaje  Decimal?                @db.Decimal(5, 2)
+  // Datos de contrato. Con relación mercantil (autónoma) no hay alta ni baja
+  // laboral, pero sí fecha desde la que colabora.
+  tipoContrato    TipoContrato?
+  fechaAlta       DateTime?
+  fechaBaja       DateTime?
+  categoria       String?
   // Horas semanales de contrato, sólo para los laborales: sirve para ver si
   // se están cubriendo o se están pasando.
   horasSemanales  Int?
@@ -346,6 +352,9 @@ model Profesional {
   documentos Documento[]
   visitas    Visita[]
   liquidaciones Liquidacion[]
+  ausencias          Ausencia[]
+  registrosJornada   RegistroJornada[]
+
 
 
   @@map("profesionales")
@@ -643,6 +652,49 @@ enum TipoRelacionProfesional {
   AUTONOMO
 }
 
+// Qué papel es. Tiparlos permite exigir los obligatorios y avisar de las
+// caducidades; con un nombre libre no se puede comprobar nada.
+enum TipoDocumento {
+  DNI
+  // Certificación negativa del Registro Central de Delincuentes Sexuales.
+  // En España es obligatoria para trabajar con personas vulnerables, así que
+  // su ausencia no es un descuido administrativo: es un impedimento legal.
+  DELITOS_SEXUALES
+  TITULACION
+  CONTRATO
+  ALTA_SEGURIDAD_SOCIAL
+  CARNE_CONDUCIR
+  SEGURO
+  FORMACION
+  OTRO
+}
+
+enum TipoContrato {
+  INDEFINIDO
+  TEMPORAL
+  FIJO_DISCONTINUO
+  PRACTICAS
+  // Quien factura no tiene contrato laboral: se guarda para que el expediente
+  // no mienta diciendo que sí.
+  MERCANTIL
+}
+
+enum TipoAusencia {
+  VACACIONES
+  BAJA_MEDICA
+  PERMISO_RETRIBUIDO
+  ASUNTOS_PROPIOS
+  EXCEDENCIA
+  OTRO
+}
+
+enum EstadoAusencia {
+  SOLICITADA
+  APROBADA
+  RECHAZADA
+  CANCELADA
+}
+
 enum EstadoLiquidacion {
   BORRADOR
   APROBADA
@@ -938,6 +990,12 @@ model Documento {
   id        String   @id @default(cuid())
   nombre    String
   url       String
+  // Tipo, vigencia y notas. Un documento sin tipo ni caducidad no se puede
+  // reclamar a tiempo: se descubre que faltaba el día que hace falta.
+  tipo            TipoDocumento @default(OTRO)
+  fechaEmision    DateTime?
+  fechaCaducidad  DateTime?
+  notas           String?
   createdAt DateTime @default(now())
 
   personaId String?
@@ -1065,4 +1123,65 @@ model LineaLiquidacion {
   importe  Decimal @db.Decimal(10, 2)
 
   @@map("lineas_liquidacion")
+}
+
+// Los días que alguien no está. Una ausencia aprobada no es información
+// administrativa: es lo que impide que coordinación le asigne una jornada ese
+// día y descubra el problema cuando nadie aparece en casa de la persona.
+model Ausencia {
+  id     String @id @default(cuid())
+  tipo   TipoAusencia
+  estado EstadoAusencia @default(SOLICITADA)
+
+  profesionalId String
+  profesional   Profesional @relation(fields: [profesionalId], references: [id], onDelete: Cascade)
+
+  // Días completos, inclusive los dos extremos.
+  desde DateTime
+  hasta DateTime
+
+  motivo     String?
+  respuesta  String? // por qué se aprueba o se rechaza
+  resueltaPorUsuarioId String?
+  resueltaAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("ausencias")
+}
+
+// Registro de jornada mensual (Art. 34.9 del Estatuto de los Trabajadores).
+// La obligación es registrar el horario concreto de inicio y fin de cada día
+// y conservarlo cuatro años a disposición de la Inspección.
+//
+// Los fichajes ya viven en las visitas; esto es el documento: se congela un
+// resumen del mes para que siga significando lo mismo aunque después se
+// reasignen servicios o se corrijan jornadas, y el trabajador da su
+// conformidad.
+model RegistroJornada {
+  id     String @id @default(cuid())
+  codigo String @unique // REG-000012
+  mes    String // "2026-09"
+
+  profesionalId String
+  profesional   Profesional @relation(fields: [profesionalId], references: [id], onDelete: Cascade)
+
+  organizacionId String
+
+  minutosTrabajados Int @default(0)
+  // Horas de contrato del mes, para poder ver exceso o defecto. Nulo cuando
+  // no hay contrato laboral.
+  minutosContrato   Int?
+  diasTrabajados    Int @default(0)
+
+  // El detalle día a día, congelado en el momento de cerrar el mes.
+  detalle String // JSON: [{ fecha, entrada, salida, minutos, servicio }]
+
+  cerradoAt      DateTime  @default(now())
+  conformeAt     DateTime?
+  conformeNota   String?
+  createdAt      DateTime  @default(now())
+
+  @@unique([profesionalId, mes])
+  @@map("registros_jornada")
 }

@@ -453,3 +453,14 @@ export const IconGrid = (p: SVGProps<SVGSVGElement>) => (
     <rect x="13.5" y="13.5" width="7" height="7" rx="1" />
   </Icon>
 );
+
+// Carné: el expediente de personal. Una tarjeta con la foto a la izquierda y
+// dos líneas de datos a la derecha.
+export const IconIdCard = (p: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+    <circle cx="8" cy="11" r="2" />
+    <path d="M5 16c.6-1.4 1.7-2 3-2s2.4.6 3 2" />
+    <path d="M14.5 10.5h4M14.5 13.5h4" />
+  </svg>
+);

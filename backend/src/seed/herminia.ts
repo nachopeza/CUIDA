@@ -84,6 +84,18 @@ async function limpiarOrganizacion(organizacionId: string) {
     where: { OR: [{ personaId: { in: personaIds } }, { servicioId: { in: servicioIds } }, { visitaId: { in: visitaIds } }, { profesionalId: { in: profesionalIds } }] },
   });
   await prisma.mensaje.deleteMany({ where: { personaId: { in: personaIds } } });
+  // Cobro y pago, y lo que cuelga de ellos. El orden importa: primero las
+  // líneas, después su cabecera, y la remesa antes que las facturas que
+  // apunta.
+  await prisma.lineaLiquidacion.deleteMany({ where: { liquidacion: { profesionalId: { in: profesionalIds } } } });
+  await prisma.liquidacion.deleteMany({ where: { profesionalId: { in: profesionalIds } } });
+  await prisma.registroJornada.deleteMany({ where: { profesionalId: { in: profesionalIds } } });
+  await prisma.ausencia.deleteMany({ where: { profesionalId: { in: profesionalIds } } });
+  await prisma.lineaFactura.deleteMany({ where: { factura: { personaId: { in: personaIds } } } });
+  await prisma.factura.updateMany({ where: { personaId: { in: personaIds } }, data: { remesaId: null, mandatoSepaId: null } });
+  await prisma.remesa.deleteMany({ where: { organizacionId } });
+  await prisma.mandatoSepa.deleteMany({ where: { datosFacturacion: { personaId: { in: personaIds } } } });
+  await prisma.datosFacturacion.deleteMany({ where: { personaId: { in: personaIds } } });
   await prisma.servicioInteres.deleteMany({ where: { servicioId: { in: servicioIds } } });
   await prisma.visita.deleteMany({ where: { id: { in: visitaIds } } });
   await prisma.plan.deleteMany({ where: { solicitudId: { in: solicitudIds } } });
@@ -1127,6 +1139,84 @@ async function main() {
   await prisma.profesional.update({ where: { id: profesional.id }, data: { tipoRelacion: "LABORAL", horasSemanales: 30 } });
   await prisma.profesional.update({ where: { id: rosa.id }, data: { tipoRelacion: "LABORAL", horasSemanales: 20 } });
   await prisma.profesional.update({ where: { id: javier.id }, data: { tipoRelacion: "AUTONOMO", irpfPorcentaje: 15 } });
+
+  // 15. Expedientes de personal. Tres situaciones distintas a propósito: una
+  // en regla, otra con el certificado a punto de caducar y otra a la que le
+  // falta — que es la que no debería poder entrar en ninguna casa.
+  const expedientes = [
+    {
+      profesional,
+      contrato: { tipoContrato: "INDEFINIDO" as const, fechaAlta: fechaEn(-900), categoria: "Auxiliar de ayuda a domicilio" },
+      documentos: [
+        { tipo: "DNI" as const, nombre: "DNI 12345678A", fechaEmision: fechaEn(-1200), fechaCaducidad: fechaEn(1500) },
+        { tipo: "DELITOS_SEXUALES" as const, nombre: "Certificación negativa del Registro Central", fechaEmision: fechaEn(-200), fechaCaducidad: fechaEn(165) },
+        { tipo: "TITULACION" as const, nombre: "Certificado de Atención Sociosanitaria a Personas Dependientes", fechaEmision: fechaEn(-1800), fechaCaducidad: null },
+        { tipo: "CONTRATO" as const, nombre: "Contrato indefinido a tiempo parcial (30 h)", fechaEmision: fechaEn(-900), fechaCaducidad: null },
+        { tipo: "ALTA_SEGURIDAD_SOCIAL" as const, nombre: "Alta en el régimen general", fechaEmision: fechaEn(-900), fechaCaducidad: null },
+      ],
+    },
+    {
+      profesional: rosa,
+      contrato: { tipoContrato: "TEMPORAL" as const, fechaAlta: fechaEn(-300), categoria: "Auxiliar de ayuda a domicilio" },
+      documentos: [
+        { tipo: "DNI" as const, nombre: "DNI 87654321B", fechaEmision: fechaEn(-800), fechaCaducidad: fechaEn(900) },
+        // Caduca dentro de tres semanas: debe salir como aviso, no como
+        // impedimento — todavía puede trabajar.
+        { tipo: "DELITOS_SEXUALES" as const, nombre: "Certificación negativa del Registro Central", fechaEmision: fechaEn(-345), fechaCaducidad: fechaEn(20) },
+        { tipo: "CONTRATO" as const, nombre: "Contrato temporal a tiempo parcial (20 h)", fechaEmision: fechaEn(-300), fechaCaducidad: fechaEn(65) },
+      ],
+    },
+    {
+      profesional: javier,
+      contrato: { tipoContrato: "MERCANTIL" as const, fechaAlta: fechaEn(-150), categoria: "Acompañamiento y transporte" },
+      documentos: [
+        { tipo: "DNI" as const, nombre: "DNI 11223344C", fechaEmision: fechaEn(-600), fechaCaducidad: fechaEn(1100) },
+        { tipo: "CARNE_CONDUCIR" as const, nombre: "Permiso B", fechaEmision: fechaEn(-1500), fechaCaducidad: fechaEn(400) },
+        // A Javier le falta el certificado de delitos sexuales: el sistema
+        // debe impedir que se le asigne a nadie hasta que lo aporte.
+      ],
+    },
+  ];
+
+  for (const expediente of expedientes) {
+    await prisma.profesional.update({ where: { id: expediente.profesional.id }, data: expediente.contrato });
+    for (const doc of expediente.documentos) {
+      await prisma.documento.create({
+        data: {
+          profesionalId: expediente.profesional.id,
+          tipo: doc.tipo,
+          nombre: doc.nombre,
+          url: "",
+          fechaEmision: doc.fechaEmision,
+          fechaCaducidad: doc.fechaCaducidad,
+        },
+      });
+    }
+  }
+
+  // Una ausencia aprobada y otra pendiente de responder, para que la bandeja
+  // de coordinación no arranque vacía.
+  await prisma.ausencia.create({
+    data: {
+      profesionalId: rosa.id,
+      tipo: "VACACIONES",
+      estado: "APROBADA",
+      desde: fechaEn(12),
+      hasta: fechaEn(22),
+      motivo: "Vacaciones de otoño",
+      resueltaAt: fechaEn(-5),
+    },
+  });
+  await prisma.ausencia.create({
+    data: {
+      profesionalId: profesional.id,
+      tipo: "ASUNTOS_PROPIOS",
+      estado: "SOLICITADA",
+      desde: fechaEn(30),
+      hasta: fechaEn(30),
+      motivo: "Cita médica familiar",
+    },
+  });
 
   console.log("\nSeed completado. Cadena PERSONA → NECESIDAD → SOLICITUD → SERVICIO → VISITA → ACTUACIÓN → SEGUIMIENTO creada.");
   console.log(`Organización: ${organizacion.codigo} · Persona: ${herminia.codigo} · Solicitud: ${solicitud.codigo} · Servicio: ${servicio.codigo} · Visita: ${visita.codigo}`);

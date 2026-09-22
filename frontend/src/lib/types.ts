@@ -442,3 +442,88 @@ export interface VisitaAgenda extends Visita {
     solicitud: { id: string; persona: Persona; necesidad: Necesidad };
   };
 }
+
+// ------------------------------------------------------------------- personal
+
+export type TipoDocumento =
+  | "DNI"
+  | "DELITOS_SEXUALES"
+  | "TITULACION"
+  | "CONTRATO"
+  | "ALTA_SEGURIDAD_SOCIAL"
+  | "CARNE_CONDUCIR"
+  | "SEGURO"
+  | "FORMACION"
+  | "OTRO";
+
+export type TipoContrato = "INDEFINIDO" | "TEMPORAL" | "FIJO_DISCONTINUO" | "PRACTICAS" | "MERCANTIL";
+export type TipoAusencia = "VACACIONES" | "BAJA_MEDICA" | "PERMISO_RETRIBUIDO" | "ASUNTOS_PROPIOS" | "EXCEDENCIA" | "OTRO";
+export type EstadoAusencia = "SOLICITADA" | "APROBADA" | "RECHAZADA" | "CANCELADA";
+
+export interface DocumentoProfesional {
+  id: string;
+  tipo: TipoDocumento;
+  nombre: string;
+  url: string;
+  fechaEmision?: string | null;
+  fechaCaducidad?: string | null;
+  notas?: string | null;
+  createdAt: string;
+}
+
+export interface Ausencia {
+  id: string;
+  tipo: TipoAusencia;
+  estado: EstadoAusencia;
+  desde: string;
+  hasta: string;
+  motivo?: string | null;
+  respuesta?: string | null;
+  resueltaAt?: string | null;
+  createdAt: string;
+  profesional?: Pick<Profesional, "id" | "codigo" | "nombre" | "apellidos">;
+}
+
+// Qué le falta a alguien para poder trabajar. "falta" y "caducado" impiden
+// asignarle servicios; "por_caducar" es sólo un aviso para renovar a tiempo.
+export interface Carencia {
+  tipo: TipoDocumento;
+  etiqueta: string;
+  motivo: "falta" | "caducado" | "por_caducar";
+  fechaCaducidad?: string | null;
+}
+
+export interface MiembroEquipo extends Profesional {
+  tipoContrato?: TipoContrato | null;
+  fechaAlta?: string | null;
+  fechaBaja?: string | null;
+  categoria?: string | null;
+  documentos: DocumentoProfesional[];
+  ausencias: Ausencia[];
+  carencias: Carencia[];
+  bloqueado: boolean;
+  ausenciaHoy?: Ausencia | null;
+}
+
+// Un día del registro de jornada, tal y como quedó congelado al cerrar el mes.
+export interface DiaDeJornada {
+  fecha: string;
+  entrada: string | null;
+  salida: string | null;
+  minutos: number;
+  servicio: string;
+}
+
+export interface RegistroJornada {
+  id: string;
+  codigo: string;
+  mes: string;
+  minutosTrabajados: number;
+  minutosContrato?: number | null;
+  diasTrabajados: number;
+  detalle: string; // JSON con DiaDeJornada[]
+  cerradoAt: string;
+  conformeAt?: string | null;
+  conformeNota?: string | null;
+  profesional: Pick<Profesional, "id" | "codigo" | "nombre" | "apellidos" | "dni"> & { tipoRelacion?: TipoRelacionProfesional };
+}

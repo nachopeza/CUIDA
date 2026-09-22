@@ -27,6 +27,7 @@ import {
   IconSettings,
   IconTag,
   IconUsers,
+  IconIdCard,
   IconX,
 } from "../components/icons.js";
 import { ResumenTab } from "./coordinador/ResumenTab.js";
@@ -47,6 +48,7 @@ import { SolicitudModal } from "../components/SolicitudModal.js";
 import { SolicitudFichaModal } from "../components/SolicitudFichaModal.js";
 import { IncidenciaFichaModal } from "./coordinador/IncidenciaFichaModal.js";
 import { IncidenciasTab } from "./coordinador/IncidenciasTab.js";
+import { EquipoTab } from "./coordinador/EquipoTab.js";
 import type { EmpresaColaboradora, Incidencia, Necesidad, Persona, Profesional, Servicio, Solicitud } from "../lib/types.js";
 
 type Tab =
@@ -57,6 +59,7 @@ type Tab =
   | "incidencias"
   | "personas"
   | "profesionales"
+  | "equipo"
   | "empresas"
   | "calendario"
   | "facturacion"
@@ -70,6 +73,7 @@ const NAV: { key: Tab; label: string; icon: typeof IconHome }[] = [
   { key: "incidencias", label: "Incidencias", icon: IconAlert },
   { key: "personas", label: "Usuarios", icon: IconUsers },
   { key: "profesionales", label: "Profesionales", icon: IconBriefcase },
+  { key: "equipo", label: "Equipo", icon: IconIdCard },
   { key: "empresas", label: "Empresas colaboradoras", icon: IconBuilding },
   { key: "calendario", label: "Calendario", icon: IconCalendar },
   { key: "facturacion", label: "Facturación", icon: IconReceipt },
@@ -644,6 +648,7 @@ export function CoordinadorPage() {
 
         {tab === "personas" && <PersonasTab onAbrirFicha={abrirPersona} refreshKey={personasRefreshKey} />}
         {tab === "profesionales" && <ProfesionalesTab />}
+        {tab === "equipo" && <EquipoTab />}
         {tab === "empresas" && <EmpresasTab />}
         {tab === "calendario" && <CalendarioTab onAbrirSolicitud={(id) => setFichaAbierta(id)} />}
         {tab === "facturacion" && <FacturacionTab />}

@@ -89,6 +89,23 @@ async function hayConflicto(profesionalId: string | null, fecha: Date, horaInici
   return delDia.some((v) => seSolapan(v.horaInicioProg, v.horaFinProg, horaInicio, horaFin));
 }
 
+// ¿Está de baja o de vacaciones ese día? Comprobarlo sólo al asignar no basta:
+// en un servicio recurrente la ausencia cae en una jornada que todavía no
+// existe, así que hay que mirarlo también al generarla.
+async function estaAusente(profesionalId: string | null, fecha: Date) {
+  if (!profesionalId) return false;
+  const dia = aMedianoche(fecha);
+  const solapa = await prisma.ausencia.findFirst({
+    where: {
+      profesionalId,
+      estado: "APROBADA",
+      desde: { lte: new Date(dia.getTime() + 86399000) },
+      hasta: { gte: dia },
+    },
+  });
+  return solapa != null;
+}
+
 export interface ResultadoSesiones {
   creadas: string[];
   motivo?: string;
@@ -125,6 +142,7 @@ export async function asegurarSesiones(servicioId: string): Promise<ResultadoSes
 
   async function crear(fecha: Date): Promise<string | null> {
     if (await hayConflicto(servicio!.profesionalId, fecha, horaInicio, horaFin)) return null;
+    if (await estaAusente(servicio!.profesionalId, fecha)) return null;
     const visita = await prisma.visita.create({
       data: {
         codigo: await generarCodigo("visita"),
@@ -146,7 +164,7 @@ export async function asegurarSesiones(servicioId: string): Promise<ResultadoSes
   if (servicio.tipoServicio !== "RECURRENTE") {
     if (servicio.visitas.length > 0) return { creadas: [], motivo: "Ya tiene su jornada" };
     const codigo = await crear(plan.fechaInicio);
-    return codigo ? { creadas: [codigo] } : { creadas: [], motivo: "El profesional ya tiene algo a esa hora" };
+    return codigo ? { creadas: [codigo] } : { creadas: [], motivo: "Ese día el profesional no puede: ya tiene algo a esa hora o está de ausencia" };
   }
 
   // Recurrente: siempre una jornada por delante y ninguna más. Se genera al
@@ -167,7 +185,7 @@ export async function asegurarSesiones(servicioId: string): Promise<ResultadoSes
   if (plan.fechaFin && dia > aMedianoche(plan.fechaFin)) return { creadas: [], motivo: "El plan ha llegado a su fecha de fin" };
 
   const codigo = await crear(dia);
-  return codigo ? { creadas: [codigo] } : { creadas: [], motivo: "El profesional ya tiene algo a esa hora" };
+  return codigo ? { creadas: [codigo] } : { creadas: [], motivo: "Ese día el profesional no puede: ya tiene algo a esa hora o está de ausencia" };
 }
 
 export interface ResultadoSincronizacion {

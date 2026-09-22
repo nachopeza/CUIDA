@@ -19,6 +19,7 @@ const PREFIXES = {
   mandato: "MND",
   remesa: "REM",
   liquidacion: "LIQ",
+  registro: "REG",
 } as const;
 
 type Entidad = keyof typeof PREFIXES;
@@ -36,6 +37,7 @@ const PADDING: Record<Entidad, number> = {
   mandato: 6,
   remesa: 6,
   liquidacion: 6,
+  registro: 6,
 };
 
 async function contar(entidad: Entidad): Promise<number> {
@@ -64,6 +66,8 @@ async function contar(entidad: Entidad): Promise<number> {
       return prisma.remesa.count();
     case "liquidacion":
       return prisma.liquidacion.count();
+    case "registro":
+      return prisma.registroJornada.count();
   }
 }
 
