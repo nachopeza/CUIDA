@@ -1,4 +1,6 @@
-import type { Factura, FichaProfesional, Incidencia, Servicio, Solicitud, Visita } from "./types.js";
+import type { Factura, FichaProfesional, Incidencia, Persona, Servicio, Solicitud, Visita } from "./types.js";
+
+type PersonaConCarencias = Persona;
 import { duracion, minutosFichados } from "./economia.js";
 
 // Qué requiere una decisión de Olga ahora mismo, en un único sitio y con un
@@ -30,6 +32,7 @@ export interface Asunto {
   destino:
     | { tipo: "solicitud"; id: string }
     | { tipo: "incidencia"; id: string }
+    | { tipo: "persona"; id: string }
     | { tipo: "tab"; tab: string; foco?: string };
 }
 
@@ -66,8 +69,9 @@ export function calcularPendientes(datos: {
   incidencias: Incidencia[];
   facturas: Factura[];
   plantilla: FichaProfesional[];
+  personas?: PersonaConCarencias[];
 }): Asunto[] {
-  const { solicitudes, servicios, incidencias, facturas, plantilla } = datos;
+  const { solicitudes, servicios, incidencias, facturas, plantilla, personas = [] } = datos;
   const asuntos: Asunto[] = [];
   const hoy = new Date().toISOString().slice(0, 10);
   const porServicio = new Map(solicitudes.filter((s) => s.servicio).map((s) => [s.servicio!.id, s]));
@@ -253,6 +257,30 @@ export function calcularPendientes(datos: {
       desde: 0,
       accion: "Ver expediente",
       destino: { tipo: "tab", tab: "personal", foco: miembro.id },
+    });
+  }
+
+  // Se está atendiendo a alguien sin haberle explicado qué se hace con sus
+  // datos, o sin que haya autorizado lo que hace falta para cuidarla. No es
+  // papeleo: es la obligación que la empresa tiene que poder demostrar, y la
+  // única forma de que no se descubra el día de una reclamación es que salga
+  // aquí, al lado de todo lo demás.
+  for (const persona of personas) {
+    const carencias = persona.carenciasRgpd ?? [];
+    if (carencias.length === 0) continue;
+    const sinPreguntar = carencias.filter((c) => c.motivo === "sin_preguntar");
+    asuntos.push({
+      id: `rgpd-${persona.id}`,
+      prioridad: sinPreguntar.length > 0 ? "critico" : "atencion",
+      tipo: "Protección de datos",
+      persona: `${persona.nombre} ${persona.apellidos}`,
+      detalle:
+        sinPreguntar.length > 0
+          ? `Sin informar ni autorizar: ${sinPreguntar.map((c) => c.etiqueta.toLowerCase()).join(", ")}`
+          : `Hay que volver a informar: ${carencias.map((c) => c.etiqueta.toLowerCase()).join(", ")}`,
+      desde: 0,
+      accion: "Abrir ficha",
+      destino: { tipo: "persona", id: persona.id },
     });
   }
 

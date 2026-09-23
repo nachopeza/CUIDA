@@ -11,7 +11,7 @@ import { IconAlert, IconArrowDown, IconArrowUp, IconBriefcase, IconCalendar, Ico
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
 import { TiempoTrabajadoModal } from "../../components/TiempoTrabajadoModal.js";
 import { IncidenciaFormModal } from "./IncidenciaFormModal.js";
-import type { Factura, Incidencia, Profesional, Servicio, Solicitud, Visita, Ausencia, FichaProfesional } from "../../lib/types.js";
+import type { Factura, Incidencia, Profesional, Servicio, Solicitud, Visita, Ausencia, FichaProfesional, Persona } from "../../lib/types.js";
 
 interface Props {
   solicitudes: Solicitud[];
@@ -22,6 +22,7 @@ interface Props {
   // Abrir la incidencia en su ficha. Antes el aviso solo llevaba a la
   // pestaña de incidencias y había que volver a buscarla en el listado.
   onAbrirIncidencia: (incidenciaId: string) => void;
+  onAbrirPersona: (personaId: string) => void;
   onCambiado: () => void;
 }
 
@@ -109,11 +110,12 @@ function nombrePersona(s?: Servicio) {
 // bandeja de lo que sólo puede resolver coordinación (se resuelve desde
 // aquí, sin navegar); a la derecha la situación del mes, la plantilla y la
 // demanda. La actividad reciente cierra, porque es contexto, no tarea.
-export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrirSolicitud, onAbrirIncidencia, onCambiado }: Props) {
+export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrirSolicitud, onAbrirIncidencia, onAbrirPersona, onCambiado }: Props) {
   const { token } = useAuth();
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [profesionales, setProfesionales] = useState<Profesional[]>([]);
   const [plantilla, setPlantilla] = useState<FichaProfesional[]>([]);
+  const [personas, setPersonas] = useState<Persona[]>([]);
   const [ausencias, setAusencias] = useState<Ausencia[]>([]);
   const [nombre, setNombre] = useState<string | null>(null);
   const [ultimaCarga, setUltimaCarga] = useState(() => Date.now());
@@ -129,14 +131,16 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const [cerrando, setCerrando] = useState<JornadaAbierta | null>(null);
 
   const cargarPropios = useCallback(async () => {
-    const [facs, pros, me, eq, aus, abis] = await Promise.all([
+    const [facs, pros, me, eq, aus, abis, pers] = await Promise.all([
       api.get<Factura[]>("/facturas", token),
       api.get<Profesional[]>("/profesionales", token),
       api.get<{ nombre: string | null }>("/cuenta/me", token),
       api.get<FichaProfesional[]>("/personal", token).catch(() => []),
       api.get<Ausencia[]>("/personal/ausencias", token).catch(() => []),
       api.get<JornadaAbierta[]>("/visitas/abiertas", token).catch(() => []),
+      api.get<Persona[]>("/personas", token).catch(() => []),
     ]);
+    setPersonas(pers);
     setFacturas(facs);
     setProfesionales(pros);
     setNombre(me.nombre);
@@ -408,14 +412,15 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   // Antes cada bloque del escritorio decidía por su cuenta qué era urgente y
   // no había forma de saber por dónde empezar.
   const pendientes = useMemo(
-    () => calcularPendientes({ solicitudes, servicios, incidencias, facturas, plantilla }),
-    [solicitudes, servicios, incidencias, facturas, plantilla],
+    () => calcularPendientes({ solicitudes, servicios, incidencias, facturas, plantilla, personas }),
+    [solicitudes, servicios, incidencias, facturas, plantilla, personas],
   );
   const criticos = pendientes.filter((a) => a.prioridad === "critico");
 
   function irAsunto(a: Asunto) {
     if (a.destino.tipo === "solicitud") onAbrirSolicitud(a.destino.id);
     else if (a.destino.tipo === "incidencia") onAbrirIncidencia(a.destino.id);
+    else if (a.destino.tipo === "persona") onAbrirPersona(a.destino.id);
     else onIrA(a.destino.tab, undefined, a.destino.foco);
   }
 

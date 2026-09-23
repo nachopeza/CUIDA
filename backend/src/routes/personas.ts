@@ -6,6 +6,7 @@ import { generarCodigo } from "../lib/codes.js";
 import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
 import { puedeAccederPersona } from "../services/permisos.js";
+import { CATALOGO, VERSION_INFORMACION, carenciasDe, estadoDe } from "../services/consentimientos.js";
 
 export const personasRouter = Router();
 personasRouter.use(autenticar);
@@ -167,7 +168,13 @@ personasRouter.get("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), asy
     include: { usuario: { select: { id: true, email: true, activo: true, nombre: true } } },
     orderBy: { createdAt: "desc" },
   });
-  res.json(personas);
+  // Cada ficha viaja con lo que le falta en materia de protección de datos:
+  // si hay que abrir una a una para verlo, no lo ve nadie hasta que llega una
+  // reclamación.
+  const conCarencias = await Promise.all(
+    personas.map(async (p) => ({ ...p, carenciasRgpd: await carenciasDe(p.id) })),
+  );
+  res.json(conCarencias);
 });
 
 personasRouter.get("/:id", async (req, res) => {
@@ -340,4 +347,90 @@ personasRouter.delete("/:id", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"
   });
 
   res.status(204).send();
+});
+
+// ---------------------------------------------------------------------------
+// Información y consentimientos (RGPD)
+// ---------------------------------------------------------------------------
+
+personasRouter.get("/:id/consentimientos", async (req, res) => {
+  const permitido = await puedeAccederPersona(req.usuario!, req.params.id);
+  if (!permitido) return res.status(403).json({ error: "Sin permiso para ver esta persona" });
+  res.json({ version: VERSION_INFORMACION, catalogo: CATALOGO, estado: await estadoDe(req.params.id) });
+});
+
+const consentimientoSchema = z.object({
+  tipo: z.enum(["INFORMACION", "DATOS_SALUD", "CESION_PROFESIONAL", "IMAGEN", "COMUNICACIONES"]),
+  otorgado: z.boolean(),
+  canal: z.enum(["PRESENCIAL", "TELEFONO", "APLICACION", "PAPEL_FIRMADO"]).default("PRESENCIAL"),
+  archivoId: z.string().optional(),
+  nota: z.string().max(500).optional(),
+});
+
+// Registrar una respuesta. Nunca se actualiza la anterior: se añade una fila
+// nueva y la de antes queda como estaba. Es lo que permite reconstruir qué
+// autorizó esta persona en cada momento, que es justo lo que pide el art. 5.2.
+personasRouter.post("/:id/consentimientos", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const persona = await prisma.persona.findUnique({ where: { id: req.params.id } });
+  if (!persona) return res.status(404).json({ error: "No encontrada" });
+  if (persona.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+
+  const parsed = consentimientoSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Datos inválidos", detalles: parsed.error.flatten() });
+
+  await prisma.consentimiento.create({
+    data: {
+      personaId: persona.id,
+      tipo: parsed.data.tipo,
+      otorgado: parsed.data.otorgado,
+      version: VERSION_INFORMACION,
+      canal: parsed.data.canal,
+      archivoId: parsed.data.archivoId ?? null,
+      nota: parsed.data.nota ?? null,
+      recogidoPorId: req.usuario!.sub,
+    },
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: req.usuario!.organizacionId,
+    accion: parsed.data.otorgado ? "consentimiento_otorgado" : "consentimiento_denegado",
+    entidadTipo: "Persona",
+    entidadId: persona.id,
+    detalle: `${parsed.data.tipo} · texto ${VERSION_INFORMACION} · ${parsed.data.canal.toLowerCase()}`,
+  });
+
+  res.status(201).json({ estado: await estadoDe(persona.id) });
+});
+
+// Retirarlo tiene que ser tan fácil como darlo (art. 7.3). No se borra la fila
+// original: se le pone fecha de revocación, para que conste que estuvo
+// autorizado hasta ese día — lo hecho hasta entonces era lícito.
+personasRouter.post("/:id/consentimientos/:tipo/revocar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const persona = await prisma.persona.findUnique({ where: { id: req.params.id } });
+  if (!persona) return res.status(404).json({ error: "No encontrada" });
+  if (persona.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+
+  const vigente = await prisma.consentimiento.findFirst({
+    where: { personaId: persona.id, tipo: req.params.tipo as never, otorgado: true, revocadoAt: null },
+    orderBy: { otorgadoAt: "desc" },
+  });
+  if (!vigente) return res.status(400).json({ error: "No hay nada que retirar: esta autorización no está vigente" });
+
+  const motivo = typeof req.body?.motivo === "string" ? req.body.motivo.slice(0, 500) : null;
+  await prisma.consentimiento.update({
+    where: { id: vigente.id },
+    data: { revocadoAt: new Date(), revocadoPorId: req.usuario!.sub, motivoRevocacion: motivo },
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: req.usuario!.organizacionId,
+    accion: "consentimiento_revocado",
+    entidadTipo: "Persona",
+    entidadId: persona.id,
+    detalle: `${req.params.tipo}${motivo ? ` · ${motivo}` : ""}`,
+  });
+
+  res.json({ estado: await estadoDe(persona.id) });
 });

@@ -6,6 +6,8 @@ import { registrarAuditoria } from "../services/audit.js";
 import { CATEGORIAS, politicaDe, vencidosDe, type Categoria } from "../services/conservacion.js";
 import { borrar as borrarArchivo } from "../services/almacen.js";
 import { puedeAccederPersona } from "../services/permisos.js";
+import { estadoDe } from "../services/consentimientos.js";
+import { registroDeActividades } from "../services/registroActividades.js";
 
 // ---------------------------------------------------------------------------
 // Protección de datos
@@ -379,8 +381,25 @@ proteccionRouter.get("/personas/:id/expediente", async (req, res) => {
         baseJuridica: "Ejecución del contrato (art. 6.1.b RGPD)",
         datos: persona.documentos,
       },
+      {
+        // Lo que ella misma autorizó. Va en la copia porque es la primera
+        // pregunta de quien ejerce el derecho de acceso: "¿a qué dije que sí?".
+        titulo: "Información entregada y autorizaciones",
+        finalidad: "Acreditar que se informó del tratamiento y qué se autorizó",
+        baseJuridica: "Arts. 5.2, 7 y 13 del RGPD",
+        datos: await estadoDe(persona.id),
+      },
     ],
     derechos:
       "Puede solicitar la rectificación o supresión de estos datos, oponerse a su tratamiento o limitarlo, dirigiéndose al responsable indicado arriba. También puede reclamar ante la Agencia Española de Protección de Datos.",
   });
+});
+
+// El documento del art. 30, generado de lo que la aplicación hace de verdad.
+// Es lo primero que se pide en una inspección y lo que casi ninguna empresa
+// pequeña tiene a mano.
+proteccionRouter.get("/registro-actividades", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const organizacionId = req.usuario!.organizacionId;
+  if (!organizacionId) return res.status(400).json({ error: "Sin organización" });
+  res.json(await registroDeActividades(organizacionId));
 });

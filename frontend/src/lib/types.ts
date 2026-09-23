@@ -22,6 +22,15 @@ export interface Persona {
   recomendaciones: string | null;
   estado: string;
   usuario?: CuentaResumen | null;
+  // Lo que le falta en materia de protección de datos. Viaja con la ficha para
+  // que se vea en el listado y en la bandeja, no solo al abrirla.
+  carenciasRgpd?: CarenciaRgpd[];
+}
+
+export interface CarenciaRgpd {
+  tipo: string;
+  etiqueta: string;
+  motivo: "sin_preguntar" | "version_caducada";
 }
 
 // Catálogo de servicios (sección "Servicios son lo que ofrecemos... IVA del
@@ -59,6 +68,10 @@ export interface EmpresaColaboradora {
   direccion?: string | null;
   numeroCuenta?: string | null;
   estado: string;
+  // Contrato de encargo del tratamiento (art. 28 RGPD): sin él no se le puede
+  // asignar un servicio, porque asignárselo le entrega datos de la persona.
+  encargoFirmado?: boolean;
+  encargoFecha?: string | null;
 }
 
 export interface ServicioInteres {

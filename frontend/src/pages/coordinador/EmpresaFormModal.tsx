@@ -22,6 +22,11 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: { empresa: Empre
         }
       : CAMPOS_VACIOS,
   );
+  // El contrato de encargo del tratamiento va aparte del resto de campos
+  // porque no es un dato administrativo: sin él no se le puede asignar ni un
+  // servicio, así que es una condición para trabajar con ella.
+  const [encargoFirmado, setEncargoFirmado] = useState(empresa?.encargoFirmado ?? false);
+  const [encargoFecha, setEncargoFecha] = useState(empresa?.encargoFecha ? empresa.encargoFecha.slice(0, 10) : "");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +40,11 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: { empresa: Empre
     setGuardando(true);
     try {
       if (empresa) {
-        await api.patch(`/empresas-colaboradoras/${empresa.id}`, limpiar(form), token);
+        await api.patch(
+          `/empresas-colaboradoras/${empresa.id}`,
+          { ...limpiar(form), encargoFirmado, encargoFecha: encargoFirmado ? encargoFecha || undefined : null },
+          token,
+        );
       } else {
         await api.post("/empresas-colaboradoras", limpiar(form), token);
       }
@@ -61,6 +70,37 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: { empresa: Empre
           onChange={(e) => setForm((f) => ({ ...f, numeroCuenta: e.target.value }))}
           className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
         />
+
+        {empresa && (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={encargoFirmado}
+                onChange={(e) => setEncargoFirmado(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              />
+              <span>
+                <span className="font-medium text-slate-700">Contrato de encargo de tratamiento firmado</span>
+                <span className="block text-xs text-slate-500">
+                  Asignarle un servicio le entrega el nombre, la dirección y el plan de cuidados de la persona. El art. 28.3 del
+                  RGPD exige el contrato antes de esa cesión, no después: sin marcarlo, CUIDA no dejará asignarle servicios.
+                </span>
+              </span>
+            </label>
+            {encargoFirmado && (
+              <label className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                Firmado el
+                <input
+                  type="date"
+                  value={encargoFecha}
+                  onChange={(e) => setEncargoFecha(e.target.value)}
+                  className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                />
+              </label>
+            )}
+          </div>
+        )}
 
         {error && <p className="text-sm text-rose-600 sm:col-span-2">{error}</p>}
 

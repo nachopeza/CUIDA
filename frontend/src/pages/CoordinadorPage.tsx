@@ -456,6 +456,7 @@ export function CoordinadorPage() {
             servicios={servicios}
             incidencias={incidencias}
             onIrA={irA}
+            onAbrirPersona={abrirPersona}
             onAbrirSolicitud={(id) => {
               setTab("solicitudes");
               setFichaAbierta(id);
@@ -741,6 +742,7 @@ export function CoordinadorPage() {
             servicios={servicios}
             incidencias={incidencias}
             onIrA={irA}
+            onAbrirPersona={abrirPersona}
             onAbrirSolicitud={(id) => {
               setTab("solicitudes");
               setFichaAbierta(id);

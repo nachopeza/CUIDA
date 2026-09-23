@@ -3,7 +3,7 @@ import { api } from "../../lib/api.js";
 import { useAuth } from "../../lib/auth.js";
 import { exportarCSV } from "../../lib/csv.js";
 import { INFO_PRIORIDAD, calcularPendientes, hace, type Asunto, type Prioridad } from "../../lib/pendientes.js";
-import type { Factura, FichaProfesional, Incidencia, Servicio, Solicitud } from "../../lib/types.js";
+import type { Factura, FichaProfesional, Incidencia, Persona, Servicio, Solicitud } from "../../lib/types.js";
 import { SearchBox } from "../../components/SearchBox.js";
 import { IconArrowRight, IconCheckCircle, IconDownload, IconRefresh } from "../../components/icons.js";
 
@@ -26,11 +26,12 @@ interface Props {
   onIrA: (tab: string, filtro?: string, foco?: string) => void;
   onAbrirSolicitud: (solicitudId: string) => void;
   onAbrirIncidencia: (incidenciaId: string) => void;
+  onAbrirPersona: (personaId: string) => void;
 }
 
 const PRIORIDADES: Prioridad[] = ["critico", "atencion", "informativa"];
 
-export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrirSolicitud, onAbrirIncidencia }: Props) {
+export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrirSolicitud, onAbrirIncidencia, onAbrirPersona }: Props) {
   const { token } = useAuth();
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [plantilla, setPlantilla] = useState<FichaProfesional[]>([]);
@@ -39,22 +40,25 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const [tipo, setTipo] = useState("");
   const [persona, setPersona] = useState("");
   const [refrescando, setRefrescando] = useState(false);
+  const [fichasPersona, setFichasPersona] = useState<Persona[]>([]);
 
   async function cargar() {
-    const [facs, eq] = await Promise.all([
+    const [facs, eq, pers] = await Promise.all([
       api.get<Factura[]>("/facturas", token).catch(() => []),
       api.get<FichaProfesional[]>("/personal", token).catch(() => []),
+      api.get<Persona[]>("/personas", token).catch(() => []),
     ]);
     setFacturas(facs);
     setPlantilla(eq);
+    setFichasPersona(pers);
   }
   useEffect(() => {
     void cargar();
   }, [token]);
 
   const todos = useMemo(
-    () => calcularPendientes({ solicitudes, servicios, incidencias, facturas, plantilla }),
-    [solicitudes, servicios, incidencias, facturas, plantilla],
+    () => calcularPendientes({ solicitudes, servicios, incidencias, facturas, plantilla, personas: fichasPersona }),
+    [solicitudes, servicios, incidencias, facturas, plantilla, fichasPersona],
   );
 
   // Los desplegables se llenan de lo que hay, no de una lista fija: un filtro
@@ -82,6 +86,7 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   function abrir(a: Asunto) {
     if (a.destino.tipo === "solicitud") onAbrirSolicitud(a.destino.id);
     else if (a.destino.tipo === "incidencia") onAbrirIncidencia(a.destino.id);
+    else if (a.destino.tipo === "persona") onAbrirPersona(a.destino.id);
     else onIrA(a.destino.tab, undefined, a.destino.foco);
   }
 

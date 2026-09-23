@@ -162,17 +162,19 @@ model Usuario {
   profesionalId String?      @unique
   profesional   Profesional? @relation(fields: [profesionalId], references: [id])
 
-  familiarDe           FamiliarRelacion[]  @relation("UsuarioFamiliar")
-  solicitudesCreadas   Solicitud[]         @relation("SolicitudCreadaPor")
-  incidenciasAsignadas Incidencia[]        @relation("IncidenciaResponsable")
-  incidenciasCreadas   Incidencia[]        @relation("IncidenciaCreadaPor")
-  notificaciones       Notificacion[]
-  mensajes             Mensaje[]
-  auditLogs            AuditLog[]
-  correccionesFichaje  CorreccionFichaje[]
-  archivosSubidos      Archivo[]           @relation("ArchivoSubidoPor")
-  visitasCerradas      Visita[]            @relation("VisitaCerradaPor")
-  ajustesDecididos     Visita[]            @relation("VisitaAjusteDecididoPor")
+  familiarDe               FamiliarRelacion[]  @relation("UsuarioFamiliar")
+  solicitudesCreadas       Solicitud[]         @relation("SolicitudCreadaPor")
+  incidenciasAsignadas     Incidencia[]        @relation("IncidenciaResponsable")
+  incidenciasCreadas       Incidencia[]        @relation("IncidenciaCreadaPor")
+  notificaciones           Notificacion[]
+  mensajes                 Mensaje[]
+  auditLogs                AuditLog[]
+  correccionesFichaje      CorreccionFichaje[]
+  archivosSubidos          Archivo[]           @relation("ArchivoSubidoPor")
+  visitasCerradas          Visita[]            @relation("VisitaCerradaPor")
+  ajustesDecididos         Visita[]            @relation("VisitaAjusteDecididoPor")
+  consentimientosRecogidos Consentimiento[]    @relation("ConsentimientoRecogidoPor")
+  consentimientosRevocados Consentimiento[]    @relation("ConsentimientoRevocadoPor")
 
   @@map("usuarios")
 }
@@ -218,6 +220,7 @@ model Persona {
   facturas         Factura[]
   mensajes         Mensaje[]
   datosFacturacion DatosFacturacion?
+  consentimientos  Consentimiento[]
 
   @@map("personas")
 }
@@ -429,6 +432,16 @@ model EmpresaColaboradora {
   numeroCuenta String?
   estado       EstadoEmpresaColaboradora @default(ACTIVA)
   createdAt    DateTime                  @default(now())
+
+  // Contrato de encargo del tratamiento (art. 28 RGPD). Cuando una empresa
+  // colaboradora atiende a una persona, recibe su nombre, su dirección y lo
+  // que hace falta para cuidarla: eso es una cesión de datos, y sin contrato
+  // firmado la responsable es la organización y la infracción también. Por eso
+  // no es un campo informativo: sin él no se le puede asignar un servicio.
+  encargoFirmado   Boolean   @default(false)
+  encargoFecha     DateTime?
+  encargoArchivoId String?
+  encargoArchivo   Archivo?  @relation("EncargoTratamiento", fields: [encargoArchivoId], references: [id])
 
   organizacionId String
   organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
@@ -1475,7 +1488,9 @@ model Archivo {
 
   createdAt DateTime @default(now())
 
-  documentos Documento[]
+  documentos      Documento[]
+  consentimientos Consentimiento[]
+  encargos        EmpresaColaboradora[] @relation("EncargoTratamiento")
 
   @@index([organizacionId])
   @@index([hash])
@@ -1548,4 +1563,57 @@ model PoliticaConservacion {
   updatedAt DateTime @updatedAt
 
   @@map("politicas_conservacion")
+}
+
+// Lo que la persona ha autorizado, y cuándo se le explicó qué se hace con sus
+// datos. El RGPD no se cumple teniendo una política colgada en la web: hay que
+// poder demostrar (art. 5.2 y 7.1) que a esta persona se le informó, qué se le
+// informó y qué consintió — y poder retirarlo con la misma facilidad con que
+// se dio (art. 7.3).
+//
+// Un consentimiento no se edita nunca: se otorga, y si se retira queda el
+// otorgamiento con su fecha de revocación al lado. Rescribir la fila borraría
+// justo la prueba que el reglamento pide conservar.
+model Consentimiento {
+  id            String              @id @default(cuid())
+  personaId     String
+  persona       Persona             @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  tipo          TipoConsentimiento
+  // Falso = se le preguntó y dijo que no. No es lo mismo que no haber
+  // preguntado nunca, que es la ausencia de fila.
+  otorgado      Boolean
+  // Versión del texto que se le leyó o entregó. Sin esto, dentro de dos años
+  // nadie sabe a qué estaba consintiendo.
+  version       String
+  canal         CanalConsentimiento @default(PRESENCIAL)
+  // Quién lo recogió, y el papel firmado si lo hay.
+  recogidoPorId String?
+  recogidoPor   Usuario?            @relation("ConsentimientoRecogidoPor", fields: [recogidoPorId], references: [id])
+  archivoId     String?
+  archivo       Archivo?            @relation(fields: [archivoId], references: [id])
+  nota          String?
+
+  otorgadoAt       DateTime  @default(now())
+  revocadoAt       DateTime?
+  revocadoPorId    String?
+  revocadoPor      Usuario?  @relation("ConsentimientoRevocadoPor", fields: [revocadoPorId], references: [id])
+  motivoRevocacion String?
+
+  @@index([personaId, tipo])
+  @@map("consentimientos")
+}
+
+enum TipoConsentimiento {
+  INFORMACION // art. 13: se le entregó la información del tratamiento
+  DATOS_SALUD // art. 9.2.h: medicación, movilidad, lo que hace falta para cuidar
+  CESION_PROFESIONAL // sus datos llegan a quien entra en su casa
+  IMAGEN // fotografías, vídeo
+  COMUNICACIONES // avisos y novedades que no son del servicio contratado
+}
+
+enum CanalConsentimiento {
+  PRESENCIAL
+  TELEFONO
+  APLICACION
+  PAPEL_FIRMADO
 }

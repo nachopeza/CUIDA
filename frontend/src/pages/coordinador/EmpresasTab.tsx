@@ -115,6 +115,7 @@ export function EmpresasTab() {
                   <ThOrdenable campo="cif" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
                     CIF
                   </ThOrdenable>
+                  <th className="px-4 py-2.5">Encargo RGPD</th>
                   <ThOrdenable campo="codigo" campoActivo={orden.campo} direccion={orden.direccion} onOrdenar={orden.ordenarPor}>
                     Código
                   </ThOrdenable>
@@ -129,6 +130,17 @@ export function EmpresasTab() {
                     <td className="px-4 py-2.5 font-medium text-slate-800">{emp.nombre}</td>
                     <td className="px-4 py-2.5 text-slate-500">{emp.contacto ?? "—"}</td>
                     <td className="px-4 py-2.5 text-slate-500">{emp.cif ?? "—"}</td>
+                    <td className="px-4 py-2.5">
+                      {emp.encargoFirmado ? (
+                        <span className="rounded-full bg-brand-green-100 px-2 py-0.5 text-[11px] font-medium text-brand-green-700">
+                          Encargo firmado
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-700" title="Sin contrato de encargo de tratamiento (art. 28 RGPD) no se le pueden asignar servicios">
+                          Sin contrato RGPD
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-xs text-slate-400">{emp.codigo}</td>
                   </tr>
                 ))}

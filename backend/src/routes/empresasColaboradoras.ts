@@ -17,7 +17,13 @@ const crearSchema = z.object({
   numeroCuenta: z.string().optional(),
 });
 
-const editarSchema = crearSchema.partial();
+const editarSchema = crearSchema.partial().extend({
+  // Contrato de encargo del tratamiento (art. 28 RGPD). Se marca cuando está
+  // firmado por las dos partes y, si se tiene, se adjunta el PDF.
+  encargoFirmado: z.boolean().optional(),
+  encargoFecha: z.string().optional().nullable(),
+  encargoArchivoId: z.string().optional().nullable(),
+});
 
 // Empresa externa a la que subcontratar un servicio (sección 11: modelo
 // híbrido — "empresas pagan software y CUIDA puede gestionar servicios
@@ -61,7 +67,18 @@ empresasColaboradorasRouter.patch("/:id", async (req, res) => {
   if (!empresa) return res.status(404).json({ error: "No encontrada" });
   if (empresa.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
 
-  const actualizada = await prisma.empresaColaboradora.update({ where: { id: empresa.id }, data: parsed.data });
+  const { encargoFecha, ...resto } = parsed.data;
+  const actualizada = await prisma.empresaColaboradora.update({
+    where: { id: empresa.id },
+    data: {
+      ...resto,
+      // Firmarlo sin poner fecha es lo normal cuando se marca el mismo día:
+      // se pone la de hoy en vez de dejar el dato a medias.
+      ...(encargoFecha !== undefined ? { encargoFecha: encargoFecha ? new Date(encargoFecha) : null } : {}),
+      ...(resto.encargoFirmado === true && encargoFecha === undefined && !empresa.encargoFecha ? { encargoFecha: new Date() } : {}),
+      ...(resto.encargoFirmado === false ? { encargoFecha: null } : {}),
+    },
+  });
 
   await registrarAuditoria({
     usuarioId: req.usuario!.sub,

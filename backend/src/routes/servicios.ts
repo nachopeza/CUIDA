@@ -205,6 +205,15 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
     if (!empresa || empresa.organizacionId !== servicio.organizacionId) {
       return res.status(400).json({ error: "Empresa colaboradora no válida para esta organización" });
     }
+    // Mandar el servicio a una empresa externa le entrega el nombre, la
+    // dirección y el plan de cuidados de la persona. Eso es un encargo de
+    // tratamiento y el art. 28.3 del RGPD exige contrato antes, no después:
+    // sin él, la responsable de la cesión es esta organización.
+    if (!empresa.encargoFirmado) {
+      return res.status(400).json({
+        error: `Sin contrato de encargo de tratamiento con ${empresa.nombre}. Fírmalo y márcalo en su ficha antes de asignarle el servicio (art. 28 del RGPD).`,
+      });
+    }
   }
 
   const organizacion = await prisma.organizacion.findUnique({ where: { id: servicio.organizacionId } });
@@ -316,6 +325,19 @@ serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", 
     return res.status(409).json({
       error: `No se puede asignar a ${profesional.nombre}: ${impedimentos.map(comoSeDice).join("; ")}.`,
     });
+  }
+
+  // Si la profesional trabaja para una empresa colaboradora, asignarle el
+  // servicio manda los datos de la persona a esa empresa. Sin contrato de
+  // encargo firmado (art. 28.3 del RGPD) esa cesión no se puede hacer, y la
+  // responsable sería esta organización, no la colaboradora.
+  if (profesional.empresaColaboradoraId) {
+    const empresa = await prisma.empresaColaboradora.findUnique({ where: { id: profesional.empresaColaboradoraId } });
+    if (empresa && !empresa.encargoFirmado) {
+      return res.status(409).json({
+        error: `${profesional.nombre} trabaja para ${empresa.nombre} y no consta el contrato de encargo de tratamiento. Fírmalo y márcalo en la ficha de la empresa antes de asignarle el servicio (art. 28 del RGPD).`,
+      });
+    }
   }
 
   // Y tampoco se asigna a quien está de baja o de vacaciones el día en que

@@ -4,6 +4,7 @@ import { api } from "../../lib/api.js";
 import { Modal } from "../../components/Modal.js";
 import { EstadoBadge } from "../../components/EstadoBadge.js";
 import { SolicitudFichaModal } from "../../components/SolicitudFichaModal.js";
+import { ConsentimientosPersona } from "../../components/ConsentimientosPersona.js";
 import type { PersonaConFamiliares, Solicitud } from "../../lib/types.js";
 
 const PERFIL_CAMPOS = ["telefono", "direccion", "medicacion", "medico", "contactos", "recomendaciones"] as const;
@@ -165,6 +166,9 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
             </form>
           )}
         </div>
+
+        {/* Qué se le ha explicado y qué ha autorizado */}
+        <ConsentimientosPersona personaId={persona.id} />
 
         {/* Cuentas de acceso */}
         <div className="border-t border-slate-100 pt-4">

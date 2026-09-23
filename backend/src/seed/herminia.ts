@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
 import { registrarHistorial } from "../services/estados.js";
+import { VERSION_INFORMACION, type TipoConsentimiento } from "../services/consentimientos.js";
 
 // Caso fundador del masterplan (sección 3): Herminia necesita ayuda para
 // hacer la compra y compañía durante varios días porque su familia estará
@@ -271,10 +272,15 @@ async function main() {
       codigo: codigoEmpresa,
       nombre: "Cuidados del Bages S.L.",
       contacto: "coordinacion@cuidadosdelbages.demo",
-      cif: "B12345678",
+      cif: "B39887766",
       direccion: "Calle Mayor 12, Sant Fruitós",
       numeroCuenta: "ES00 0000 0000 0000 0000 0000",
       estado: "ACTIVA",
+      // Contrato de encargo del tratamiento firmado: sin él no se le podría
+      // asignar ningún servicio, porque asignárselo le entrega los datos de la
+      // persona (art. 28 del RGPD).
+      encargoFirmado: true,
+      encargoFecha: fechaEn(-240),
       organizacionId: organizacion.id,
     },
   });
@@ -497,6 +503,59 @@ async function main() {
     recomendaciones: "Vive solo, sin familia en la zona. Oye bien pero lee con dificultad",
     email: "amadeo@cuida.demo",
   });
+
+  // 6 bis. Lo que se le explicó a cada persona y lo que autorizó. En una
+  // empresa que empieza esto se hace en la primera visita, con un papel; aquí
+  // queda registrado con su fecha, su versión de texto y quién lo recogió,
+  // porque el RGPD no pide tenerlo hecho, pide poder demostrarlo.
+  //
+  // Amadeo se queda sin responder a propósito: es el caso que la coordinadora
+  // tiene que ver y resolver, y el que enseña que "sin preguntar" no es lo
+  // mismo que "dijo que no".
+  const consentimientosDemo: Array<[string, Array<[TipoConsentimiento, boolean]>]> = [
+    [
+      herminia.id,
+      [
+        ["INFORMACION", true],
+        ["DATOS_SALUD", true],
+        ["CESION_PROFESIONAL", true],
+        ["IMAGEN", false],
+        ["COMUNICACIONES", true],
+      ],
+    ],
+    [
+      manuel.persona.id,
+      [
+        ["INFORMACION", true],
+        ["DATOS_SALUD", true],
+        ["CESION_PROFESIONAL", true],
+        ["IMAGEN", false],
+      ],
+    ],
+    [
+      dolores.persona.id,
+      [
+        ["INFORMACION", true],
+        ["DATOS_SALUD", true],
+        ["CESION_PROFESIONAL", true],
+      ],
+    ],
+  ];
+  for (const [personaId, respuestas] of consentimientosDemo) {
+    for (const [tipo, otorgado] of respuestas) {
+      await prisma.consentimiento.create({
+        data: {
+          personaId,
+          tipo,
+          otorgado,
+          version: VERSION_INFORMACION,
+          canal: "PAPEL_FIRMADO",
+          recogidoPorId: coordinador.id,
+        },
+      });
+    }
+  }
+  console.log("Protección de datos: 3 personas informadas y con sus autorizaciones; Amadeo sin preguntar todavía.");
 
   // 7. Necesidad → Solicitud (sección 3, etapas 1-2)
   const codigoSolicitud = await generarCodigo("solicitud");

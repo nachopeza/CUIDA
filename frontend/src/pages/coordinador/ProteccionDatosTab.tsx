@@ -71,6 +71,24 @@ export function ProteccionDatosTab() {
     void cargar();
   }, [token]);
 
+  const [descargandoRegistro, setDescargandoRegistro] = useState(false);
+
+  async function descargarRegistro() {
+    setDescargandoRegistro(true);
+    try {
+      const registro = await api.get<unknown>("/proteccion-datos/registro-actividades", token);
+      const blob = new Blob([JSON.stringify(registro, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `registro-actividades-tratamiento-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDescargandoRegistro(false);
+    }
+  }
+
   async function guardar() {
     if (!politica) return;
     setGuardando(true);
@@ -142,6 +160,28 @@ export function ProteccionDatosTab() {
         <strong>no son asesoría jurídica</strong>: confírmalos con la vuestra y ajústalos aquí. Quien responde de que sean
         correctos es el responsable del tratamiento, no la aplicación.
       </p>
+
+      {/* El art. 30 pide tener este documento y enseñarlo cuando lo pidan.
+          Generarlo desde lo que la aplicación ya hace evita el Word que se
+          queda viejo en cuanto cambia un plazo. */}
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-slate-700">Registro de actividades de tratamiento</h3>
+            <p className="mt-0.5 max-w-2xl text-xs text-slate-500">
+              El documento del art. 30 del RGPD: qué trata esta empresa, con qué finalidad, con qué base jurídica, a quién llega y
+              cuánto se guarda. Se genera con los plazos que la aplicación aplica de verdad, no con los que alguien escribió una vez.
+            </p>
+          </div>
+          <button
+            onClick={descargarRegistro}
+            disabled={descargandoRegistro}
+            className="shrink-0 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
+          >
+            {descargandoRegistro ? "Generando…" : "Descargar registro"}
+          </button>
+        </div>
+      </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-700">Quién responde</h3>
