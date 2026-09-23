@@ -129,7 +129,7 @@ const AREAS: AreaNav[] = [
     items: [
       { key: "personas", label: "Personas atendidas", icon: IconUsers },
       { key: "profesionales", label: "Profesionales", icon: IconBriefcase },
-      { key: "personal", label: "Expedientes y jornada", icon: IconIdCard },
+      { key: "personal", label: "Expedientes", icon: IconIdCard },
       { key: "cobertura", label: "Cobertura", icon: IconShield },
     ],
   },

@@ -114,8 +114,8 @@ function Botones({ items, activo, onIr, badges }: { items: ItemNav[] } & Pick<Pr
                   seleccionado
                     ? "bg-white/25 text-white"
                     : badge.tono === "rose"
-                      ? "bg-rose-400/90 text-white"
-                      : "bg-amber-300/90 text-amber-950"
+                      ? "bg-rose-400 text-white"
+                      : "bg-brand-green-300 text-brand-900"
                 }`}
               >
                 {badge.valor}
@@ -201,19 +201,24 @@ function Lista({ items, areas, activo, onIr, badges }: Pick<Props, "items" | "ar
 // empresa, escrito donde se ve al final de cada jornada.
 function Firma() {
   return (
-    <div className="relative mt-6 shrink-0 overflow-hidden rounded-xl bg-white/[0.06] px-4 py-3.5 md:mt-auto">
-      <p className="relative text-[13px] font-medium leading-snug text-white/85">
+    <div className="mt-8 shrink-0 px-2 pb-1 md:mt-auto">
+      {/* Las dos hojas de la marca, grandes y superpuestas, y el lema
+          debajo. Es el remate de la casa, no un adorno de relleno. */}
+      <svg viewBox="0 0 120 80" className="mb-2 h-14 w-auto" aria-hidden>
+        <path
+          fill="#2c6650"
+          d="M58 6C34 6 14 20 10 42c-2 11 3 21 11 26 0-18 10-34 28-44-14 12-22 27-23 46 18 2 33-7 38-22 4-13 4-29-6-42Z"
+        />
+        <path
+          fill="#5ab893"
+          d="M86 22c-18 0-32 10-35 26-2 8 2 15 8 19 0-13 8-25 21-32-11 9-17 20-17 34 13 2 24-5 28-16 3-9 3-21-5-31Z"
+        />
+      </svg>
+      <p className="text-[13px] font-medium leading-snug text-white/80">
         Cuidamos hoy
         <br />
         de un mejor mañana
       </p>
-      {/* La hoja de la marca, apenas insinuada. */}
-      <svg viewBox="0 0 64 64" className="pointer-events-none absolute -bottom-3 -right-2 h-16 w-16 text-brand-green-400/25" aria-hidden>
-        <path
-          fill="currentColor"
-          d="M56 8C33 8 14 18 9 38c-2 8 1 15 6 18 2-14 10-26 24-33-11 9-18 20-20 34 15 3 28-3 34-15 4-9 5-22 3-34Z"
-        />
-      </svg>
     </div>
   );
 }
@@ -246,11 +251,13 @@ export function Navegacion({ items, areas, activo, onIr, badges, cabecera, accio
     return () => document.body.classList.remove("con-pestanas");
   }, [pestanasMovil]);
 
-  const fondoOscuro = "bg-gradient-to-b from-brand-700 via-brand-800 to-brand-900";
+  // El teal de la maqueta, tomado de la propia imagen: arriba un punto más
+  // claro y casi plano hacia abajo.
+  const fondoOscuro = "bg-gradient-to-b from-[#123441] via-[#0b323e] to-[#0a2f3b]";
 
   return (
     <>
-      <aside className={`hidden shrink-0 md:block md:w-[15.5rem] ${fondoOscuro}`}>
+      <aside className={`hidden shrink-0 md:block md:w-56 ${fondoOscuro}`}>
         <div className="sticky top-16 flex min-h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] flex-col overflow-y-auto barra-fina px-3 py-5">
           {acciones && <div className="mb-5">{acciones}</div>}
           <Lista items={items} areas={areas} activo={activo} onIr={onIr} badges={badges} />

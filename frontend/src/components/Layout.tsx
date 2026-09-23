@@ -98,7 +98,7 @@ export function Layout({ children }: { children: ReactNode }) {
             {/* La ranura del buscador. Cada panel mete aquí el suyo desde su
                 propio árbol (ver lib/ranuras.ts): en la cabecera es donde se
                 busca, pero quien sabe qué hay que buscar es cada panel. */}
-            <div id={RANURA_BUSCADOR} className="mx-auto hidden w-full max-w-md px-4 md:block" />
+            <div id={RANURA_BUSCADOR} className="mx-auto hidden w-full max-w-lg px-4 md:block" />
 
             {usuario && (
               <div className="ml-auto flex items-center gap-1 sm:gap-2">

@@ -54,12 +54,12 @@ export function NotificationBell() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setAbierto((v) => !v)}
-        className="relative rounded-md border border-slate-300 px-2.5 py-1.5 text-slate-600 hover:bg-slate-100"
+        className="relative rounded-full p-2.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
         aria-label="Notificaciones"
       >
         <IconBell className="h-5 w-5" />
         {noLeidas > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand-green-500 px-1 text-[10px] font-semibold text-white ring-2 ring-white">
             {noLeidas}
           </span>
         )}

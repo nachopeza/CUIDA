@@ -30,22 +30,33 @@ body {
     @apply text-[11px] font-semibold uppercase tracking-wider text-slate-400;
   }
 
-  /* Los tres botones de la casa. */
+  /* Los tres botones de la maqueta, con su radio de 8 px: el relleno teal
+     oscuro para lo que hay que hacer, el blanco con borde para lo demás y el
+     verde para crear. Ni uno más. */
   .boton-principal {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .boton-secundario {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .boton-verde {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-green-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-300 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-green-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-green-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-300 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Los dos tamaños pequeños, los de dentro de una fila de tabla. */
+  .boton-principal-sm {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .boton-secundario-sm {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   /* Campos de formulario: uno solo para toda la app. */
   .campo {
-    @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition placeholder:text-slate-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-100;
+    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition placeholder:text-slate-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-100;
   }
 
   /* Un folio A4 de verdad: 210 × 297 mm con sus márgenes. Se ve así en

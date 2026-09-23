@@ -5,18 +5,20 @@ que adivinar por qué una tarjeta tiene el radio que tiene.
 
 ## De dónde salen los colores
 
-Del logo, no de una paleta elegida aparte. El SVG de CUIDA tiene exactamente
-dos colores y los dos son la base de todo lo demás:
+De la maqueta, muestreados de la propia imagen píxel a píxel, no aproximados
+a ojo:
 
 | Color | Valor | Dónde manda |
 |---|---|---|
-| Teal CUIDA | `#1c4f61` (`brand-700`) | Barra lateral, botones principales, titulares |
-| Verde menta CUIDA | `#5ab893` (`brand-green`) | Lo elegido, lo que va bien, la acción de crear |
+| Teal de la barra lateral | `#0a2f3b` (`brand-900`) | El fondo del menú |
+| Teal del botón principal | `#0c5a5e` (`brand-700`, `brand`) | Lo que hay que hacer ahora |
+| Verde | `#1b8b7a` (`brand-green-500`) | Lo elegido en el menú y la acción de crear |
+| Verde brillante | `#5bceaa` (`brand-green-300`) | La cifra al lado de cada entrada del menú |
+| Lienzo | `#f3fafc` | El fondo sobre el que se apoyan las tarjetas |
 
-De ahí salen las dos escalas completas (`brand-50…950`, `brand-green-50…900`)
-y el lienzo sobre el que se apoya todo: `lienzo` = `#f3f7f6`, un gris con una
-gota del verde de la marca. Nunca el gris neutro de fábrica, que al lado del
-teal se ve azulado y sucio.
+Cada escala se construye alrededor de ese valor exacto, que queda siempre en
+el peldaño que se usa de verdad: así se puede aclarar u oscurecer sin perder
+el color de la maqueta. El logo de CUIDA se mantiene tal cual.
 
 Los tintes de aviso —rosa, ámbar— son los de Tailwind sin tocar: son
 convenciones que la gente ya sabe leer y reinventarlas no aporta nada.
@@ -33,10 +35,28 @@ pantalla, para que "tarjeta" quiera decir lo mismo en las veinte secciones:
   texto en su color. Nunca sólo color: impreso en gris o para quien no
   distingue el ámbar del verde, la etiqueta sigue funcionando.
 - **`.boton-principal` / `.boton-secundario` / `.boton-verde`** — tres, no
-  quince. El lleno para lo que hay que hacer ahora, el de contorno para lo
-  demás, el verde para crear.
+  quince, con el radio de 8 px de la maqueta. El relleno teal oscuro para lo
+  que hay que hacer ahora, el blanco con borde para lo demás, el verde para
+  crear. Y sus dos tamaños pequeños (`-sm`) para dentro de una fila de tabla.
 - **`.campo`** — un solo estilo de campo para toda la aplicación.
 - **`.rotulo`** — el texto pequeño en versales que ordena una columna.
+
+## El escritorio
+
+Es la disposición de la maqueta, rellena con nuestros datos:
+
+- **Mi día**: el saludo, la fecha y la hora, y cuatro casillas —urgentes,
+  pendientes, visitas de hoy y profesionales activos— cada una con su tinte,
+  su icono en un círculo y el enlace a donde se resuelve.
+- **Bandeja de trabajo**: una tabla de prioridad, tipo, persona, cuándo y una
+  acción por fila. Lo crítico lleva el botón lleno y lo demás el de contorno.
+- **Agenda de hoy**: la hora, el punto de estado, quién recibe el servicio,
+  quién va y en qué estado está la jornada.
+- **El trío de abajo**: la rosquilla de cobertura del día, qué se pide más y
+  en qué punto están los servicios.
+- **La columna de la derecha**: servicios en curso, resumen económico del mes,
+  incidencias abiertas, el recordatorio de para qué es todo esto y las
+  próximas acciones.
 
 ## La estructura
 

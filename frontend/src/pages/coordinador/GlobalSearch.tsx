@@ -40,15 +40,18 @@ export function GlobalSearch({ personas, solicitudes, onAbrirPersona, onAbrirSol
   const hayResultados = usuariosMatch.length > 0 || solicitudesMatch.length > 0;
 
   return (
-    <div className="relative w-full max-w-sm" ref={ref}>
-      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5">
+    <div className="relative w-full" ref={ref}>
+      {/* En píldora y sobre gris: en la cabecera, un campo con marco
+          parece una caja más; así se lee como lo que es, un sitio donde
+          escribir. */}
+      <div className="flex items-center gap-2.5 rounded-full border border-transparent bg-slate-100 px-4 py-2.5 transition focus-within:border-brand-200 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-100">
         <IconSearch className="h-4 w-4 shrink-0 text-slate-400" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => setAbierto(true)}
-          placeholder="Buscar usuarios o solicitudes…"
-          className="w-full text-sm outline-none"
+          placeholder="Buscar personas, servicios, visitas, profesionales…"
+          className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
         />
         {q && (
           <button onClick={() => setQ("")} aria-label="Limpiar búsqueda">
