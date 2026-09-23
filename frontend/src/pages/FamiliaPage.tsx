@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../lib/auth.js";
+import { useRegistrarMenuMovil } from "../lib/menuMovil.js";
 import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
@@ -17,7 +18,6 @@ import {
   IconClock,
   IconHome,
   IconInfinity,
-  IconMenu,
   IconPlus,
   IconReceipt,
   IconUsers,
@@ -61,6 +61,8 @@ export function FamiliaPage() {
   const { token } = useAuth();
   const [tab, setTab] = useState<Tab>("resumen");
   const [menuAbierto, setMenuAbierto] = useState(false);
+  // La hamburguesa está en la cabecera y abre este cajón.
+  useRegistrarMenuMovil(() => setMenuAbierto(true));
   const [otrosAbiertos, setOtrosAbiertos] = useState(false);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [necesidades, setNecesidades] = useState<Necesidad[]>([]);
@@ -179,16 +181,6 @@ export function FamiliaPage() {
       />
 
       <div className="min-w-0 flex-1">
-      <div className="mb-3 flex items-center gap-2 md:hidden">
-        <button
-          onClick={() => setMenuAbierto(true)}
-          aria-label="Abrir menú"
-          className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2.5 text-sm font-medium text-slate-700"
-        >
-          <IconMenu className="h-4 w-4" />
-          {TAB_LABEL[tab]}
-        </button>
-      </div>
 
       {mensaje && <div className="mb-4 rounded-lg border border-brand-green-200 bg-brand-green-50 px-4 py-3 text-sm text-brand-green-700">{mensaje}</div>}
 

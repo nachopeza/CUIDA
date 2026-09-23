@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../lib/auth.js";
 import { NotificationBell } from "./NotificationBell.js";
-import { IconChevronDown } from "./icons.js";
+import { IconChevronDown, IconMenu } from "./icons.js";
 import { MiCuentaModal } from "./MiCuentaModal.js";
 import logoCuida from "../assets/logo-cuida.svg";
+import { MenuMovilContexto } from "../lib/menuMovil.js";
 
 const ROL_LABEL: Record<string, string> = {
   PERSONA: "Persona atendida",
@@ -36,6 +37,10 @@ const CON_DENOMINACION = ["PROFESIONAL", "COORDINADOR", "ORGANIZACION", "ADMIN",
 export function Layout({ children }: { children: ReactNode }) {
   const { usuario, logout } = useAuth();
   const [menuAbierto, setMenuAbierto] = useState(false);
+  // El panel de turno registra aquí cómo se abre su cajón de navegación; la
+  // cabecera sólo pinta el botón.
+  const [abrirMenuMovil, setAbrirMenuMovil] = useState<(() => void) | null>(null);
+  const registrarMenuMovil = useCallback((abrir: (() => void) | null) => setAbrirMenuMovil(() => abrir), []);
   const [cuentaAbierta, setCuentaAbierta] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -50,11 +55,23 @@ export function Layout({ children }: { children: ReactNode }) {
   const muestraDenominacion = usuario ? CON_DENOMINACION.includes(usuario.rol) : false;
 
   return (
+    <MenuMovilContexto.Provider value={{ abrir: abrirMenuMovil, registrar: registrarMenuMovil }}>
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
           {/* El logo manda: la denominación se alinea a su centro óptico, no
               a la línea base del texto — antes flotaba por encima. */}
+          {/* La hamburguesa, lo primero de la cabecera y sólo en móvil: es
+              donde la mano la busca, y así no se va con el desplazamiento. */}
+          {usuario && abrirMenuMovil && (
+            <button
+              onClick={() => abrirMenuMovil()}
+              aria-label="Abrir menú"
+              className="-ml-1 shrink-0 rounded-md p-2 text-slate-600 hover:bg-slate-100 md:hidden"
+            >
+              <IconMenu className="h-5 w-5" />
+            </button>
+          )}
           <div className="flex shrink-0 items-center gap-3 self-center">
             <img src={logoCuida} alt="CUIDA" className="block h-9 w-auto sm:h-10" />
             {/* En el móvil la denominación se esconde: no cabe junto al
@@ -112,6 +129,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
       {cuentaAbierta && <MiCuentaModal onClose={() => setCuentaAbierta(false)} />}
     </div>
+    </MenuMovilContexto.Provider>
   );
 }
 

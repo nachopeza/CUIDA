@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../lib/auth.js";
+import { useRegistrarMenuMovil } from "../lib/menuMovil.js";
 import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
 import { Novedades } from "../components/Novedades.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { Cronometro } from "../components/Cronometro.js";
-import { IconAlert, IconCalendar, IconChat, IconClock, IconFlag, IconHome, IconMenu, IconNote, IconPin, IconPlay, IconSearch, IconStop, IconUsers, IconIdCard } from "../components/icons.js";
+import { IconAlert, IconCalendar, IconChat, IconClock, IconFlag, IconHome, IconNote, IconPin, IconPlay, IconSearch, IconStop, IconUsers, IconIdCard } from "../components/icons.js";
 import { IconoNecesidad } from "../lib/necesidadIconos.js";
 import { cobroDeJornada, duracion, euros, minutosEntre, minutosFichados, porHora } from "../lib/economia.js";
 import { Modal } from "../components/Modal.js";
@@ -48,6 +49,8 @@ export function ProfesionalPage() {
   const { token, usuario } = useAuth();
   const [tab, setTab] = useState<Tab>("proximos");
   const [menuAbierto, setMenuAbierto] = useState(false);
+  // La hamburguesa está en la cabecera y abre este cajón.
+  useRegistrarMenuMovil(() => setMenuAbierto(true));
   const [chatAbierto, setChatAbierto] = useState<string | null>(null);
   const [rechazando, setRechazando] = useState<Servicio | null>(null);
   const [motivoRechazo, setMotivoRechazo] = useState("");
@@ -165,16 +168,6 @@ export function ProfesionalPage() {
       />
 
       <div className="min-w-0 flex-1">
-      <div className="mb-3 flex items-center gap-2 md:hidden">
-        <button
-          onClick={() => setMenuAbierto(true)}
-          aria-label="Abrir menú"
-          className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
-        >
-          <IconMenu className="h-4 w-4" />
-          {TAB_LABEL[tab]}
-        </button>
-      </div>
 
       {profesional && tab === "proximos" && (
         <div className="mb-4 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">

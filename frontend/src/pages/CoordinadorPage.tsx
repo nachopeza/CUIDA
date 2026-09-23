@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth.js";
+import { useRegistrarMenuMovil } from "../lib/menuMovil.js";
 import { api } from "../lib/api.js";
 import { EstadoBadge, EstadoUnificadoBadge } from "../components/EstadoBadge.js";
 import { estadoDeSolicitud, tieneIncidencia, ESTADOS, infoEstado, type ClaveEstado } from "../lib/estadoUnificado.js";
@@ -22,7 +23,6 @@ import {
   IconHome,
   IconList,
   IconInfinity,
-  IconMenu,
   IconPlus,
   IconReceipt,
   IconChart,
@@ -181,6 +181,8 @@ export function CoordinadorPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<Tab>("escritorio");
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
+  // La hamburguesa está en la cabecera y abre este cajón.
+  useRegistrarMenuMovil(() => setMenuMovilAbierto(true));
   const [filtro, setFiltro] = useState<Filtro>(null);
   // Lo que hay que abrir nada más aterrizar en la pestaña de destino: la
   // jornada concreta, el expediente concreto. Sin esto, "Decidir" dejaba a la
@@ -440,17 +442,10 @@ export function CoordinadorPage() {
         }
       />
 
-      {/* Barra de la pestaña actual en móvil: el botón de menú y el buscador,
-          nada más. La navegación entera vive en el cajón. */}
+      {/* En móvil sólo queda el buscador: el botón de menú vive ahora en la
+          cabecera, que es donde la mano lo busca y donde no se va al
+          desplazar la página. */}
       <div className="flex items-center gap-2 md:hidden">
-        <button
-          onClick={() => setMenuMovilAbierto(true)}
-          aria-label="Abrir menú"
-          className="flex shrink-0 items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
-        >
-          <IconMenu className="h-4 w-4" />
-          <span className="max-w-[8rem] truncate">{tituloTab}</span>
-        </button>
         <div className="min-w-0 flex-1">
           <GlobalSearch
             personas={personas}
@@ -469,22 +464,6 @@ export function CoordinadorPage() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-800">{tab === "escritorio" ? "" : tituloTab}</h2>
-          </div>
-          {/* En escritorio estas dos acciones viven en el menú; aquí sólo
-              aparecen en móvil, donde el menú está detrás de un botón. */}
-          <div className="flex flex-wrap items-center gap-2 md:hidden">
-            <button
-              onClick={() => setNuevoUsuario(true)}
-              className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              <IconPlus className="h-4 w-4" /> Usuario
-            </button>
-            <button
-              onClick={abrirNuevaSolicitud}
-              className="flex items-center gap-1 rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800"
-            >
-              <IconPlus className="h-4 w-4" /> Solicitud
-            </button>
           </div>
         </div>
 
