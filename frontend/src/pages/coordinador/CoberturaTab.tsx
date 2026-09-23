@@ -3,13 +3,20 @@ import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { duracion } from "../../lib/economia.js";
 import { ETIQUETA_AUSENCIA } from "../../lib/personal.js";
-import { IconAlert, IconBriefcase, IconCheck, IconClock } from "../../components/icons.js";
-import type { Ausencia, FichaProfesional, Servicio, Solicitud } from "../../lib/types.js";
+import { IconAlert, IconArrowRight, IconBriefcase, IconCheck, IconClock, IconShield } from "../../components/icons.js";
+import type { Ausencia, FichaProfesional, RiesgosCobertura, Servicio, Solicitud } from "../../lib/types.js";
 
 interface Props {
   solicitudes: Solicitud[];
   servicios: Servicio[];
   onAbrirSolicitud: (id: string) => void;
+  // Desde una jornada en riesgo se salta a la incidencia que ya está abierta
+  // sobre ella: es donde se busca el reemplazo.
+  onAbrirIncidencia?: (id: string) => void;
+  // El repaso de lo que viene lo trae el panel, que ya recarga cuando algo
+  // cambia: pedirlo otra vez aquí daría dos cifras distintas en la misma
+  // pantalla, la del menú y la de la lista.
+  riesgos: RiesgosCobertura | null;
 }
 
 function hoyISO() {
@@ -28,7 +35,7 @@ function diasAdelante(n: number) {
 //
 // La lectura que busca el documento de producto es literalmente ésta:
 // "42 servicios demandados / 37 cubiertos / 5 requieren cobertura".
-export function CoberturaTab({ solicitudes, servicios, onAbrirSolicitud }: Props) {
+export function CoberturaTab({ solicitudes, servicios, onAbrirSolicitud, onAbrirIncidencia, riesgos }: Props) {
   const { token } = useAuth();
   const [plantilla, setPlantilla] = useState<FichaProfesional[]>([]);
   const [ausencias, setAusencias] = useState<Ausencia[]>([]);
@@ -198,6 +205,73 @@ export function CoberturaTab({ solicitudes, servicios, onAbrirSolicitud }: Props
           )}
         </section>
       </div>
+
+      {/* Lo que va a fallar, antes de que falle. Una jornada sin cubrir se
+          descubría el mismo día, cuando la persona ya se había quedado
+          esperando en su casa; esto la saca en cuanto se sabe, con el motivo
+          escrito y el sitio donde resolverlo. El backend hace las mismas
+          comprobaciones que al asignar, así que el aviso y el bloqueo dicen
+          siempre lo mismo. */}
+      {riesgos && (
+        <section className="rounded-lg border border-slate-200 bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2.5">
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+              <IconShield className="h-4 w-4 text-slate-400" /> Jornadas en riesgo
+            </h3>
+            <span className="text-xs text-slate-400">
+              {riesgos.jornadasRevisadas} jornada{riesgos.jornadasRevisadas === 1 ? "" : "s"} revisada
+              {riesgos.jornadasRevisadas === 1 ? "" : "s"} · próximos {riesgos.dias} días
+            </span>
+          </div>
+          {riesgos.riesgos.length === 0 ? (
+            <p className="flex items-center justify-center gap-1.5 px-3 py-6 text-sm text-brand-green-700">
+              <IconCheck className="h-4 w-4" /> Todas las jornadas de los próximos {riesgos.dias} días se pueden prestar.
+            </p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {riesgos.riesgos.map((r) => {
+                const bloquea = r.gravedad === "BLOQUEA";
+                return (
+                  <li key={r.visitaId} className="flex flex-wrap items-start gap-x-3 gap-y-1 px-3 py-2">
+                    <span
+                      className={`shrink-0 text-[11px] font-semibold uppercase tracking-wide ${bloquea ? "text-rose-700" : "text-amber-700"}`}
+                    >
+                      {bloquea ? "No se puede prestar" : "Sin confirmar"}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm text-slate-800">
+                        {new Date(r.fecha).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}
+                        {r.horaInicioProg && ` · ${r.horaInicioProg}–${r.horaFinProg ?? ""}`}
+                        <span className="text-slate-400"> · </span>
+                        {r.persona}
+                        <span className="text-slate-400"> · {r.necesidad}</span>
+                      </p>
+                      <p className="text-xs text-slate-500">{r.motivo}</p>
+                    </div>
+                    {/* Si ya hay incidencia abierta, ahí es donde se busca el
+                        reemplazo; si no la hay, se va a la solicitud. */}
+                    {r.incidencia && onAbrirIncidencia ? (
+                      <button
+                        onClick={() => onAbrirIncidencia(r.incidencia!.id)}
+                        className="flex shrink-0 items-center gap-1 text-xs font-medium text-brand hover:text-brand-800"
+                      >
+                        {r.incidencia.codigo} <IconArrowRight className="h-3.5 w-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onAbrirSolicitud(r.solicitudId)}
+                        className="flex shrink-0 items-center gap-1 text-xs font-medium text-brand hover:text-brand-800"
+                      >
+                        Resolver <IconArrowRight className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section className="rounded-lg border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2.5">

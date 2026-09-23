@@ -60,7 +60,7 @@ import { ProteccionDatosTab } from "./coordinador/ProteccionDatosTab.js";
 import { EmpresaTab } from "./coordinador/EmpresaTab.js";
 import { PersonalTab } from "./coordinador/PersonalTab.js";
 import { CoberturaTab } from "./coordinador/CoberturaTab.js";
-import type { EmpresaColaboradora, Incidencia, Necesidad, Persona, Profesional, Servicio, Solicitud } from "../lib/types.js";
+import type { EmpresaColaboradora, Incidencia, Necesidad, Persona, Profesional, RiesgosCobertura, Servicio, Solicitud } from "../lib/types.js";
 
 type Tab =
   | "empresa"
@@ -204,15 +204,19 @@ export function CoordinadorPage() {
   const [incidenciaFichaAbierta, setIncidenciaFichaAbierta] = useState<string | null>(null);
   const [personaAbierta, setPersonaAbierta] = useState<string | null>(null);
   const [personasRefreshKey, setPersonasRefreshKey] = useState(0);
+  const [riesgos, setRiesgos] = useState<RiesgosCobertura | null>(null);
 
   async function cargar() {
-    const [sols, servs, incs, pers, necs, pros] = await Promise.all([
+    const [sols, servs, incs, pers, necs, pros, ries] = await Promise.all([
       api.get<Solicitud[]>("/solicitudes", token),
       api.get<Servicio[]>("/servicios", token),
       api.get<Incidencia[]>("/incidencias", token),
       api.get<Persona[]>("/personas", token),
       api.get<Necesidad[]>("/necesidades", token),
       api.get<Profesional[]>("/profesionales", token),
+      // El repaso de las jornadas que vienen: alimenta a la vez la cifra del
+      // menú y la lista de Cobertura, para que no digan cosas distintas.
+      api.get<RiesgosCobertura>("/cobertura/riesgos?dias=14", token).catch(() => null),
     ]);
     setSolicitudes(sols);
     setServicios(servs);
@@ -220,6 +224,7 @@ export function CoordinadorPage() {
     setPersonas(pers);
     setNecesidades(necs);
     setProfesionales(pros);
+    setRiesgos(ries);
   }
 
   useEffect(() => {
@@ -307,6 +312,9 @@ export function CoordinadorPage() {
     // Lo que espera a coordinación en Solicitudes: lo nuevo sin revisar más
     // lo terminado sin verificar.
     solicitudes: { valor: conteoEstados.nueva + conteoEstados.por_verificar, tono: "amber" },
+    // Jornadas que, tal como están, no se van a poder prestar. Va en rojo
+    // porque cada una es una persona que se queda esperando en su casa.
+    cobertura: { valor: riesgos?.bloquean ?? 0, tono: "rose" },
   };
 
   const solicitudesFiltradas = useMemo(() => {
@@ -746,7 +754,13 @@ export function CoordinadorPage() {
         {tab === "profesionales" && <ProfesionalesTab />}
         {tab === "personal" && <PersonalTab focoProfesionalId={foco} onFocoConsumido={() => setFoco(null)} />}
         {tab === "cobertura" && (
-          <CoberturaTab solicitudes={solicitudes} servicios={servicios} onAbrirSolicitud={(id) => setFichaAbierta(id)} />
+          <CoberturaTab
+            solicitudes={solicitudes}
+            servicios={servicios}
+            onAbrirSolicitud={(id) => setFichaAbierta(id)}
+            onAbrirIncidencia={(id) => setIncidenciaFichaAbierta(id)}
+            riesgos={riesgos}
+          />
         )}
         {tab === "equipo" && <EquipoTab />}
         {tab === "reglas" && <ReglasTab />}

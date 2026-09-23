@@ -25,6 +25,7 @@ import { liquidacionesRouter } from "./routes/liquidaciones.js";
 import { personalRouter } from "./routes/personal.js";
 import { equipoRouter } from "./routes/equipo.js";
 import { cuentaRouter } from "./routes/cuenta.js";
+import { coberturaRouter } from "./routes/cobertura.js";
 import { conErroresAsincronos } from "./lib/asincrono.js";
 
 const app = express();
@@ -43,6 +44,7 @@ app.use("/profesionales", conErroresAsincronos(profesionalesRouter));
 app.use("/visitas", conErroresAsincronos(visitasRouter));
 app.use("/reglas", conErroresAsincronos(reglasRouter));
 app.use("/analisis", conErroresAsincronos(analisisRouter));
+app.use("/cobertura", conErroresAsincronos(coberturaRouter));
 app.use("/archivos", conErroresAsincronos(archivosRouter));
 app.use("/proteccion-datos", conErroresAsincronos(proteccionRouter));
 app.use("/organizacion", conErroresAsincronos(organizacionRouter));

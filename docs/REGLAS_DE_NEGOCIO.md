@@ -127,6 +127,25 @@ salen cuatro consecuencias:
    familia, y eso lo da por hecho una persona cuando lo ha hecho.
 
 
+### El repaso de lo que viene
+
+Todo lo anterior actúa cuando la jornada ya se ha perdido. Para no llegar
+siempre tarde, Cobertura repasa las jornadas de los **próximos 14 días** y
+señala una a una las que, tal como están, no se van a poder prestar:
+
+- no hay nadie asignado;
+- quien tiene que ir no tiene los papeles obligatorios al día;
+- viene de una empresa colaboradora sin encargo de tratamiento firmado;
+- tiene una ausencia aprobada justo ese día.
+
+Son **las mismas comprobaciones que se hacen al asignar**, ejecutadas por el
+mismo código, para que el aviso de hoy y el bloqueo de mañana nunca digan
+cosas distintas. Cada línea lleva escrito el motivo y enlaza a donde se
+resuelve: a la incidencia abierta sobre esa jornada si ya la hay, o a la
+solicitud si todavía no. El número que sale en el menú cuenta sólo las que
+bloquean; un servicio asignado pero sin confirmar avisa, no bloquea.
+
+
 ## Dinero
 
 | # | Pregunta | Respuesta de CUIDA |

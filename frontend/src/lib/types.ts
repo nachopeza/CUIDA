@@ -605,3 +605,33 @@ export interface RegistroJornada {
   conformeNota?: string | null;
   profesional: Pick<Profesional, "id" | "codigo" | "nombre" | "apellidos" | "dni"> & { tipoRelacion?: TipoRelacionProfesional };
 }
+
+// Una jornada de los próximos días que, tal como está, no se va a poder
+// prestar. Se calcula en el backend con las mismas comprobaciones que se
+// hacen al asignar, para que el aviso y el bloqueo digan lo mismo.
+export interface RiesgoCobertura {
+  visitaId: string;
+  codigo: string;
+  fecha: string;
+  horaInicioProg: string | null;
+  horaFinProg: string | null;
+  estado: string;
+  gravedad: "BLOQUEA" | "AVISA";
+  motivo: string;
+  servicio: { id: string; codigo: string; estado: string };
+  solicitudId: string;
+  persona: string;
+  necesidad: string;
+  profesional: { id: string; nombre: string } | null;
+  incidencia: { id: string; codigo: string; estado: string } | null;
+}
+
+export interface RiesgosCobertura {
+  desde: string;
+  hasta: string;
+  dias: number;
+  jornadasRevisadas: number;
+  bloquean: number;
+  avisan: number;
+  riesgos: RiesgoCobertura[];
+}
