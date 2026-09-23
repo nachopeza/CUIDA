@@ -1,5 +1,5 @@
 import type { Factura, FichaProfesional, Incidencia, Servicio, Solicitud, Visita } from "./types.js";
-import { minutosFichados } from "./economia.js";
+import { duracion, minutosFichados } from "./economia.js";
 
 // Qué requiere una decisión de Olga ahora mismo, en un único sitio y con un
 // único criterio de prioridad.
@@ -39,6 +39,11 @@ export const INFO_PRIORIDAD: Record<Prioridad, { etiqueta: string; orden: number
 // Margen antes de dar por no presentada una visita. Media hora es lo que se
 // tarda en llamar y confirmar que hay un atasco, no un abandono.
 const MARGEN_NO_PRESENTADO = 30;
+
+// A partir de cuántas horas una jornada abierta deja de ser normal. El backend
+// lo lee de las reglas de la casa; aquí basta un umbral prudente para que el
+// aviso aparezca también en la lista, sin pedir otra llamada.
+const HORAS_JORNADA_ABIERTA = 4;
 
 function nombreDe(s: Solicitud | undefined): string {
   return s ? `${s.persona.nombre} ${s.persona.apellidos}` : "—";
@@ -100,9 +105,49 @@ export function calcularPendientes(datos: {
           detalle:
             fichados == null
               ? "Cerrada sin fichaje"
-              : `${new Date(visita.fecha).toLocaleDateString("es-ES", { day: "numeric", month: "short" })} · ${Math.round((fichados / 60) * 10) / 10} h fichadas`,
+              // "3 h 18 min", no "3.3 h": el mismo vocabulario de duración que
+              // el resto de la aplicación. Las horas decimales solo existen
+              // dentro de los cálculos.
+              : `${new Date(visita.fecha).toLocaleDateString("es-ES", { day: "numeric", month: "short" })} · ${duracion(fichados)} fichadas`,
           desde: Math.max(0, Math.floor((Date.now() - new Date(visita.fecha).getTime()) / 60000)),
           accion: "Verificar",
+          destino: { tipo: "tab", tab: "verificacion" },
+        });
+      }
+    }
+
+    // Crítico: una jornada abierta desde hace horas. Casi nunca son horas de
+    // trabajo: es el botón de "finalizar" sin pulsar, y mientras siga abierta
+    // no se puede facturar ni pagar.
+    for (const visita of servicio.visitas ?? []) {
+      if (visita.estado === "EN_CURSO" && visita.horaInicioReal) {
+        const abierta = Math.floor((Date.now() - new Date(visita.horaInicioReal).getTime()) / 60000);
+        if (abierta >= HORAS_JORNADA_ABIERTA * 60) {
+          asuntos.push({
+            id: `abierta-${visita.id}`,
+            prioridad: "critico",
+            tipo: "Jornada sin cerrar",
+            persona,
+            detalle: `${visita.codigo} · fichó la entrada y nunca la salida`,
+            desde: abierta,
+            accion: "Cerrar o llamar",
+            destino: { tipo: "tab", tab: "escritorio" },
+          });
+        }
+      }
+
+      // Atención: tiempo por encima de lo acordado que nadie ha decidido. La
+      // factura del mes se detiene hasta resolverlo, así que no puede quedarse
+      // ahí esperando a que alguien lo vea de casualidad.
+      if (visita.ajusteEstado === "PENDIENTE") {
+        asuntos.push({
+          id: `ajuste-${visita.id}`,
+          prioridad: "atencion",
+          tipo: "Tiempo sin decidir",
+          persona,
+          detalle: `${visita.codigo} · ${visita.desviacionMinutos ?? 0} min por encima de lo acordado, sin aprobar`,
+          desde: Math.floor((Date.now() - new Date(visita.fecha).getTime()) / 60000),
+          accion: "Decidir",
           destino: { tipo: "tab", tab: "verificacion" },
         });
       }
@@ -156,6 +201,23 @@ export function calcularPendientes(datos: {
         });
       }
     }
+  }
+
+  // Una solicitud recién enviada sin revisar: hay una familia esperando que
+  // alguien le diga algo, y hasta que se acepta no existe ni servicio ni
+  // agenda. Era el único hueco de la cadena que no aparecía como pendiente.
+  for (const solicitud of solicitudes) {
+    if (!["ENVIADA", "EN_REVISION"].includes(solicitud.estado)) continue;
+    asuntos.push({
+      id: `revisar-${solicitud.id}`,
+      prioridad: "atencion",
+      tipo: "Solicitud por revisar",
+      persona: nombreDe(solicitud),
+      detalle: `${solicitud.necesidad.nombre} · ${solicitud.descripcionLibre?.slice(0, 80) ?? "sin detalle"}`,
+      desde: solicitud.createdAt ? Math.floor((Date.now() - new Date(solicitud.createdAt).getTime()) / 60000) : 0,
+      accion: "Revisar",
+      destino: { tipo: "solicitud", id: solicitud.id },
+    });
   }
 
   // Incidencias abiertas. Una petición de cancelación es más urgente que una

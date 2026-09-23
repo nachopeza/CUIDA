@@ -85,6 +85,14 @@ export const IconActivity = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+// Barras de distinta altura: análisis. No una flecha subiendo, que promete una
+// tendencia que puede no existir.
+export const IconChart = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+  </Icon>
+);
+
 export const IconTag = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <path d="M3 11.5V5a1 1 0 0 1 1-1h6.5L21 12.5 12.5 21 3 11.5Z" />

@@ -20,10 +20,12 @@ import {
   IconCheckCircle,
   IconClipboard,
   IconHome,
+  IconList,
   IconInfinity,
   IconMenu,
   IconPlus,
   IconReceipt,
+  IconChart,
   IconSettings,
   IconTag,
   IconUsers,
@@ -51,12 +53,16 @@ import { SolicitudFichaModal } from "../components/SolicitudFichaModal.js";
 import { IncidenciaFichaModal } from "./coordinador/IncidenciaFichaModal.js";
 import { IncidenciasTab } from "./coordinador/IncidenciasTab.js";
 import { EquipoTab } from "./coordinador/EquipoTab.js";
+import { AnalisisTab } from "./coordinador/AnalisisTab.js";
+import { BandejaTab } from "./coordinador/BandejaTab.js";
 import { ReglasTab } from "./coordinador/ReglasTab.js";
 import { PersonalTab } from "./coordinador/PersonalTab.js";
 import { CoberturaTab } from "./coordinador/CoberturaTab.js";
 import type { EmpresaColaboradora, Incidencia, Necesidad, Persona, Profesional, Servicio, Solicitud } from "../lib/types.js";
 
 type Tab =
+  | "bandeja"
+  | "analisis"
   | "reglas"
   | "escritorio"
   | "solicitudes"
@@ -83,7 +89,15 @@ type Tab =
 // —trabaje para la empresa o por su cuenta—; el equipo es quien está en la
 // oficina.
 const AREAS: AreaNav[] = [
-  { titulo: "Inicio", items: [{ key: "escritorio", label: "Centro de coordinación", icon: IconHome }] },
+  {
+    titulo: "Inicio",
+    items: [
+      { key: "escritorio", label: "Centro de coordinación", icon: IconHome },
+      // La bandeja vive junto al escritorio y no en Operaciones: son la misma
+      // pregunta —"¿qué tengo que hacer?"—, una resumida y la otra completa.
+      { key: "bandeja", label: "Bandeja de trabajo", icon: IconList },
+    ],
+  },
   {
     titulo: "Operaciones",
     items: [
@@ -108,6 +122,9 @@ const AREAS: AreaNav[] = [
     ],
   },
   { titulo: "Finanzas", items: [{ key: "facturacion", label: "Cobros y pagos", icon: IconReceipt }] },
+  // Análisis es un área propia y no una pestaña de Finanzas: mira horas y
+  // desviaciones, no solo dinero, y se consulta para decidir, no para cobrar.
+  { titulo: "Análisis", items: [{ key: "analisis", label: "Horas y economía", icon: IconChart }] },
   {
     titulo: "Administración",
     items: [
@@ -700,6 +717,20 @@ export function CoordinadorPage() {
         )}
         {tab === "equipo" && <EquipoTab />}
         {tab === "reglas" && <ReglasTab />}
+        {tab === "analisis" && <AnalisisTab />}
+        {tab === "bandeja" && (
+          <BandejaTab
+            solicitudes={solicitudes}
+            servicios={servicios}
+            incidencias={incidencias}
+            onIrA={irA}
+            onAbrirSolicitud={(id) => {
+              setTab("solicitudes");
+              setFichaAbierta(id);
+            }}
+            onAbrirIncidencia={setIncidenciaFichaAbierta}
+          />
+        )}
         {tab === "empresas" && <EmpresasTab />}
         {tab === "calendario" && <CalendarioTab onAbrirSolicitud={(id) => setFichaAbierta(id)} />}
         {tab === "facturacion" && <FacturacionTab />}
