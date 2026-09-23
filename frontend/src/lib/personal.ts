@@ -78,6 +78,9 @@ export function esImpedimento(c: Carencia): boolean {
 
 export function textoCarencia(c: Carencia): string {
   if (c.motivo === "falta") return `Falta ${c.etiqueta.toLowerCase()}`;
+  // Anotado pero sin el papel detrás. Se dice distinto de "falta" a propósito:
+  // en el expediente se ve la fila y parece que está, y no está.
+  if (c.motivo === "sin_archivo") return `${c.etiqueta} sin el documento subido`;
   if (c.motivo === "caducado") return `${c.etiqueta} caducado`;
   return `${c.etiqueta} caduca pronto`;
 }

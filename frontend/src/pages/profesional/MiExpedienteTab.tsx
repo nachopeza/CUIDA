@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ArchivoEnlace } from "../../components/ArchivoUpload.js";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
@@ -120,9 +121,17 @@ export function MiExpedienteTab({ profesionalId }: { profesionalId: string }) {
               <li key={d.id} className="flex items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
                   <p className="truncate text-sm text-slate-800">{d.nombre}</p>
-                  <p className="text-xs text-slate-400">
+                  <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-slate-400">
                     {ETIQUETA_DOCUMENTO[d.tipo]}
-                    {d.fechaEmision && ` · emitido ${fecha(d.fechaEmision)}`}
+                    {d.fechaEmision && <span>· emitido {fecha(d.fechaEmision)}</span>}
+                    {/* Su propio documento: puede verlo y descargarlo. Es suyo,
+                        y si hace falta renovarlo necesita el original. */}
+                    {d.archivoId && (
+                      <>
+                        <span>·</span>
+                        <ArchivoEnlace archivoId={d.archivoId} nombre={d.nombre} />
+                      </>
+                    )}
                   </p>
                 </div>
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${TONO_VIGENCIA[vigenciaDe(d.fechaCaducidad)]}`}>

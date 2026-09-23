@@ -53,7 +53,7 @@ personalRouter.get("/", soloGestion, async (req, res) => {
   const hoy = new Date();
   const equipo = profesionales.map((p) => {
     const carencias = carenciasDe(
-      p.documentos.map((d) => ({ tipo: d.tipo, fechaCaducidad: d.fechaCaducidad })),
+      p.documentos.map((d) => ({ tipo: d.tipo, fechaCaducidad: d.fechaCaducidad, archivoId: d.archivoId, url: d.url })),
       hoy,
     );
     const ausenciaHoy = p.ausencias.find((a) => {
@@ -87,6 +87,9 @@ const documentoSchema = z.object({
     "OTRO",
   ]),
   nombre: z.string().min(1),
+  // El fichero subido al almacén. Un documento obligatorio sin esto —o al
+  // menos sin un enlace— cuenta como que falta.
+  archivoId: z.string().optional().nullable(),
   url: z.string().optional(),
   fechaEmision: z.string().optional().nullable(),
   fechaCaducidad: z.string().optional().nullable(),
@@ -119,9 +122,8 @@ personalRouter.post("/:profesionalId/documentos", soloGestion, async (req, res) 
       profesionalId: profesional.id,
       tipo: parsed.data.tipo,
       nombre: parsed.data.nombre,
-      // El almacenamiento de archivos queda fuera de esta fase: se guarda la
-      // referencia (un enlace o el nombre del papel archivado) para que el
-      // expediente sirva desde ya para controlar vigencias.
+      archivoId: parsed.data.archivoId || null,
+      // Un enlace externo sigue valiendo cuando el papel vive en otro sitio.
       url: parsed.data.url || "",
       fechaEmision: aFecha(parsed.data.fechaEmision),
       fechaCaducidad: aFecha(parsed.data.fechaCaducidad),

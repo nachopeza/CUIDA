@@ -38,14 +38,25 @@ export function vigenciaDe(fechaCaducidad: Date | null | undefined, hoy = new Da
 export interface Carencia {
   tipo: TipoDocumento;
   etiqueta: string;
-  motivo: "falta" | "caducado" | "por_caducar";
+  // "sin_archivo" se distingue de "falta" a propósito: no es lo mismo que
+  // nadie haya anotado el documento que tenerlo anotado y no tener el papel.
+  // El segundo caso es el que engañaba, porque parecía resuelto.
+  motivo: "falta" | "sin_archivo" | "caducado" | "por_caducar";
   fechaCaducidad?: Date | null;
 }
 
 // Qué le falta a alguien para estar en regla. Se devuelve todo junto, no el
 // primer problema: así se reclama de una vez.
+// Un documento obligatorio solo cuenta si de verdad está: con su fichero
+// subido, o al menos con un enlace a dónde vive. Una fila con el nombre del
+// papel y nada detrás dejaba desbloqueado a un profesional sin que CUIDA
+// tuviera el certificado que la ley obliga a tener.
+function estaDeVerdad(d: { archivoId?: string | null; url?: string | null }): boolean {
+  return Boolean(d.archivoId) || Boolean(d.url && d.url.trim());
+}
+
 export function carenciasDe(
-  documentos: { tipo: TipoDocumento; fechaCaducidad: Date | null }[],
+  documentos: { tipo: TipoDocumento; fechaCaducidad: Date | null; archivoId?: string | null; url?: string | null }[],
   hoy = new Date(),
 ): Carencia[] {
   const carencias: Carencia[] = [];
@@ -53,9 +64,14 @@ export function carenciasDe(
   for (const obligatorio of DOCUMENTOS_OBLIGATORIOS) {
     // Vale el más nuevo de cada tipo: renovar aporta uno nuevo, no borra el
     // anterior, y el expediente debe quedarse con los dos.
-    const delTipo = documentos.filter((d) => d.tipo === obligatorio);
+    const delTipo = documentos.filter((d) => d.tipo === obligatorio && estaDeVerdad(d));
     if (delTipo.length === 0) {
-      carencias.push({ tipo: obligatorio, etiqueta: ETIQUETA_DOCUMENTO[obligatorio], motivo: "falta" });
+      const anotadoSinPapel = documentos.some((d) => d.tipo === obligatorio);
+      carencias.push({
+        tipo: obligatorio,
+        etiqueta: ETIQUETA_DOCUMENTO[obligatorio],
+        motivo: anotadoSinPapel ? "sin_archivo" : "falta",
+      });
       continue;
     }
     const vigente = delTipo.some((d) => vigenciaDe(d.fechaCaducidad, hoy) !== "caducado");

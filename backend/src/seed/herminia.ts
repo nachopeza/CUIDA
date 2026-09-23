@@ -1,6 +1,9 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { liquidarVisita } from "../services/visitaEconomia.js";
+import { guardar } from "../services/almacen.js";
+import { pdfDeUnaPagina } from "./pdfDemo.js";
+import { randomUUID } from "node:crypto";
 import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
 import { registrarHistorial } from "../services/estados.js";
@@ -98,6 +101,8 @@ async function limpiarOrganizacion(organizacionId: string) {
   await prisma.mandatoSepa.deleteMany({ where: { datosFacturacion: { personaId: { in: personaIds } } } });
   await prisma.datosFacturacion.deleteMany({ where: { personaId: { in: personaIds } } });
   await prisma.correccionFichaje.deleteMany({ where: { visitaId: { in: visitaIds } } });
+  await prisma.documento.deleteMany({ where: { profesional: { organizacionId } } });
+  await prisma.archivo.deleteMany({ where: { organizacionId } });
   await prisma.tarifa.deleteMany({ where: { organizacionId } });
   await prisma.reglasNegocio.deleteMany({ where: { organizacionId } });
   await prisma.servicioInteres.deleteMany({ where: { servicioId: { in: servicioIds } } });
@@ -1182,14 +1187,43 @@ async function main() {
     },
   ];
 
+  // Cada documento del expediente lleva su PDF de verdad en el almacén: un
+  // documento obligatorio sin fichero cuenta como que falta, así que sin esto
+  // la demo saldría con toda la plantilla bloqueada.
+  const cuentaCoordinacion = await prisma.usuario.findFirstOrThrow({ where: { email: "coordinadora@cuida.demo" } });
+  let pdfsGenerados = 0;
   for (const expediente of expedientes) {
     await prisma.profesional.update({ where: { id: expediente.profesional.id }, data: expediente.contrato });
     for (const doc of expediente.documentos) {
+      const idArchivo = randomUUID();
+      const pdf = pdfDeUnaPagina(doc.nombre, [
+        `${expediente.profesional.nombre} ${expediente.profesional.apellidos}`,
+        doc.fechaEmision ? `Emitido el ${doc.fechaEmision.toLocaleDateString("es-ES")}` : "Sin fecha de emisión",
+        doc.fechaCaducidad ? `Válido hasta el ${doc.fechaCaducidad.toLocaleDateString("es-ES")}` : "Sin caducidad",
+        "",
+        "Documento de ejemplo generado por el seed de CUIDA.",
+      ]);
+      const guardado = await guardar(pdf, organizacion.id, idArchivo);
+      await prisma.archivo.create({
+        data: {
+          id: idArchivo,
+          nombre: `${doc.nombre}.pdf`,
+          tipoMime: guardado.tipoMime,
+          bytes: guardado.bytes,
+          hash: guardado.hash,
+          ruta: guardado.ruta,
+          organizacionId: organizacion.id,
+          subidoPorId: cuentaCoordinacion.id,
+        },
+      });
+      pdfsGenerados += 1;
+
       await prisma.documento.create({
         data: {
           profesionalId: expediente.profesional.id,
           tipo: doc.tipo,
           nombre: doc.nombre,
+          archivoId: idArchivo,
           url: "",
           fechaEmision: doc.fechaEmision,
           fechaCaducidad: doc.fechaCaducidad,
@@ -1197,6 +1231,24 @@ async function main() {
       });
     }
   }
+
+  // Y uno anotado sin el papel, a propósito: Nadia tiene la fila del
+  // certificado en el expediente pero no el documento. Antes eso la daba por
+  // resuelta; ahora sigue contando como que falta, que es lo que es.
+  const nadia = await prisma.profesional.findFirst({ where: { organizacionId: organizacion.id, nombre: "Nadia" } });
+  if (nadia) {
+    await prisma.documento.create({
+      data: {
+        profesionalId: nadia.id,
+        tipo: "DELITOS_SEXUALES",
+        nombre: "Certificación negativa (pendiente de recibir el original)",
+        url: "",
+        fechaEmision: fechaEn(-10),
+        fechaCaducidad: fechaEn(350),
+      },
+    });
+  }
+  console.log(`\nAlmacén: ${pdfsGenerados} documentos con su PDF, y uno anotado sin fichero para ver el caso.`);
 
   // Una ausencia aprobada y otra pendiente de responder, para que la bandeja
   // de coordinación no arranque vacía.

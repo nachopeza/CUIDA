@@ -488,6 +488,9 @@ export interface DocumentoProfesional {
   id: string;
   tipo: TipoDocumento;
   nombre: string;
+  // El fichero en el almacén, cuando lo hay. Un documento obligatorio sin
+  // esto cuenta como que falta: no basta con anotar que existe.
+  archivoId?: string | null;
   url: string;
   fechaEmision?: string | null;
   fechaCaducidad?: string | null;
@@ -513,7 +516,7 @@ export interface Ausencia {
 export interface Carencia {
   tipo: TipoDocumento;
   etiqueta: string;
-  motivo: "falta" | "caducado" | "por_caducar";
+  motivo: "falta" | "sin_archivo" | "caducado" | "por_caducar";
   fechaCaducidad?: string | null;
 }
 

@@ -301,14 +301,20 @@ serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", 
   // pueda saltar: se bloquea la asignación y se dice qué falta.
   const documentos = await prisma.documento.findMany({
     where: { profesionalId: profesional.id },
-    select: { tipo: true, fechaCaducidad: true },
+    select: { tipo: true, fechaCaducidad: true, archivoId: true, url: true },
   });
   const impedimentos = carenciasDe(documentos).filter((c) => c.motivo !== "por_caducar");
   if (impedimentos.length > 0) {
+    const comoSeDice = (c: (typeof impedimentos)[number]) => {
+      const nombre = c.etiqueta.toLowerCase();
+      if (c.motivo === "falta") return `falta ${nombre}`;
+      // Anotado pero sin el papel detrás: decirlo así y no "falta" evita que
+      // alguien vaya al expediente, vea la fila y piense que ya está.
+      if (c.motivo === "sin_archivo") return `${nombre} anotado pero sin el documento subido`;
+      return `${nombre} caducado`;
+    };
     return res.status(409).json({
-      error: `No se puede asignar a ${profesional.nombre}: ${impedimentos
-        .map((c) => (c.motivo === "falta" ? `falta ${c.etiqueta.toLowerCase()}` : `${c.etiqueta.toLowerCase()} caducado`))
-        .join("; ")}.`,
+      error: `No se puede asignar a ${profesional.nombre}: ${impedimentos.map(comoSeDice).join("; ")}.`,
     });
   }
 

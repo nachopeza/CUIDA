@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
+import { ArchivoUpload, ArchivoEnlace, type ArchivoSubido } from "../../components/ArchivoUpload.js";
 import { Modal } from "../../components/Modal.js";
 import { SearchBox } from "../../components/SearchBox.js";
 import { exportarCSV } from "../../lib/csv.js";
@@ -463,16 +464,29 @@ function ExpedienteModal({
 }) {
   const { token } = useAuth();
   const [form, setForm] = useState({ tipo: "DELITOS_SEXUALES" as TipoDocumento, nombre: "", fechaEmision: "", fechaCaducidad: "" });
+  const [archivo, setArchivo] = useState<ArchivoSubido | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [nuevaAusencia, setNuevaAusencia] = useState({ tipo: "VACACIONES", desde: "", hasta: "", motivo: "" });
+
+  // El nombre del documento sale del fichero si no se ha escrito otro: nadie
+  // quiere teclear "Certificado.pdf" después de haberlo subido.
+  function alSubir(a: ArchivoSubido | null) {
+    setArchivo(a);
+    if (a && !form.nombre.trim()) setForm((f) => ({ ...f, nombre: a.nombre.replace(/\.[^.]+$/, "") }));
+  }
 
   async function anadir() {
     if (!form.nombre.trim()) return;
     setGuardando(true);
     onError(null);
     try {
-      await api.post(`/personal/${miembro.id}/documentos`, { ...form, fechaEmision: form.fechaEmision || null, fechaCaducidad: form.fechaCaducidad || null }, token);
+      await api.post(
+        `/personal/${miembro.id}/documentos`,
+        { ...form, archivoId: archivo?.id ?? null, fechaEmision: form.fechaEmision || null, fechaCaducidad: form.fechaCaducidad || null },
+        token,
+      );
       setForm({ tipo: "DELITOS_SEXUALES", nombre: "", fechaEmision: "", fechaCaducidad: "" });
+      setArchivo(null);
       await onCambiado();
     } catch (e) {
       onError(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido guardar");
@@ -504,7 +518,10 @@ function ExpedienteModal({
     }
   }
 
-  const faltan = DOCUMENTOS_OBLIGATORIOS.filter((t) => !miembro.documentos.some((d) => d.tipo === t));
+  // Lo que de verdad le impide trabajar, tal y como lo calcula el servidor:
+  // mirar sólo si existe la fila decía "ya está" de un certificado anotado
+  // sin documento, que es justo el caso que bloquea.
+  const impedimentos = miembro.carencias.filter((c) => c.motivo !== "por_caducar");
 
   return (
     <Modal title={`${miembro.nombre} ${miembro.apellidos}`} onClose={onClose} size="lg">
@@ -519,7 +536,7 @@ function ExpedienteModal({
 
         {miembro.bloqueado && (
           <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-            No se le puede asignar ningún servicio hasta que aporte {faltan.map((t) => ETIQUETA_DOCUMENTO[t].toLowerCase()).join(" y ")}.
+            No se le puede asignar ningún servicio: {impedimentos.map((c) => textoCarencia(c).toLowerCase()).join("; ")}.
           </p>
         )}
 
@@ -535,9 +552,19 @@ function ExpedienteModal({
                 <li key={d.id} className="flex items-center justify-between gap-3 py-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm text-slate-800">{d.nombre}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-slate-400">
                       {ETIQUETA_DOCUMENTO[d.tipo]}
-                      {d.fechaEmision && ` · emitido ${fecha(d.fechaEmision)}`}
+                      {d.fechaEmision && <span>· emitido {fecha(d.fechaEmision)}</span>}
+                      {d.archivoId ? (
+                        <>
+                          <span>·</span>
+                          <ArchivoEnlace archivoId={d.archivoId} nombre={d.nombre} />
+                        </>
+                      ) : (
+                        // Anotado sin el papel: se dice, porque es justo el caso
+                        // que parecía resuelto y no lo estaba.
+                        <span className="text-amber-700">· sin el documento subido</span>
+                      )}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
@@ -586,6 +613,16 @@ function ExpedienteModal({
               Caduca el
               <input type="date" value={form.fechaCaducidad} onChange={(e) => setForm((f) => ({ ...f, fechaCaducidad: e.target.value }))} className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
             </label>
+            <div className="sm:col-span-2">
+              <ArchivoUpload valor={archivo} onSubido={alSubir} etiqueta="Subir el documento (PDF, JPG o PNG)" />
+            </div>
+            {/* Un obligatorio sin fichero no desbloquea a nadie, así que no se
+                deja añadir a medias: se dice antes, no después. */}
+            {!archivo && DOCUMENTOS_OBLIGATORIOS.includes(form.tipo) && (
+              <p className="text-xs text-amber-700 sm:col-span-2">
+                {ETIQUETA_DOCUMENTO[form.tipo]} es obligatorio: sin el documento subido seguirá contando como que falta.
+              </p>
+            )}
             <button
               onClick={anadir}
               disabled={guardando || !form.nombre.trim()}

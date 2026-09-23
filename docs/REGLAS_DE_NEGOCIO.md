@@ -165,3 +165,39 @@ CUIDA**.
 - Aprobar la liquidación marca sus jornadas como `LIQUIDADA`, así que no pueden
   volver a entrar en la del mes siguiente.
 - Un borrador de factura no tiene número fiscal: se le asigna al emitir.
+
+---
+
+## Documentos: el papel, no la anotación
+
+Un documento obligatorio **solo cuenta si está**: con su fichero subido o, al
+menos, con un enlace a dónde vive. Una fila con el nombre del papel y nada
+detrás deja de dar a nadie por resuelto.
+
+| Situación | Cómo lo cuenta CUIDA | ¿Puede trabajar? |
+|---|---|---|
+| Ni anotado | `falta` | No |
+| Anotado sin fichero | `sin_archivo` | **No** |
+| Con fichero, vigente | — | Sí |
+| Con fichero, caduca pronto | `por_caducar` | Sí, con aviso |
+| Con fichero, caducado | `caducado` | No |
+
+`sin_archivo` se distingue de `falta` a propósito: en el expediente se ve la
+fila y parece que ya está, y es justo el caso que engañaba.
+
+### Cómo se guardan
+
+- Se aceptan **PDF, JPG y PNG**, hasta **10 MB**.
+- El tipo se comprueba por los **primeros bytes del contenido**, no por la
+  cabecera que manda el navegador: un `.exe` renombrado a `.pdf` se rechaza.
+- El nombre del fichero en disco lo pone el servidor; el nombre original solo
+  se guarda para enseñarlo y para la descarga.
+- De cada archivo se guarda su **SHA-256**, para detectar que ha cambiado.
+- **No hay carpeta pública.** La descarga pasa siempre por un endpoint que
+  comprueba quién pregunta, y el permiso se hereda de aquello a lo que el
+  documento está pegado: coordinación siempre; el profesional, los suyos; la
+  familia, los de la persona a su cargo.
+- En la demo los ficheros viven en `backend/almacen/` (fuera del repositorio).
+  En producción eso se sustituye por un bucket de objetos cambiando solo
+  `guardar` y `leer` en `services/almacen.ts` — el resto del sistema no sabe
+  dónde están.

@@ -73,6 +73,7 @@ model Organizacion {
   auditLogs             AuditLog[]
   reglasNegocio         ReglasNegocio?
   tarifas               Tarifa[]
+  archivos              Archivo[]
 
   @@map("organizaciones")
 }
@@ -131,6 +132,7 @@ model Usuario {
   mensajes             Mensaje[]
   auditLogs            AuditLog[]
   correccionesFichaje  CorreccionFichaje[]
+  archivosSubidos      Archivo[]           @relation("ArchivoSubidoPor")
   visitasCerradas      Visita[]            @relation("VisitaCerradaPor")
   ajustesDecididos     Visita[]            @relation("VisitaAjusteDecididoPor")
 
@@ -1052,6 +1054,9 @@ model Incidencia {
 model Documento {
   id             String        @id @default(cuid())
   nombre         String
+  // Enlace externo, cuando el papel vive en otro sitio. Se mantiene porque no
+  // todo documento es un fichero que subamos nosotros, pero un documento
+  // obligatorio sin archivo cuenta como que falta.
   url            String
   // Tipo, vigencia y notas. Un documento sin tipo ni caducidad no se puede
   // reclamar a tiempo: se descubre que faltaba el día que hace falta.
@@ -1060,6 +1065,10 @@ model Documento {
   fechaCaducidad DateTime?
   notas          String?
   createdAt      DateTime      @default(now())
+
+  // El fichero de verdad, cuando lo hay.
+  archivoId String?
+  archivo   Archivo? @relation(fields: [archivoId], references: [id])
 
   personaId String?
   persona   Persona? @relation(fields: [personaId], references: [id])
@@ -1386,4 +1395,47 @@ model CorreccionFichaje {
   createdAt DateTime @default(now())
 
   @@map("correcciones_fichaje")
+}
+
+// ---------------------------------------------------------------------------
+// Almacén de archivos
+//
+// Hasta ahora un documento era una fila con un nombre y una URL de texto
+// libre, casi siempre vacía: CUIDA sabía que el certificado de delitos
+// sexuales "existía" pero no lo tenía. Para un papel que la ley exige tener,
+// eso no es tener nada.
+//
+// El fichero se guarda fuera de la base de datos y aquí queda su ficha: qué
+// es, cuánto pesa, de qué tipo es de verdad —comprobado por sus primeros
+// bytes, no por lo que diga quien lo sube—, su huella para saber si ha
+// cambiado, y quién lo subió y cuándo.
+// ---------------------------------------------------------------------------
+model Archivo {
+  id String @id @default(cuid())
+
+  // El nombre con el que lo subieron, solo para enseñarlo y para la descarga.
+  // Nunca se usa como ruta: un nombre de fichero es texto del usuario.
+  nombre   String
+  tipoMime String
+  bytes    Int
+  // SHA-256 del contenido. Sirve para detectar un fichero corrupto o alterado
+  // y para no guardar dos veces el mismo papel.
+  hash     String
+
+  // Dónde está, relativo a la carpeta del almacén. Lo decide el servidor.
+  ruta String
+
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
+
+  subidoPorId String
+  subidoPor   Usuario @relation("ArchivoSubidoPor", fields: [subidoPorId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  documentos Documento[]
+
+  @@index([organizacionId])
+  @@index([hash])
+  @@map("archivos")
 }
