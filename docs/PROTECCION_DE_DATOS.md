@@ -66,6 +66,53 @@ más. El RGPD se incumple por los dos lados.
 
 ---
 
+## Información y consentimientos
+
+El RGPD no se cumple colgando una política en la web: hay que poder demostrar,
+**persona a persona**, qué se le explicó y qué autorizó (arts. 5.2 y 7.1), y
+dejar retirarlo con la misma facilidad con la que se dio (art. 7.3).
+
+La ficha de cada persona tiene los cinco puntos del catálogo, contestados o no:
+
+| Punto | Base jurídica | ¿Se puede decir que no? |
+|---|---|---|
+| Información entregada (art. 13) | Arts. 12 y 13 RGPD | No es una opción de la persona: es una obligación de la empresa |
+| Datos de salud y cuidados | Art. 9.2.a (consentimiento explícito) | No, sin ellos no hay plan de cuidados |
+| Sus datos llegan a quien la atiende | Art. 6.1.b y art. 28 para la colaboradora | No, nadie puede ir a una casa sin saber a dónde va |
+| Imagen | Art. 6.1.a y LO 1/1982 | Sí, y el servicio es el mismo |
+| Avisos y novedades | Art. 6.1.a y art. 21 LSSI | Sí, y el servicio es el mismo |
+
+Que los dos últimos se puedan rechazar sin perder el servicio no es cortesía:
+si no se pudiera, el consentimiento no sería libre (art. 7.4) y no valdría.
+
+**Nada se sobrescribe.** Una respuesta nueva es una fila nueva, y retirar una
+autorización deja el otorgamiento con su fecha de revocación al lado: lo hecho
+hasta ese día era lícito y eso también hay que poder demostrarlo. Cada fila
+guarda la **versión del texto** que se le leyó; si el texto cambia, la ficha
+avisa de que hay que volver a informar.
+
+*Sin preguntar* no es lo mismo que *dijo que no*: lo primero es una tarea
+pendiente de coordinación y sale en la bandeja de trabajo como un asunto más.
+
+### Encargados de tratamiento (art. 28)
+
+Asignar un servicio a una empresa colaboradora le entrega el nombre, la
+dirección y el plan de cuidados de la persona. Eso es un encargo de
+tratamiento y el art. 28.3 exige el contrato **antes** de la cesión: sin él,
+la responsable de la infracción es la organización. Por eso CUIDA no deja
+asignar servicios a una colaboradora que no lo tenga marcado como firmado en
+su ficha — ni directamente ni a través de una profesional suya.
+
+### Registro de actividades (art. 30)
+
+Se descarga desde *Protección de datos*. No es un texto que se redacte: se
+genera de lo que la aplicación hace de verdad — los plazos de conservación que
+aplica con su norma, los destinatarios reales, las colaboradoras dadas de alta
+y las medidas de seguridad implementadas. Sigue necesitando que el responsable
+lo revise y lo asuma, pero deja de ser un Word que envejece a la semana.
+
+---
+
 ## Derechos de las personas
 
 **Acceso y portabilidad (arts. 15 y 20).** Desde la ficha de cualquier persona,
@@ -104,11 +151,14 @@ peor que uno que diga lo que le falta:
 1. **Cifrado en reposo** de la base de datos y del almacén de archivos.
 2. **Copias de seguridad** con su propio plazo de conservación y prueba de
    restauración.
-3. **Registro de actividades de tratamiento** formal (art. 30) firmado por el
-   responsable: este documento es su borrador, no su sustituto.
-4. **Contratos de encargado de tratamiento** (art. 28) con el proveedor de
-   alojamiento y con cualquier empresa colaboradora que acceda a datos.
+3. **Firma del registro de actividades (art. 30)**: la aplicación lo genera,
+   pero quien responde de que sea correcto y completo es el responsable del
+   tratamiento, que tiene que revisarlo y asumirlo.
+4. **Contrato de encargado de tratamiento con el proveedor de alojamiento.**
+   El de las empresas colaboradoras ya se registra y bloquea la asignación sin
+   él; el del hosting es un contrato que se firma fuera de la aplicación.
 5. **Evaluación de impacto (art. 35)**: hay tratamiento a gran escala de datos
    de salud de personas vulnerables, así que es probable que sea exigible.
-6. **Información y consentimiento** en el alta: hoy la aplicación no recoge ni
-   registra la entrega de la información del art. 13.
+6. **Texto informativo real del art. 13.** La aplicación registra que se
+   entregó y en qué versión; el contenido del documento que se entrega lo
+   escribe la empresa con su asesoría, no el código.

@@ -25,6 +25,10 @@ const FORMA_PAGO: Record<string, string> = {
 // Lo que se pinta son los datos CONGELADOS en la factura, no los actuales del
 // cliente: si la hija cambia de dirección, la copia que ya tiene no cambia.
 export function FacturaDocumento({ factura }: { factura: Factura }) {
+  const registro = factura.registroFacturacion ?? null;
+  // El QR llega dibujado del servidor: es una función de la URL de cotejo, que
+  // es la que está registrada.
+  const qrSvg = factura.qrSvg ?? null;
   const lineas = factura.lineas ?? [];
   const esRectificativa = factura.tipo === "RECTIFICATIVA";
   // Agrupación por tipo de IVA: es como debe desglosarse, no una suma única.
@@ -140,11 +144,37 @@ export function FacturaDocumento({ factura }: { factura: Factura }) {
         </dl>
       </section>
 
+      {/* Registro de facturación del RD 1007/2023: el QR de cotejo y la huella
+          que encadena esta factura con la anterior. Va al pie porque es lo que
+          permite comprobar el documento, no leerlo. */}
+      {registro && (
+        <section className="mt-6 flex flex-wrap items-start gap-4 border-t border-slate-200 pt-3">
+          {qrSvg && <div className="shrink-0" aria-label="Código QR de cotejo" dangerouslySetInnerHTML={{ __html: qrSvg }} />}
+          <div className="min-w-0 text-[11px] leading-relaxed text-slate-500">
+            <p className="font-medium text-slate-600">Factura con registro de facturación</p>
+            <p>
+              Registro {registro.numSerieFactura} · tipo {registro.tipoFactura} · generado el {registro.fechaHoraHusoGen}
+            </p>
+            <p className="break-all">Huella: {registro.huella}</p>
+            {registro.huellaAnterior && <p className="break-all">Encadenada con: {registro.huellaAnterior}</p>}
+            <p>
+              Sistema informático de facturación: {registro.sistemaInformatico} {registro.versionSistema}
+            </p>
+          </div>
+        </section>
+      )}
+
       <footer className="mt-8 border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-400">
         <p>
           Documento generado por CUIDA · prototipo de demostración. No constituye una factura válida a efectos fiscales
           ni debe utilizarse en operaciones reales.
         </p>
+        {registro && (
+          <p className="mt-1">
+            El registro se genera y se encadena según el RD 1007/2023, pero esta instalación no remite los registros a la
+            AEAT ni sustituye la declaración responsable del fabricante del software.
+          </p>
+        )}
       </footer>
     </div>
   );

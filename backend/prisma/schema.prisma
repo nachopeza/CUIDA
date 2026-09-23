@@ -113,6 +113,8 @@ model Organizacion {
   archivos              Archivo[]
   politicaConservacion  PoliticaConservacion?
 
+  registrosFacturacion RegistroFacturacion[]
+
   @@map("organizaciones")
 }
 
@@ -769,6 +771,50 @@ enum EstadoLiquidacion {
 // un pequeño porcentaje... al final de mes se le cobrará el importe"):
 // agrupa los servicios PAGADO de una persona en un mes natural, calcula el
 // total cobrado, la comisión retenida y el neto a liquidar a profesionales.
+// Registro de facturación del RD 1007/2023 (el "reglamento Veri*factu"). Cada
+// factura que se emite genera un registro de alta encadenado con el anterior
+// por una huella SHA-256, de forma que no se puede borrar ni reordenar una
+// factura sin que la cadena deje de cuadrar.
+//
+// La huella se calcula con los campos y el orden que fija la Orden
+// HAC/1177/2024. Esto no sustituye al envío a la AEAT ni a la declaración
+// responsable del fabricante del software: es la parte que le toca a la
+// aplicación — que lo emitido quede registrado, encadenado y sin poder
+// alterarse.
+model RegistroFacturacion {
+  id             String       @id @default(cuid())
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
+  facturaId      String       @unique
+  factura        Factura      @relation(fields: [facturaId], references: [id])
+
+  // Los campos que entran en la huella, guardados tal cual entraron: si mañana
+  // alguien cambia el NIF de la empresa, la huella de lo ya emitido se tiene
+  // que seguir pudiendo recalcular.
+  nifEmisor        String
+  numSerieFactura  String
+  fechaExpedicion  String // dd-mm-aaaa, como pide la orden
+  tipoFactura      String // F1 factura completa, R1..R5 rectificativas
+  cuotaTotal       Decimal @db.Decimal(12, 2)
+  importeTotal     Decimal @db.Decimal(12, 2)
+  huellaAnterior   String?
+  huella           String
+  fechaHoraHusoGen String // ISO 8601 con huso horario
+
+  // Qué programa lo generó. El reglamento obliga a identificarlo en el
+  // registro.
+  sistemaInformatico String
+  versionSistema     String
+
+  // Lo que se imprime en la factura para poder cotejarla.
+  urlCotejo String
+
+  createdAt DateTime @default(now())
+
+  @@index([organizacionId, createdAt])
+  @@map("registros_facturacion")
+}
+
 model Factura {
   id     String @id @default(cuid())
   codigo String @unique // FAC-000012
@@ -835,9 +881,10 @@ model Factura {
   personaId String
   persona   Persona @relation(fields: [personaId], references: [id])
 
-  servicios Servicio[]
-  visitas   Visita[]
-  lineas    LineaFactura[]
+  servicios           Servicio[]
+  visitas             Visita[]
+  lineas              LineaFactura[]
+  registroFacturacion RegistroFacturacion?
 
   @@unique([personaId, mes])
   // La numeración es única dentro de su serie y ejercicio: es lo que impide

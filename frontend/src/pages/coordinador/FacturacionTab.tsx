@@ -109,6 +109,39 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focoFacturaId, facturas]);
 
+  const [comprobando, setComprobando] = useState(false);
+
+  async function comprobarCadena() {
+    setComprobando(true);
+    setError(null);
+    try {
+      const r = await api.get<{ total: number; correctos: number; rotos: Array<{ numSerieFactura: string; problema: string }> }>(
+        "/facturas/registro/cadena",
+        token,
+      );
+      if (r.total === 0) setAviso("Todavía no hay ninguna factura emitida, así que no hay cadena que comprobar.");
+      else if (r.rotos.length === 0)
+        setAviso(`Cadena correcta: ${r.correctos} de ${r.total} registros encadenan y sus huellas cuadran. Ninguna factura emitida se ha alterado.`);
+      else setError(`La cadena no cuadra en ${r.rotos.length}: ${r.rotos.map((x) => `${x.numSerieFactura} (${x.problema.toLowerCase()})`).join("; ")}.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido comprobar");
+    } finally {
+      setComprobando(false);
+    }
+  }
+
+  // La ficha trae el QR de cotejo dibujado, que no viaja en el listado: se
+  // pide al abrirla y, si falla, se enseña la factura igual sin el QR.
+  async function abrirFactura(f: Factura) {
+    setFacturaAbierta(f);
+    try {
+      const completa = await api.get<Factura>(`/facturas/${f.id}`, token);
+      setFacturaAbierta(completa);
+    } catch {
+      /* se queda la versión del listado */
+    }
+  }
+
   async function accion(clave: string, fn: () => Promise<unknown>, exito?: string) {
     setOcupado(clave);
     setError(null);
@@ -249,6 +282,12 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
                 Exportar CSV ({facturasVisibles.length})
               </button>
             )}
+              {/* La cadena de registros del RD 1007/2023. Es la respuesta a
+                  "¿cómo sé que nadie ha tocado esto?": se recalculan todas las
+                  huellas y se dice si alguna no cuadra. */}
+              <button onClick={comprobarCadena} disabled={comprobando} className="text-xs font-medium text-slate-500 underline decoration-dotted hover:text-slate-700 disabled:opacity-50">
+                {comprobando ? "Comprobando…" : "Comprobar la cadena de facturas"}
+              </button>
           </div>
 
           {facturasVisibles.length === 0 ? (
@@ -263,7 +302,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
                 return (
                   <li key={f.id} className={`rounded-lg border bg-white p-3 ${vencida || f.estado === "IMPAGADA" ? "border-rose-200" : "border-slate-200"}`}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <button onClick={() => setFacturaAbierta(f)} className="min-w-0 flex-1 text-left">
+                      <button onClick={() => abrirFactura(f)} className="min-w-0 flex-1 text-left">
                         <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-800 hover:underline">
                           {referenciaFactura(f)}
                           <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${info.clase}`}>{info.etiqueta}</span>

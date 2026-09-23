@@ -331,6 +331,20 @@ export interface DatosFacturacion {
   mandatos?: MandatoSepa[];
 }
 
+// Registro de facturación del RD 1007/2023: lo que encadena cada factura
+// emitida con la anterior y permite cotejarla.
+export interface RegistroFacturacion {
+  numSerieFactura: string;
+  fechaExpedicion: string;
+  tipoFactura: string;
+  huella: string;
+  huellaAnterior: string | null;
+  fechaHoraHusoGen: string;
+  sistemaInformatico: string;
+  versionSistema: string;
+  urlCotejo: string;
+}
+
 export interface Factura {
   id: string;
   codigo: string;
@@ -355,6 +369,9 @@ export interface Factura {
   // Pie registral congelado al emitir: mención obligatoria en la factura de
   // una sociedad (art. 24 LSC).
   emisorRegistro?: string | null;
+  registroFacturacion?: RegistroFacturacion | null;
+  // Sólo llega en la ficha de una factura concreta, dibujado por el servidor.
+  qrSvg?: string | null;
   facturaRectificadaId?: string | null;
   facturaRectificada?: { id: string; codigo: string; serie: string; numero: number; ejercicio: number } | null;
   rectificativas?: { id: string; codigo: string; serie: string; numero: number; ejercicio: number; totalConIva: string | number }[];

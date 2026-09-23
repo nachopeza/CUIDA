@@ -5,6 +5,7 @@ import { generarCodigo } from "../lib/codes.js";
 import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
 import { esGestorOrganizacion } from "../services/permisos.js";
+import { comprobarCadena, registrarAlta, qrSvg } from "../services/registroFacturacion.js";
 import {
   calcularVencimiento,
   partesDeLaFactura,
@@ -255,6 +256,9 @@ const INCLUDE_FICHA = {
   rectificativas: { select: { id: true, codigo: true, serie: true, numero: true, ejercicio: true, totalConIva: true } },
   servicios: { include: { solicitud: { include: { necesidad: true } }, profesional: true } },
   visitas: { include: { profesional: true, servicio: { include: { solicitud: { include: { necesidad: true } } } } } },
+  // El registro del RD 1007/2023: la huella y el QR se imprimen en la factura,
+  // así que viajan con ella.
+  registroFacturacion: true,
 } as const;
 
 facturasRouter.get("/", async (req, res) => {
@@ -298,7 +302,11 @@ facturasRouter.get("/:id", async (req, res) => {
     // La persona atendida nunca ve importes (sección 4 y 14 del masterplan).
     return res.status(403).json({ error: "Sin permiso" });
   }
-  res.json(factura);
+  // El QR se dibuja aquí y no se guarda: es una función de la URL de cotejo,
+  // que sí está registrada. Guardar la imagen sería guardar dos veces el mismo
+  // dato y arriesgarse a que dejen de coincidir.
+  const qr = factura.registroFacturacion ? await qrSvg(factura.registroFacturacion.urlCotejo) : null;
+  res.json({ ...factura, qrSvg: qr });
 });
 
 // Emitir: es el momento en que la factura deja de ser un borrador editable y
@@ -326,8 +334,13 @@ facturasRouter.post("/:id/emitir", requiereRol("COORDINADOR", "ORGANIZACION", "A
   // escrito en el código que nadie podía cambiar.
   const empresa = await prisma.organizacion.findUnique({
     where: { id: factura.organizacionId },
-    select: { diasVencimiento: true },
+    select: { diasVencimiento: true, cif: true },
   });
+  // Sin NIF no hay registro de facturación posible, y sin registro no se
+  // puede emitir: el RD 1007/2023 no admite emitir primero y registrar luego.
+  if (!empresa?.cif) {
+    return res.status(409).json({ error: "Falta el CIF de la empresa: sin él no se puede generar el registro de facturación obligatorio." });
+  }
   const numero = await siguienteNumero(factura.organizacionId, factura.serie, factura.ejercicio);
   const emitida = await prisma.factura.update({
     where: { id: factura.id },
@@ -342,16 +355,42 @@ facturasRouter.post("/:id/emitir", requiereRol("COORDINADOR", "ORGANIZACION", "A
     include: INCLUDE_FICHA,
   });
 
+  // Registro de facturación encadenado con el anterior. Va después del update
+  // porque necesita el número ya asignado, y antes de responder porque una
+  // factura emitida sin su registro es justo lo que el reglamento prohíbe.
+  const registro = await registrarAlta(
+    {
+      id: emitida.id,
+      organizacionId: emitida.organizacionId,
+      serie: emitida.serie,
+      numero: numero,
+      ejercicio: emitida.ejercicio,
+      fechaEmision: emision,
+      totalIva: emitida.ivaTotal,
+      totalConIva: emitida.totalConIva,
+      facturaRectificadaId: emitida.facturaRectificadaId,
+    },
+    empresa.cif,
+  );
+
   await registrarAuditoria({
     usuarioId: req.usuario!.sub,
     organizacionId: factura.organizacionId,
     accion: "emitir_factura",
     entidadTipo: "Factura",
     entidadId: factura.id,
-    detalle: referenciaFactura(emitida.serie, emitida.ejercicio, numero),
+    detalle: `${referenciaFactura(emitida.serie, emitida.ejercicio, numero)} · huella ${registro.huella.slice(0, 16)}…`,
   });
 
-  res.json(emitida);
+  res.json({ ...emitida, registroFacturacion: registro });
+});
+
+// Comprobar la cadena de registros. Es la respuesta a "¿y cómo sé que nadie ha
+// tocado esto?": se recalculan todas las huellas y se dice si alguna no cuadra.
+facturasRouter.get("/registro/cadena", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const organizacionId = req.usuario!.organizacionId;
+  if (!organizacionId) return res.status(400).json({ error: "Sin organización" });
+  res.json(await comprobarCadena(organizacionId));
 });
 
 const cobroSchema = z.object({ fechaCobro: z.string().optional(), referencia: z.string().optional() });

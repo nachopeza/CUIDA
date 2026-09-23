@@ -128,6 +128,10 @@ async function limpiarOrganizacion(organizacionId: string) {
   await prisma.servicioInteres.deleteMany({ where: { servicioId: { in: servicioIds } } });
   await prisma.visita.deleteMany({ where: { id: { in: visitaIds } } });
   await prisma.plan.deleteMany({ where: { solicitudId: { in: solicitudIds } } });
+  // Los registros de facturación cuelgan de las facturas, así que se van
+  // primero. En producción esto no se borra nunca: es la demo la que se
+  // vuelve a sembrar entera.
+  await prisma.registroFacturacion.deleteMany({ where: { organizacionId } });
   await prisma.factura.deleteMany({ where: { personaId: { in: personaIds } } });
   await prisma.servicio.deleteMany({ where: { id: { in: servicioIds } } });
   await prisma.solicitud.deleteMany({ where: { id: { in: solicitudIds } } });
