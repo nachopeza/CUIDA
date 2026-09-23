@@ -1,5 +1,5 @@
-import { useEffect, type ReactNode, type SVGProps } from "react";
-import { IconX } from "./icons.js";
+import { useEffect, useState, type ReactNode, type SVGProps } from "react";
+import { IconChevronDown, IconX } from "./icons.js";
 
 export interface ItemNav {
   key: string;
@@ -7,12 +7,17 @@ export interface ItemNav {
   icon: (p: SVGProps<SVGSVGElement>) => JSX.Element;
 }
 
-// Un área agrupa varias pestañas bajo un mismo encabezado. Doce entradas
+// Un área agrupa varias pestañas bajo un mismo encabezado. Dieciséis entradas
 // sueltas obligaban a leérselas todas para encontrar una; agrupadas por
-// aquello de lo que tratan, se va directo.
+// aquello de lo que se hace con ellas, se va directo.
+//
+// El título vacío es un grupo sin rótulo: lo primero del menú no necesita que
+// le pongan nombre. Y `plegable` guarda para lo que se toca una vez al mes
+// —la configuración— que por defecto está cerrado y no ocupa media pantalla.
 export interface AreaNav {
   titulo: string;
   items: ItemNav[];
+  plegable?: boolean;
 }
 
 export interface BadgeNav {
@@ -30,6 +35,9 @@ interface Props {
   // Lo que va encima de la navegación: el buscador global en coordinación,
   // nada en los paneles más simples.
   cabecera?: ReactNode;
+  // Lo que se crea desde aquí. Va en el menú y no perdido en la cabecera de
+  // cada pantalla: crear una solicitud es lo que más se hace en el día.
+  acciones?: ReactNode;
   abierto: boolean;
   onCerrar: () => void;
 }
@@ -78,19 +86,64 @@ function Botones({
   );
 }
 
+function Area({ area, activo, onIr, badges }: { area: AreaNav } & Pick<Props, "activo" | "onIr" | "badges">) {
+  const contieneElActivo = area.items.some((i) => i.key === activo);
+  // Se recuerda si estaba abierto: quien pasa la mañana en configuración no
+  // tiene que abrirla en cada recarga.
+  const [abierta, setAbierta] = useState(() => {
+    if (!area.plegable) return true;
+    try {
+      return window.localStorage.getItem(`nav-area-${area.titulo}`) === "abierta";
+    } catch {
+      return false;
+    }
+  });
+
+  // Si se navega a algo que está dentro, el grupo se abre solo: no tiene
+  // sentido estar en una pantalla y que el menú no la señale.
+  useEffect(() => {
+    if (contieneElActivo) setAbierta(true);
+  }, [contieneElActivo]);
+
+  function alternar() {
+    const siguiente = !abierta;
+    setAbierta(siguiente);
+    try {
+      window.localStorage.setItem(`nav-area-${area.titulo}`, siguiente ? "abierta" : "cerrada");
+    } catch {
+      /* en privado no se guarda, y no pasa nada */
+    }
+  }
+
+  const rotulo = "px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400";
+  return (
+    <div>
+      {area.titulo &&
+        (area.plegable ? (
+          <button onClick={alternar} className={`mb-1 flex w-full items-center justify-between py-1 ${rotulo} hover:text-slate-600`}>
+            {area.titulo}
+            <IconChevronDown className={`h-3.5 w-3.5 transition-transform ${abierta ? "rotate-180" : ""}`} aria-hidden />
+          </button>
+        ) : (
+          // El título del área no es pulsable a propósito: es un rótulo
+          // que ordena, no un sitio al que ir.
+          <p className={`mb-1 ${rotulo}`}>{area.titulo}</p>
+        ))}
+      {abierta && (
+        <div className="space-y-0.5">
+          <Botones items={area.items} activo={activo} onIr={onIr} badges={badges} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Lista({ items, areas, activo, onIr, badges }: Pick<Props, "items" | "areas" | "activo" | "onIr" | "badges">) {
   if (areas && areas.length > 0) {
     return (
       <nav className="space-y-4">
         {areas.map((area) => (
-          <div key={area.titulo}>
-            {/* El título del área no es pulsable a propósito: es un rótulo
-                que ordena, no un sitio al que ir. */}
-            <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{area.titulo}</p>
-            <div className="space-y-0.5">
-              <Botones items={area.items} activo={activo} onIr={onIr} badges={badges} />
-            </div>
-          </div>
+          <Area key={area.titulo} area={area} activo={activo} onIr={onIr} badges={badges} />
         ))}
       </nav>
     );
@@ -106,7 +159,7 @@ function Lista({ items, areas, activo, onIr, badges }: Pick<Props, "items" | "ar
 // de siempre; en móvil es un cajón que entra desde la izquierda sobre un
 // fondo atenuado, en vez de la rejilla de botones sueltos que se colaba
 // entre la cabecera y el contenido y empujaba la página hacia abajo.
-export function Navegacion({ items, areas, activo, onIr, badges, cabecera, abierto, onCerrar }: Props) {
+export function Navegacion({ items, areas, activo, onIr, badges, cabecera, acciones, abierto, onCerrar }: Props) {
   // Mientras el cajón está abierto la página de detrás no se mueve: en móvil
   // es lo que distingue un panel de una sección más que se ha desplegado.
   useEffect(() => {
@@ -128,6 +181,7 @@ export function Navegacion({ items, areas, activo, onIr, badges, cabecera, abier
       <aside className="hidden shrink-0 md:block md:w-56">
         <div className="sticky top-6">
           {cabecera && <div className="mb-3">{cabecera}</div>}
+          {acciones && <div className="mb-3">{acciones}</div>}
           <Lista items={items} areas={areas} activo={activo} onIr={onIr} badges={badges} />
         </div>
       </aside>
@@ -155,6 +209,7 @@ export function Navegacion({ items, areas, activo, onIr, badges, cabecera, abier
           </div>
           <div className="flex-1 overflow-y-auto p-3">
             {cabecera && <div className="mb-3">{cabecera}</div>}
+            {acciones && <div className="mb-3">{acciones}</div>}
             <Lista items={items} areas={areas} activo={activo} onIr={onIr} badges={badges} />
           </div>
         </div>

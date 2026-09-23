@@ -869,6 +869,23 @@ async function main() {
       organizacionId: organizacion.id,
       personaId: herminia.id,
       servicios: { connect: [{ id: servicio4.id }] },
+      // Con sus líneas: una factura de demostración sin desglose no se puede
+      // revisar ni imprimir para ver cómo queda. Son 3 h a 15 €/h con el 10 %
+      // de IVA, que es justo lo que suman los importes de arriba.
+      lineas: {
+        create: [
+          {
+            orden: 1,
+            concepto: "Acompañamiento a cita médica · 19 de septiembre",
+            minutos: 180,
+            cantidad: 3,
+            precioUnitario: 15,
+            importe: 45,
+            ivaPorcentaje: 10,
+            ivaImporte: 4.5,
+          },
+        ],
+      },
     },
   });
 

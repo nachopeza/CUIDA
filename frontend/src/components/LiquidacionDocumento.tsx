@@ -12,7 +12,8 @@ function fecha(iso?: string | null) {
 export function LiquidacionDocumento({ liquidacion }: { liquidacion: Liquidacion }) {
   const esAutonoma = liquidacion.tipoRelacion === "AUTONOMO";
   return (
-    <div className="bg-white p-6 text-slate-800 print:p-0">
+    // Mismo folio A4 que la factura: es el otro documento que se entrega.
+    <div className="hoja-a4 flex flex-col text-slate-800 shadow-sm ring-1 ring-slate-200 print:shadow-none print:ring-0">
       <header className="mb-6 flex items-start justify-between gap-6 border-b border-slate-200 pb-4">
         <div>
           <img src={logoCuida} alt="CUIDA" className="mb-2 h-8 w-auto" />
@@ -89,7 +90,7 @@ export function LiquidacionDocumento({ liquidacion }: { liquidacion: Liquidacion
         </p>
       )}
 
-      <footer className="mt-8 border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-400">
+      <footer className="mt-auto border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-400 evitar-corte">
         <p>Documento generado por CUIDA · prototipo de demostración.</p>
       </footer>
     </div>

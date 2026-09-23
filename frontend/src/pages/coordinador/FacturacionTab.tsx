@@ -572,7 +572,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
       )}
 
       {facturaAbierta && (
-        <Modal title={referenciaFactura(facturaAbierta)} onClose={() => setFacturaAbierta(null)} size="lg">
+        <Modal title={referenciaFactura(facturaAbierta)} onClose={() => setFacturaAbierta(null)} size="doc">
           <div className="mb-3 flex justify-end print:hidden">
             <button onClick={() => window.print()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
               Imprimir o guardar en PDF
@@ -583,7 +583,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
       )}
 
       {liquidacionAbierta && (
-        <Modal title={`${liquidacionAbierta.codigo} · ${liquidacionAbierta.mes}`} onClose={() => setLiquidacionAbierta(null)} size="lg">
+        <Modal title={`${liquidacionAbierta.codigo} · ${liquidacionAbierta.mes}`} onClose={() => setLiquidacionAbierta(null)} size="doc">
           <div className="mb-3 flex justify-end print:hidden">
             <button onClick={() => window.print()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
               Imprimir o guardar en PDF

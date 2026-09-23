@@ -94,46 +94,58 @@ type Tab =
 // oficina.
 const AREAS: AreaNav[] = [
   {
-    titulo: "Inicio",
+    // Sin rótulo: lo primero del menú es "qué tengo que hacer hoy", y eso no
+    // necesita que nadie le ponga nombre.
+    titulo: "",
     items: [
       { key: "escritorio", label: "Centro de coordinación", icon: IconHome },
-      // La bandeja vive junto al escritorio y no en Operaciones: son la misma
-      // pregunta —"¿qué tengo que hacer?"—, una resumida y la otra completa.
+      // La bandeja va pegada al escritorio: son la misma pregunta, una
+      // resumida y la otra completa.
       { key: "bandeja", label: "Bandeja de trabajo", icon: IconList },
     ],
   },
   {
-    titulo: "Operaciones",
+    // El trabajo del día, en el orden en que ocurre: llega una petición, se
+    // pone en el calendario, se comprueba lo que se hizo y, si algo se
+    // tuerce, se abre una incidencia. Antes estaba repartido entre
+    // "Operaciones" y "Seguimiento", que obligaba a saber en cuál de los dos
+    // vivía cada cosa.
+    titulo: "El día",
     items: [
       { key: "solicitudes", label: "Solicitudes", icon: IconClipboard },
       { key: "calendario", label: "Calendario", icon: IconCalendar },
+      { key: "verificacion", label: "Verificación", icon: IconCheckCircle },
+      { key: "incidencias", label: "Incidencias", icon: IconAlert },
     ],
   },
-  { titulo: "Personas", items: [{ key: "personas", label: "Personas atendidas", icon: IconUsers }] },
   {
-    titulo: "Profesionales",
+    // Quién recibe el cuidado y quién lo presta, juntos: en una empresa de
+    // ayuda a domicilio son las dos caras del mismo encaje, y cubrir un
+    // servicio se mira saltando de una lista a la otra.
+    titulo: "Personas",
     items: [
+      { key: "personas", label: "Personas atendidas", icon: IconUsers },
       { key: "profesionales", label: "Profesionales", icon: IconBriefcase },
       { key: "personal", label: "Expedientes y jornada", icon: IconIdCard },
       { key: "cobertura", label: "Cobertura", icon: IconShield },
     ],
   },
   {
-    titulo: "Seguimiento",
+    // Lo que entra, lo que sale y las horas de las que salen los dos números.
+    titulo: "Dinero",
     items: [
-      { key: "verificacion", label: "Verificación", icon: IconCheckCircle },
-      { key: "incidencias", label: "Incidencias", icon: IconAlert },
+      { key: "facturacion", label: "Cobros y pagos", icon: IconReceipt },
+      { key: "analisis", label: "Horas y economía", icon: IconChart },
     ],
   },
-  { titulo: "Finanzas", items: [{ key: "facturacion", label: "Cobros y pagos", icon: IconReceipt }] },
-  // Análisis es un área propia y no una pestaña de Finanzas: mira horas y
-  // desviaciones, no solo dinero, y se consulta para decidir, no para cobrar.
-  { titulo: "Análisis", items: [{ key: "analisis", label: "Horas y economía", icon: IconChart }] },
   {
-    titulo: "Administración",
+    // Lo que se configura una vez y se toca de tarde en tarde: va plegado,
+    // para que el menú del día quepa de un vistazo.
+    titulo: "Configuración",
+    plegable: true,
     items: [
-      // La empresa va primero en Administración: es lo que hay que configurar
-      // antes de poder facturar nada.
+      // La empresa va primero: es lo que hay que tener puesto antes de poder
+      // facturar nada.
       { key: "empresa", label: "Mi empresa", icon: IconBuilding },
       { key: "equipo", label: "Equipo", icon: IconUsersGroup },
       { key: "empresas", label: "Empresas colaboradoras", icon: IconBuilding },
@@ -391,6 +403,30 @@ export function CoordinadorPage() {
         badges={badges}
         abierto={menuMovilAbierto}
         onCerrar={() => setMenuMovilAbierto(false)}
+        acciones={
+          // Lo que se crea, arriba del menú y siempre a la vista: dar de alta
+          // una solicitud es lo que más veces se hace en el día.
+          <div className="space-y-1.5">
+            <button
+              onClick={() => {
+                setMenuMovilAbierto(false);
+                void abrirNuevaSolicitud();
+              }}
+              className="flex w-full items-center justify-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-800"
+            >
+              <IconPlus className="h-4 w-4" /> Nueva solicitud
+            </button>
+            <button
+              onClick={() => {
+                setMenuMovilAbierto(false);
+                setNuevoUsuario(true);
+              }}
+              className="flex w-full items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <IconPlus className="h-4 w-4" /> Nuevo usuario
+            </button>
+          </div>
+        }
         cabecera={
           <GlobalSearch
             personas={personas}
@@ -434,7 +470,9 @@ export function CoordinadorPage() {
           <div>
             <h2 className="text-lg font-semibold text-slate-800">{tab === "escritorio" ? "" : tituloTab}</h2>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          {/* En escritorio estas dos acciones viven en el menú; aquí sólo
+              aparecen en móvil, donde el menú está detrás de un botón. */}
+          <div className="flex flex-wrap items-center gap-2 md:hidden">
             <button
               onClick={() => setNuevoUsuario(true)}
               className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"

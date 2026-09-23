@@ -5,3 +5,80 @@
 body {
   @apply bg-slate-50 text-slate-900;
 }
+
+@layer components {
+  /* Un folio A4 de verdad: 210 × 297 mm con sus márgenes. Se ve así en
+     pantalla —para que lo que se revisa sea lo que se va a entregar— y se
+     imprime con esas mismas medidas. En pantallas estrechas se encoge para
+     que quepa; al imprimir manda el milímetro, no el píxel. */
+  .hoja-a4 {
+    width: 210mm;
+    max-width: 100%;
+    min-height: 297mm;
+    padding: 15mm;
+    margin-inline: auto;
+    background: #fff;
+    color: #0f172a;
+    /* Los fondos y los colores de la factura forman parte del documento: sin
+       esto el navegador los quita al imprimir "para ahorrar tinta". */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    /* El margen lo pone la propia hoja (15 mm), así el documento en pantalla y
+       el impreso tienen exactamente la misma caja. */
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #fff;
+  }
+
+  /* Al imprimir un documento sale el documento, no la aplicación alrededor.
+     El modal cuelga de <body> (ver Modal.tsx), así que basta con esconder la
+     app cuando hay una hoja abierta: nada de ocultar por visibilidad, que deja
+     el hueco y añade páginas en blanco detrás. Sin documento abierto no se
+     esconde nada y Ctrl+P sigue imprimiendo lo que haya en pantalla. */
+  body:has(.hoja-a4) > #root {
+    display: none;
+  }
+
+  /* El modal deja de ser modal: ni fondo oscuro, ni caja con sombra, ni altura
+     máxima con barra de desplazamiento. Queda el folio y nada más. */
+  .modal-fondo {
+    position: static;
+    display: block;
+    padding: 0;
+    background: none;
+  }
+
+  .modal-caja {
+    max-width: none;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .hoja-a4 {
+    width: 210mm;
+    max-width: none;
+    min-height: 297mm;
+    box-shadow: none;
+    border: 0;
+    outline: 0;
+  }
+
+  /* Una fila de la tabla o el bloque del total no se parten entre dos hojas. */
+  .hoja-a4 tr,
+  .hoja-a4 .evitar-corte {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

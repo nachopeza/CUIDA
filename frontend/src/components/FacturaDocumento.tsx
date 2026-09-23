@@ -1,4 +1,4 @@
-import { euros } from "../lib/economia.js";
+import { duracion, euros } from "../lib/economia.js";
 import type { Factura } from "../lib/types.js";
 import logoCuida from "../assets/logo-cuida.svg";
 
@@ -42,7 +42,9 @@ export function FacturaDocumento({ factura }: { factura: Factura }) {
   }
 
   return (
-    <div className="bg-white p-6 text-slate-800 print:p-0">
+    // La factura es un folio A4: se ve en pantalla con la misma caja con la
+    // que va a salir impresa, para que revisar y entregar sean lo mismo.
+    <div className="hoja-a4 flex flex-col text-slate-800 shadow-sm ring-1 ring-slate-200 print:shadow-none print:ring-0">
       <header className="mb-6 flex items-start justify-between gap-6 border-b border-slate-200 pb-4">
         <div>
           <img src={logoCuida} alt="CUIDA" className="mb-2 h-8 w-auto" />
@@ -110,7 +112,12 @@ export function FacturaDocumento({ factura }: { factura: Factura }) {
           {lineas.map((l) => (
             <tr key={l.id} className="border-b border-slate-100">
               <td className="py-1.5">{l.concepto}</td>
-              <td className="py-1.5 text-right tabular-nums">{Number(l.cantidad).toFixed(2)}</td>
+              {/* Las horas en castellano y como se dicen: "2 h 30 min", no
+                  "2.50". Lo que se entrega a una familia no puede leerse como
+                  la salida de una hoja de cálculo. */}
+              <td className="py-1.5 text-right tabular-nums">
+                {l.minutos != null ? duracion(l.minutos) : `${Number(l.cantidad).toFixed(2).replace(".", ",")} h`}
+              </td>
               <td className="py-1.5 text-right tabular-nums">{euros(l.precioUnitario)}</td>
               <td className="py-1.5 text-right tabular-nums">{Number(l.ivaPorcentaje)}%</td>
               <td className="py-1.5 text-right tabular-nums">{euros(l.importe)}</td>
@@ -119,7 +126,7 @@ export function FacturaDocumento({ factura }: { factura: Factura }) {
         </tbody>
       </table>
 
-      <section className="mt-4 flex justify-end">
+      <section className="mt-4 flex justify-end evitar-corte">
         <dl className="w-full max-w-xs space-y-1 text-sm">
           <div className="flex justify-between">
             <dt className="text-slate-500">Base imponible</dt>
@@ -144,6 +151,9 @@ export function FacturaDocumento({ factura }: { factura: Factura }) {
         </dl>
       </section>
 
+      {/* El pie del folio: registro, QR y avisos. `mt-auto` lo empuja al final
+          de la hoja en vez de dejarlo colgando debajo del total. */}
+      <div className="mt-auto pt-6 evitar-corte">
       {/* Registro de facturación del RD 1007/2023: el QR de cotejo y la huella
           que encadena esta factura con la anterior. Va al pie porque es lo que
           permite comprobar el documento, no leerlo. */}
@@ -164,7 +174,7 @@ export function FacturaDocumento({ factura }: { factura: Factura }) {
         </section>
       )}
 
-      <footer className="mt-8 border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-400">
+      <footer className="mt-6 border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-400">
         <p>
           Documento generado por CUIDA · prototipo de demostración. No constituye una factura válida a efectos fiscales
           ni debe utilizarse en operaciones reales.
@@ -176,6 +186,7 @@ export function FacturaDocumento({ factura }: { factura: Factura }) {
           </p>
         )}
       </footer>
+      </div>
     </div>
   );
 }
