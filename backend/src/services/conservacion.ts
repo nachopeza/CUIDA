@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { leerOCrear } from "../lib/primeraVez.js";
 
 // ---------------------------------------------------------------------------
 // Conservación de datos
@@ -123,12 +124,13 @@ export const CATEGORIAS: FichaCategoria[] = [
   },
 ];
 
+// La política de la casa, con los plazos por defecto la primera vez que
+// alguien la pide. El porqué de no usar un upsert está en leerOCrear.
 export async function politicaDe(organizacionId: string) {
-  return prisma.politicaConservacion.upsert({
-    where: { organizacionId },
-    update: {},
-    create: { organizacionId },
-  });
+  return leerOCrear(
+    () => prisma.politicaConservacion.findUnique({ where: { organizacionId } }),
+    () => prisma.politicaConservacion.create({ data: { organizacionId } }),
+  );
 }
 
 function haceMeses(meses: number): Date {

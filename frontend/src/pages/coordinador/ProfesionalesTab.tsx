@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
+import { Avatar } from "../../components/Avatar.js";
 import { Pagination, usePaginacion } from "../../components/Pagination.js";
 import { ThOrdenable } from "../../components/ThOrdenable.js";
 import { useOrdenacion } from "../../lib/useOrdenacion.js";
@@ -159,14 +160,7 @@ export function ProfesionalesTab() {
                     </td>
                     <td className="px-4 py-2.5 font-medium text-slate-800">
                       <div className="flex items-center gap-2">
-                        {p.foto ? (
-                          <img src={p.foto} alt="" className="h-7 w-7 rounded-full object-cover" />
-                        ) : (
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-500">
-                            {p.nombre[0]}
-                            {p.apellidos[0]}
-                          </div>
-                        )}
+                        <Avatar foto={p.foto} nombre={p.nombre} apellidos={p.apellidos} />
                         {p.nombre} {p.apellidos}
                       </div>
                     </td>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
 import { DesgloseVisitaModal } from "./DesgloseVisitaModal.js";
+import { Avatar } from "./Avatar.js";
 import { Modal } from "./Modal.js";
 import {
   IconAlert,
@@ -843,7 +844,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 </div>
               </div>
               <button onClick={() => setEditarProfesionalAbierto(true)} className="flex items-center gap-2 hover:text-brand">
-                {srv.profesional.foto && <img src={srv.profesional.foto} alt="" className="h-8 w-8 rounded-full object-cover" />}
+                <Avatar foto={srv.profesional.foto} nombre={srv.profesional.nombre} apellidos={srv.profesional.apellidos} className="h-8 w-8" />
                 <p className="text-sm font-medium text-slate-800 hover:underline">
                   {srv.profesional.nombre} {srv.profesional.apellidos}
                 </p>

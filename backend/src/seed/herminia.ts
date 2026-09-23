@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { emitirFactura } from "../services/facturacion.js";
 import bcrypt from "bcryptjs";
 import { liquidarVisita } from "../services/visitaEconomia.js";
 import { guardar } from "../services/almacen.js";
@@ -1245,6 +1246,14 @@ async function main() {
       },
     });
   }
+
+  // La factura de Herminia se emite de verdad, por el mismo camino que usa
+  // coordinación: así la demo tiene un número de serie, una fecha, un
+  // vencimiento y su registro encadenado del RD 1007/2023, y la familia puede
+  // abrirla y guardarla. Un borrador no se le enseña a nadie, así que sin esto
+  // la pestaña de Facturación de la familia salía vacía.
+  const emision = await emitirFactura(factura.id, organizacion.id);
+  if (!emision.ok) console.warn(`  (no se pudo emitir ${factura.codigo}: ${emision.motivo})`);
 
   // Amadeo paga por transferencia: sirve para ver que no todo se domicilia y
   // que la remesa lo deja fuera.

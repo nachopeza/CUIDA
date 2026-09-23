@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { leerOCrear } from "../lib/primeraVez.js";
 import { minutosEntre, minutosFichados, formatearDuracion } from "./economia.js";
 
 // ---------------------------------------------------------------------------
@@ -66,11 +67,10 @@ export const REGLAS_POR_DEFECTO: Reglas = {
 // primera vez. Así ninguna parte del código tiene que contemplar el caso "esta
 // organización todavía no ha configurado nada".
 export async function reglasDe(organizacionId: string): Promise<Reglas> {
-  const guardadas = await prisma.reglasNegocio.upsert({
-    where: { organizacionId },
-    update: {},
-    create: { organizacionId },
-  });
+  const guardadas = await leerOCrear(
+    () => prisma.reglasNegocio.findUnique({ where: { organizacionId } }),
+    () => prisma.reglasNegocio.create({ data: { organizacionId } }),
+  );
   return {
     baseCobro: guardadas.baseCobro as BaseTiempo,
     baseLiquidacion: guardadas.baseLiquidacion as BaseTiempo,

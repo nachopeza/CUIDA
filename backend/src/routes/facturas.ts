@@ -7,14 +7,7 @@ import { registrarAuditoria } from "../services/audit.js";
 import { esGestorOrganizacion } from "../services/permisos.js";
 import { comprobarCadena, registrarAlta, qrSvg } from "../services/registroFacturacion.js";
 import { cobrosPendientes } from "../services/regularizaciones.js";
-import {
-  calcularVencimiento,
-  partesDeLaFactura,
-  problemasParaEmitir,
-  redondear,
-  referenciaFactura,
-  siguienteNumero,
-} from "../services/facturacion.js";
+import { emitirFactura, redondear, referenciaFactura, siguienteNumero } from "../services/facturacion.js";
 
 // Facturación mensual a la familia (sección "la función es cobrar por
 // gestión un pequeño porcentaje... se le hará una cuenta mensual con los
@@ -314,7 +307,14 @@ facturasRouter.get("/", async (req, res) => {
       where: { usuarioId: usuario.sub, revocadoAt: null, puedeVerImportes: true },
       select: { personaId: true },
     });
-    where = { personaId: { in: relaciones.map((r) => r.personaId) } };
+    // Un borrador no es una factura: no está emitida, no tiene número
+    // definitivo y sus importes todavía pueden cambiar. Enseñárselo a la
+    // familia es pedirle que pague una cifra que mañana puede ser otra, así
+    // que sólo ve lo que de verdad se le ha emitido.
+    where = {
+      personaId: { in: relaciones.map((r) => r.personaId) },
+      estado: { not: "BORRADOR" },
+    };
   } else {
     // La persona atendida nunca ve importes/facturas (sección 4/14).
     return res.json([]);
@@ -340,6 +340,8 @@ facturasRouter.get("/:id", async (req, res) => {
       where: { usuarioId: usuario.sub, personaId: factura.personaId, revocadoAt: null, puedeVerImportes: true },
     });
     if (!relacion) return res.status(403).json({ error: "Sin permiso" });
+    // Igual que en el listado: un borrador no se le ha emitido a nadie.
+    if (factura.estado === "BORRADOR") return res.status(403).json({ error: "Sin permiso" });
   } else {
     // La persona atendida nunca ve importes (sección 4 y 14 del masterplan).
     return res.status(403).json({ error: "Sin permiso" });
@@ -355,76 +357,27 @@ facturasRouter.get("/:id", async (req, res) => {
 // pasa a ser un documento. Aquí toma número de serie, fecha y una copia
 // congelada de los datos de las dos partes.
 facturasRouter.post("/:id/emitir", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
-  const factura = await prisma.factura.findUnique({ where: { id: req.params.id } });
-  if (!factura) return res.status(404).json({ error: "No encontrada" });
-  if (factura.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
-  if (factura.estado !== "BORRADOR") return res.status(409).json({ error: `La factura ${factura.codigo} ya está emitida` });
-
-  const partes = await partesDeLaFactura(factura.personaId, factura.organizacionId);
-  const datos = await prisma.datosFacturacion.findUnique({ where: { personaId: factura.personaId }, include: { mandatos: true } });
-  const domiciliado = factura.formaPago === "DOMICILIACION";
-  const mandato = datos?.mandatos.find((m) => m.estado === "ACTIVO") ?? null;
-
-  const faltan = problemasParaEmitir(partes, domiciliado, mandato != null);
-  if (faltan.length > 0) {
-    return res.status(409).json({ error: `No se puede emitir todavía: falta ${faltan.join(", ")}.` });
+  // Las reglas de emisión —numeración, vencimiento, registro encadenado— están
+  // en el servicio, que es el mismo que usa el seed: si se tocan, se tocan en
+  // un sitio.
+  const resultado = await emitirFactura(req.params.id, req.usuario!.organizacionId!, INCLUDE_FICHA);
+  if (!resultado.ok) {
+    const noExiste = resultado.motivo === "Factura no encontrada";
+    const sinPermiso = resultado.motivo === "Sin permiso";
+    return res.status(noExiste ? 404 : sinPermiso ? 403 : 409).json({ error: resultado.motivo });
   }
-
-  const emision = new Date();
-  // Los días de plazo salen de lo pactado con este cliente y, si no hay nada
-  // pactado, de lo que la empresa tenga puesto por defecto. Antes había un 30
-  // escrito en el código que nadie podía cambiar.
-  const empresa = await prisma.organizacion.findUnique({
-    where: { id: factura.organizacionId },
-    select: { diasVencimiento: true, cif: true },
-  });
-  // Sin NIF no hay registro de facturación posible, y sin registro no se
-  // puede emitir: el RD 1007/2023 no admite emitir primero y registrar luego.
-  if (!empresa?.cif) {
-    return res.status(409).json({ error: "Falta el CIF de la empresa: sin él no se puede generar el registro de facturación obligatorio." });
-  }
-  const numero = await siguienteNumero(factura.organizacionId, factura.serie, factura.ejercicio);
-  const emitida = await prisma.factura.update({
-    where: { id: factura.id },
-    data: {
-      estado: "EMITIDA",
-      numero,
-      fechaEmision: emision,
-      fechaVencimiento: calcularVencimiento(emision, domiciliado, datos?.diaCobro ?? 5, datos?.diasVencimiento ?? empresa?.diasVencimiento ?? 30),
-      mandatoSepaId: domiciliado ? mandato!.id : null,
-      ...partes,
-    },
-    include: INCLUDE_FICHA,
-  });
-
-  // Registro de facturación encadenado con el anterior. Va después del update
-  // porque necesita el número ya asignado, y antes de responder porque una
-  // factura emitida sin su registro es justo lo que el reglamento prohíbe.
-  const registro = await registrarAlta(
-    {
-      id: emitida.id,
-      organizacionId: emitida.organizacionId,
-      serie: emitida.serie,
-      numero: numero,
-      ejercicio: emitida.ejercicio,
-      fechaEmision: emision,
-      totalIva: emitida.ivaTotal,
-      totalConIva: emitida.totalConIva,
-      facturaRectificadaId: emitida.facturaRectificadaId,
-    },
-    empresa.cif,
-  );
+  const emitida = resultado.factura as typeof resultado.factura & { serie: string; ejercicio: number; numero: number };
 
   await registrarAuditoria({
     usuarioId: req.usuario!.sub,
-    organizacionId: factura.organizacionId,
+    organizacionId: emitida.organizacionId,
     accion: "emitir_factura",
     entidadTipo: "Factura",
-    entidadId: factura.id,
-    detalle: `${referenciaFactura(emitida.serie, emitida.ejercicio, numero)} · huella ${registro.huella.slice(0, 16)}…`,
+    entidadId: emitida.id,
+    detalle: `${referenciaFactura(emitida.serie, emitida.ejercicio, emitida.numero)} · huella ${resultado.registro.huella.slice(0, 16)}…`,
   });
 
-  res.json({ ...emitida, registroFacturacion: registro });
+  res.json({ ...emitida, registroFacturacion: resultado.registro });
 });
 
 // Comprobar la cadena de registros. Es la respuesta a "¿y cómo sé que nadie ha
