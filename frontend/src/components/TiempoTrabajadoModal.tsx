@@ -115,7 +115,7 @@ export function TiempoTrabajadoModal({
               type="time"
               value={horaInicio}
               onChange={(e) => setHoraInicio(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-base text-slate-800"
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-base text-slate-800"
             />
           </label>
           <label className="text-xs font-medium text-slate-500">
@@ -124,14 +124,14 @@ export function TiempoTrabajadoModal({
               type="time"
               value={horaFin}
               onChange={(e) => setHoraFin(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-base text-slate-800"
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-base text-slate-800"
             />
           </label>
         </div>
 
         {/* La duración se recalcula a cada tecla: es la cifra que se factura,
             así que se ve antes de confirmar, no después. */}
-        <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-center">
+        <div className="rounded-xl bg-slate-50 px-3 py-2.5 text-center">
           {horas === null ? (
             <p className="text-sm text-slate-400">Indica las dos horas para ver la duración</p>
           ) : (
@@ -162,7 +162,7 @@ export function TiempoTrabajadoModal({
               onChange={(e) => setObservacion(e.target.value)}
               rows={2}
               placeholder="Qué tal ha ido, algo que deba saber coordinación…"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 w-full campo"
             />
           </label>
         )}
@@ -176,7 +176,7 @@ export function TiempoTrabajadoModal({
           <button
             onClick={confirmar}
             disabled={guardando || horas === null}
-            className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+            className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
           >
             {guardando ? "Guardando…" : etiquetaConfirmar}
           </button>

@@ -201,12 +201,12 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
       </div>
 
       {visibles.length === 0 ? (
-        <p className="flex items-center justify-center gap-2 rounded-lg border border-brand-green-200 bg-brand-green-50 px-4 py-6 text-sm text-brand-green-700">
+        <p className="flex items-center justify-center gap-2 rounded-xl border border-brand-green-200 bg-brand-green-50 px-4 py-6 text-sm text-brand-green-700">
           <IconCheckCircle className="h-4 w-4 shrink-0" aria-hidden />
           {hayFiltro ? "Nada que hacer con estos filtros." : "No hay nada pendiente. Todo está al día."}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="overflow-x-auto tarjeta">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">

@@ -682,7 +682,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             <button
               onClick={guardarPlan}
               disabled={guardandoPlan}
-              className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
             >
               {guardandoPlan ? "Guardando…" : "Guardar"}
             </button>
@@ -769,7 +769,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             responsable — ver el perfil de ambos"): sin salir de la ficha,
             ni tener que ir a la pestaña de Usuarios o de Profesionales. */}
         <div className={`grid grid-cols-1 gap-3 ${srv?.profesional ? "sm:grid-cols-2" : ""}`}>
-          <div className="rounded-lg border border-slate-200 p-3">
+          <div className="rounded-xl border border-slate-200 p-3">
             <div className="mb-1.5 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Persona / responsable</p>
               <div className="flex items-center gap-2">
@@ -830,7 +830,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
           </div>
 
           {srv?.profesional && (
-            <div className="rounded-lg border border-slate-200 p-3">
+            <div className="rounded-xl border border-slate-200 p-3">
               <div className="mb-1.5 flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Profesional</p>
                 <div className="flex items-center gap-2">
@@ -911,14 +911,14 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
         {/* Fase 1: pendiente de revisión — sin servicio todavía. Una sola
             decisión posible: aceptar o cancelar. */}
         {!srv && !cancelada && (
-          <div className="rounded-lg border border-brand-100 bg-brand-50 p-3">
+          <div className="rounded-xl border border-brand-100 bg-brand-50 p-3">
             <p className="mb-2 text-sm text-slate-700">Pendiente de revisión por coordinación.</p>
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={aceptarSolicitud}
                 disabled={!s.plan}
                 title={!s.plan ? "Guarda los días/horas antes de aceptar" : undefined}
-                className="rounded-md bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Aceptar y buscar profesional
               </button>
@@ -980,7 +980,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 mercado de profesionales o asignar a alguien directamente —
                 nunca las dos cosas mezcladas en el mismo formulario. */}
             {fase === "buscando" && srv.estado === "PENDIENTE" && (
-              <div className="rounded-lg border border-slate-200 p-3">
+              <div className="rounded-xl border border-slate-200 p-3">
                 <p className="mb-2 text-sm text-slate-700">¿Cómo se cubre este servicio?</p>
                 <div className="mb-3 flex gap-2 text-xs">
                   <button
@@ -1012,7 +1012,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                               {i.profesional.nombre} {i.profesional.apellidos}
                               {i.mensaje && <span className="text-slate-400"> — "{i.mensaje}"</span>}
                             </span>
-                            <button onClick={() => asignar(i.profesional.id)} className="rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800">
+                            <button onClick={() => asignar(i.profesional.id)} className="rounded-xl bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800">
                               Elegir
                             </button>
                           </li>
@@ -1100,7 +1100,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             )}
 
             {srv.estado === "FINALIZADO" && (
-              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
                 El profesional ha terminado. Verifica la jornada abajo para cerrar el servicio.
               </p>
             )}
@@ -1133,7 +1133,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                   ) : (
                     <ul className="mb-2 space-y-1">
                       {jornadas.map((v) => (
-                        <li key={v.id} className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-2 py-1.5 text-xs">
+                        <li key={v.id} className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-2 py-1.5 text-xs">
                           <span className="min-w-0">
                             <span className="font-medium text-slate-700">
                               {new Date(v.fecha).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}
@@ -1343,7 +1343,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                           </p>
                         </div>
                       ) : (
-                        <p className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                        <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
                           Pon el precio por hora y las horas del plan y aquí sale el reparto.
                         </p>
                       )}
@@ -1358,12 +1358,12 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                     className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
                   />
 
-                  <button onClick={guardarTarifa} className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
+                  <button onClick={guardarTarifa} className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
                     Guardar precio
                   </button>
 
                   {tarifa.tarifaTipo === "PAGADO" && (
-                    <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs">
+                    <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs">
                       <span className="text-slate-500">Pago al profesional/empresa:</span>
                       <EstadoBadge estado={srv.pagoProfesionalEstado ?? "PENDIENTE"} />
                       {srv.pagoProfesionalEstado !== "PAGADO" && ["FINALIZADO", "VALIDADO", "CERRADO"].includes(srv.estado) && (
@@ -1415,7 +1415,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Historial</p>
             <ul className="space-y-1 text-xs">
               {entradasHistorial.map((h) => (
-                <li key={h.id} className={h.esFichaje ? "rounded-md bg-slate-50 px-2 py-1.5 text-slate-600" : "text-slate-500"}>
+                <li key={h.id} className={h.esFichaje ? "rounded-xl bg-slate-50 px-2 py-1.5 text-slate-600" : "text-slate-500"}>
                   {h.esFichaje && <IconClock className="mr-1 inline h-3.5 w-3.5 align-text-bottom text-slate-400" />}
                   {new Date(h.cuando).toLocaleString("es-ES")} · {h.texto}
                 </li>

@@ -193,7 +193,7 @@ export function ReglasTab() {
               <input type="number" min={0} value={r.minimoMinutos} onChange={(e) => set("minimoMinutos", Number(e.target.value))} className={numero} />
             </Campo>
           </div>
-          <p className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
             <IconClock className="mr-1 inline h-3.5 w-3.5 align-text-bottom text-slate-400" aria-hidden />
             Con estas reglas, una jornada de 09:00 a 12:00 fichada de 09:04 a 11:58 se cobra {NOMBRE_BASE[r.baseCobro]} y se paga{" "}
             {NOMBRE_BASE[r.baseLiquidacion]}
@@ -211,7 +211,7 @@ export function ReglasTab() {
               <input type="number" min={0} value={r.toleranciaExcesoMinutos} onChange={(e) => set("toleranciaExcesoMinutos", Number(e.target.value))} className={numero} />
             </Campo>
           </div>
-          <label className="flex items-start gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          <label className="flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
             <input type="checkbox" checked={r.aprobarTiempoExtra} onChange={(e) => set("aprobarTiempoExtra", e.target.checked)} className="mt-0.5" />
             <span>
               <strong className="text-slate-700">El tiempo de más necesita aprobación.</strong> Si se pasa del exceso tolerado, la
@@ -277,7 +277,7 @@ export function ReglasTab() {
       <button
         onClick={guardar}
         disabled={guardando}
-        className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+        className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
       >
         {guardando ? "Guardando…" : "Guardar las reglas"}
       </button>
@@ -304,7 +304,7 @@ export function ReglasTab() {
         </div>
 
         {creando && (
-          <div className="mb-3 grid gap-2 rounded-lg bg-slate-50 p-3 sm:grid-cols-5">
+          <div className="mb-3 grid gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-5">
             <input value={nueva.nombre} onChange={(e) => setNueva({ ...nueva, nombre: e.target.value })} placeholder="Nombre" className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
             <select value={nueva.necesidadId} onChange={(e) => setNueva({ ...nueva, necesidadId: e.target.value })} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm">
               <option value="">Todos los servicios</option>
@@ -318,7 +318,7 @@ export function ReglasTab() {
             <input type="number" step="0.01" value={nueva.precioHoraProfesional} onChange={(e) => setNueva({ ...nueva, precioHoraProfesional: e.target.value })} placeholder="€/h profesional" className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
             <div className="flex gap-2">
               <input type="date" value={nueva.vigenteDesde} onChange={(e) => setNueva({ ...nueva, vigenteDesde: e.target.value })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-              <button onClick={crearTarifa} className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
+              <button onClick={crearTarifa} className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
                 Crear
               </button>
             </div>

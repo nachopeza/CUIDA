@@ -60,15 +60,15 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: { empresa: Empre
   return (
     <Modal title={empresa ? `${empresa.nombre} · ${empresa.codigo}` : "Nueva empresa colaboradora"} onClose={onClose} size="lg">
       <form onSubmit={guardar} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <input required placeholder="Nombre de la empresa" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        <input placeholder="Contacto (opcional)" value={form.contacto} onChange={(e) => setForm((f) => ({ ...f, contacto: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        <input placeholder="CIF" value={form.cif} onChange={(e) => setForm((f) => ({ ...f, cif: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        <input placeholder="Dirección" value={form.direccion} onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        <input required placeholder="Nombre de la empresa" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} className="campo" />
+        <input placeholder="Contacto (opcional)" value={form.contacto} onChange={(e) => setForm((f) => ({ ...f, contacto: e.target.value }))} className="campo" />
+        <input placeholder="CIF" value={form.cif} onChange={(e) => setForm((f) => ({ ...f, cif: e.target.value }))} className="campo" />
+        <input placeholder="Dirección" value={form.direccion} onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} className="campo" />
         <input
           placeholder="Número de cuenta (IBAN)"
           value={form.numeroCuenta}
           onChange={(e) => setForm((f) => ({ ...f, numeroCuenta: e.target.value }))}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
+          className="campo sm:col-span-2"
         />
 
         {empresa && (
@@ -104,7 +104,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: { empresa: Empre
 
         {error && <p className="text-sm text-rose-600 sm:col-span-2">{error}</p>}
 
-        <button type="submit" disabled={guardando} className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2">
+        <button type="submit" disabled={guardando} className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2">
           {guardando ? "Guardando…" : empresa ? "Guardar cambios" : "Crear empresa colaboradora"}
         </button>
       </form>

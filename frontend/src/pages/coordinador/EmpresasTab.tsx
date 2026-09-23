@@ -81,7 +81,7 @@ export function EmpresasTab() {
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre, código o CIF…" className="flex-1 sm:max-w-xs" />
-        <button onClick={() => setNuevoAbierto(true)} className="ml-auto flex items-center gap-1 rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-800">
+        <button onClick={() => setNuevoAbierto(true)} className="ml-auto flex items-center gap-1 rounded-xl bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-800">
           <IconPlus className="h-4 w-4" /> Nueva empresa
         </button>
       </div>
@@ -99,7 +99,7 @@ export function EmpresasTab() {
             onEliminar={eliminarSeleccionadas}
             etiquetaEliminar="Eliminar empresas"
           />
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="overflow-x-auto tarjeta">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>

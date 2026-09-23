@@ -67,7 +67,7 @@ export function EquipoTab() {
         <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar…" className="ml-auto w-full sm:w-56" />
         <button
           onClick={() => setAlta(true)}
-          className="flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800"
+          className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800"
         >
           <IconPlus className="h-3.5 w-3.5" /> Dar de alta
         </button>
@@ -77,11 +77,11 @@ export function EquipoTab() {
       {aviso && <p className="rounded-md border border-brand-green-200 bg-brand-green-50 px-3 py-2 text-xs text-brand-green-700">{aviso}</p>}
 
       {visibles.length === 0 ? (
-        <p className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
+        <p className="tarjeta px-4 py-8 text-center text-sm text-slate-400">
           Nadie coincide con la búsqueda.
         </p>
       ) : (
-        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+        <ul className="divide-y divide-slate-100 tarjeta">
           {visibles.map((m) => (
             <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
               <button onClick={() => setEditando(m)} className="min-w-0 flex-1 text-left">
@@ -181,7 +181,7 @@ function FichaMiembro({
             autoFocus
             value={form.nombre}
             onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case"
+            className="mt-1 w-full campo font-normal normal-case"
           />
         </label>
 
@@ -193,7 +193,7 @@ function FichaMiembro({
               value={form.puesto}
               onChange={(e) => setForm((f) => ({ ...f, puesto: e.target.value }))}
               placeholder="Coordinación · Administración · Calidad"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case"
+              className="mt-1 w-full campo font-normal normal-case"
             />
           </label>
           <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -202,7 +202,7 @@ function FichaMiembro({
               type="text"
               value={form.telefono}
               onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case"
+              className="mt-1 w-full campo font-normal normal-case"
             />
           </label>
         </div>
@@ -215,7 +215,7 @@ function FichaMiembro({
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case"
+                className="mt-1 w-full campo font-normal normal-case"
               />
             </label>
             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -225,7 +225,7 @@ function FichaMiembro({
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                 placeholder="Mínimo 6 caracteres"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case"
+                className="mt-1 w-full campo font-normal normal-case"
               />
             </label>
           </div>
@@ -262,7 +262,7 @@ function FichaMiembro({
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                 placeholder="Dejar vacío para no cambiarla"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case"
+                className="mt-1 w-full campo font-normal normal-case"
               />
             </label>
             {!miembro?.esTu && (
@@ -274,16 +274,16 @@ function FichaMiembro({
           </>
         )}
 
-        {rolElegido && <p className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500">{rolElegido.ayuda}.</p>}
+        {rolElegido && <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">{rolElegido.ayuda}.</p>}
 
         <div className="flex justify-end gap-2 pt-1">
-          <button onClick={onClose} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+          <button onClick={onClose} className="campo py-2 text-slate-600 hover:bg-slate-50">
             Cancelar
           </button>
           <button
             onClick={guardar}
             disabled={guardando || !puedeGuardar}
-            className="flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
           >
             <IconCheck className="h-4 w-4" /> {guardando ? "Guardando…" : esAlta ? "Dar de alta" : "Guardar"}
           </button>

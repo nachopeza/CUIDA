@@ -1,5 +1,44 @@
 import { useEffect, useState, type ReactNode, type SVGProps } from "react";
-import { IconChevronDown, IconX } from "./icons.js";
+import { IconChevronDown, IconChevronRight, IconMenu, IconX } from "./icons.js";
+import logoBlanco from "../assets/logo-cuida-blanco.svg";
+import { useAuth } from "../lib/auth.js";
+
+const ROL_CORTO: Record<string, string> = {
+  PERSONA: "Persona atendida",
+  FAMILIAR: "Familiar autorizado",
+  PROFESIONAL: "Profesional",
+  COORDINADOR: "Coordinadora",
+  ORGANIZACION: "Organización",
+  ADMIN: "Administrador",
+  SUPERADMIN: "Superadmin",
+};
+
+// Quién eres, arriba del cajón. En escritorio eso está en la cabecera, pero
+// en móvil la cabecera es un logo y dos iconos: el cajón es el único sitio
+// donde cabe decirlo.
+function QuienEres() {
+  const { usuario } = useAuth();
+  if (!usuario) return null;
+  const nombre = usuario.nombre?.trim() || usuario.email.split("@")[0].replace(/[._]/g, " ");
+  const iniciales = nombre
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p[0] ?? "")
+    .join("")
+    .toUpperCase();
+  return (
+    <div className="mb-4 flex items-center gap-3 rounded-xl bg-white/[0.08] px-3 py-2.5">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-xs font-semibold text-white">
+        {iniciales}
+      </span>
+      <span className="min-w-0 flex-1 leading-tight">
+        <span className="block truncate text-sm font-medium capitalize text-white">{nombre}</span>
+        <span className="block truncate text-xs text-white/50">{ROL_CORTO[usuario.rol] ?? usuario.rol}</span>
+      </span>
+      <IconChevronRight className="h-4 w-4 shrink-0 text-white/30" aria-hidden />
+    </div>
+  );
+}
 
 export interface ItemNav {
   key: string;
@@ -32,22 +71,21 @@ interface Props {
   activo: string;
   onIr: (key: string) => void;
   badges?: Record<string, BadgeNav | undefined>;
-  // Lo que va encima de la navegación: el buscador global en coordinación,
-  // nada en los paneles más simples.
+  // Lo que va encima de la navegación en el cajón móvil. En escritorio el
+  // buscador vive en la cabecera.
   cabecera?: ReactNode;
   // Lo que se crea desde aquí. Va en el menú y no perdido en la cabecera de
   // cada pantalla: crear una solicitud es lo que más se hace en el día.
   acciones?: ReactNode;
+  // Las cuatro entradas que van en la barra inferior del móvil. La quinta,
+  // "Menú", la pone la propia barra y abre el cajón.
+  pestanasMovil?: ItemNav[];
   abierto: boolean;
+  onAbrir?: () => void;
   onCerrar: () => void;
 }
 
-function Botones({
-  items,
-  activo,
-  onIr,
-  badges,
-}: { items: ItemNav[] } & Pick<Props, "activo" | "onIr" | "badges">) {
+function Botones({ items, activo, onIr, badges }: { items: ItemNav[] } & Pick<Props, "activo" | "onIr" | "badges">) {
   return (
     <>
       {items.map((n) => {
@@ -58,22 +96,26 @@ function Botones({
             key={n.key}
             onClick={() => onIr(n.key)}
             aria-current={seleccionado ? "page" : undefined}
-            className={`flex w-full items-center justify-between rounded-md px-3 py-2.5 text-sm font-medium transition md:py-2 ${
-              seleccionado ? "bg-brand text-white" : "text-slate-600 hover:bg-slate-100"
+            className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm transition ${
+              seleccionado
+                ? // El elegido: la pastilla verde de la marca, con un poco de
+                  // brillo para que se despegue del fondo oscuro.
+                  "bg-brand-green-500 font-semibold text-white shadow-[0_6px_16px_-8px_rgba(90,184,147,0.9)]"
+                : "font-medium text-white/70 hover:bg-white/10 hover:text-white"
             }`}
           >
-            <span className="flex items-center gap-2.5">
+            <span className="flex min-w-0 items-center gap-2.5">
               <n.icon className="h-4 w-4 shrink-0" />
-              {n.label}
+              <span className="truncate">{n.label}</span>
             </span>
             {badge && badge.valor > 0 && (
               <span
-                className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-4 ${
                   seleccionado
                     ? "bg-white/25 text-white"
                     : badge.tono === "rose"
-                      ? "bg-rose-100 text-rose-700"
-                      : "bg-amber-100 text-amber-700"
+                      ? "bg-rose-400/90 text-white"
+                      : "bg-amber-300/90 text-amber-950"
                 }`}
               >
                 {badge.valor}
@@ -115,22 +157,22 @@ function Area({ area, activo, onIr, badges }: { area: AreaNav } & Pick<Props, "a
     }
   }
 
-  const rotulo = "px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400";
+  const rotulo = "px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/40";
   return (
     <div>
       {area.titulo &&
         (area.plegable ? (
-          <button onClick={alternar} className={`mb-1 flex w-full items-center justify-between py-1 ${rotulo} hover:text-slate-600`}>
+          <button onClick={alternar} className={`mb-1 flex w-full items-center justify-between py-1 ${rotulo} transition hover:text-white/70`}>
             {area.titulo}
             <IconChevronDown className={`h-3.5 w-3.5 transition-transform ${abierta ? "rotate-180" : ""}`} aria-hidden />
           </button>
         ) : (
           // El título del área no es pulsable a propósito: es un rótulo
           // que ordena, no un sitio al que ir.
-          <p className={`mb-1 ${rotulo}`}>{area.titulo}</p>
+          <p className={`mb-1.5 ${rotulo}`}>{area.titulo}</p>
         ))}
       {abierta && (
-        <div className="space-y-0.5">
+        <div className="space-y-1">
           <Botones items={area.items} activo={activo} onIr={onIr} badges={badges} />
         </div>
       )}
@@ -141,7 +183,7 @@ function Area({ area, activo, onIr, badges }: { area: AreaNav } & Pick<Props, "a
 function Lista({ items, areas, activo, onIr, badges }: Pick<Props, "items" | "areas" | "activo" | "onIr" | "badges">) {
   if (areas && areas.length > 0) {
     return (
-      <nav className="space-y-4">
+      <nav className="space-y-5">
         {areas.map((area) => (
           <Area key={area.titulo} area={area} activo={activo} onIr={onIr} badges={badges} />
         ))}
@@ -149,17 +191,37 @@ function Lista({ items, areas, activo, onIr, badges }: Pick<Props, "items" | "ar
     );
   }
   return (
-    <nav className="space-y-0.5">
+    <nav className="space-y-1">
       <Botones items={items ?? []} activo={activo} onIr={onIr} badges={badges} />
     </nav>
   );
 }
 
+// El remate de abajo. No es decoración de relleno: es lo que hace esta
+// empresa, escrito donde se ve al final de cada jornada.
+function Firma() {
+  return (
+    <div className="relative mt-6 shrink-0 overflow-hidden rounded-xl bg-white/[0.06] px-4 py-3.5 md:mt-auto">
+      <p className="relative text-[13px] font-medium leading-snug text-white/85">
+        Cuidamos hoy
+        <br />
+        de un mejor mañana
+      </p>
+      {/* La hoja de la marca, apenas insinuada. */}
+      <svg viewBox="0 0 64 64" className="pointer-events-none absolute -bottom-3 -right-2 h-16 w-16 text-brand-green-400/25" aria-hidden>
+        <path
+          fill="currentColor"
+          d="M56 8C33 8 14 18 9 38c-2 8 1 15 6 18 2-14 10-26 24-33-11 9-18 20-20 34 15 3 28-3 34-15 4-9 5-22 3-34Z"
+        />
+      </svg>
+    </div>
+  );
+}
+
 // Una sola navegación para los tres paneles. En pantalla ancha es la columna
-// de siempre; en móvil es un cajón que entra desde la izquierda sobre un
-// fondo atenuado, en vez de la rejilla de botones sueltos que se colaba
-// entre la cabecera y el contenido y empujaba la página hacia abajo.
-export function Navegacion({ items, areas, activo, onIr, badges, cabecera, acciones, abierto, onCerrar }: Props) {
+// oscura pegada al borde; en móvil es un cajón que entra desde la izquierda
+// más una barra de pestañas fija abajo con lo que se usa a diario.
+export function Navegacion({ items, areas, activo, onIr, badges, cabecera, acciones, pestanasMovil, abierto, onAbrir, onCerrar }: Props) {
   // Mientras el cajón está abierto la página de detrás no se mueve: en móvil
   // es lo que distingue un panel de una sección más que se ha desplegado.
   useEffect(() => {
@@ -176,13 +238,23 @@ export function Navegacion({ items, areas, activo, onIr, badges, cabecera, accio
     };
   }, [abierto, onCerrar]);
 
+  // El hueco de la barra de pestañas se pide desde aquí: sólo lo necesita
+  // quien la tiene.
+  useEffect(() => {
+    if (!pestanasMovil || pestanasMovil.length === 0) return;
+    document.body.classList.add("con-pestanas");
+    return () => document.body.classList.remove("con-pestanas");
+  }, [pestanasMovil]);
+
+  const fondoOscuro = "bg-gradient-to-b from-brand-700 via-brand-800 to-brand-900";
+
   return (
     <>
-      <aside className="hidden shrink-0 md:block md:w-56">
-        <div className="sticky top-6">
-          {cabecera && <div className="mb-3">{cabecera}</div>}
-          {acciones && <div className="mb-3">{acciones}</div>}
+      <aside className={`hidden shrink-0 md:block md:w-[15.5rem] ${fondoOscuro}`}>
+        <div className="sticky top-16 flex min-h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] flex-col overflow-y-auto barra-fina px-3 py-5">
+          {acciones && <div className="mb-5">{acciones}</div>}
           <Lista items={items} areas={areas} activo={activo} onIr={onIr} badges={badges} />
+          <Firma />
         </div>
       </aside>
 
@@ -191,29 +263,67 @@ export function Navegacion({ items, areas, activo, onIr, badges, cabecera, accio
       <div className={`fixed inset-0 z-50 md:hidden ${abierto ? "" : "pointer-events-none"}`} aria-hidden={!abierto}>
         <div
           onClick={onCerrar}
-          className={`absolute inset-0 bg-slate-900/40 transition-opacity duration-200 ${abierto ? "opacity-100" : "opacity-0"}`}
+          className={`absolute inset-0 bg-brand-950/50 transition-opacity duration-200 ${abierto ? "opacity-100" : "opacity-0"}`}
         />
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Menú"
-          className={`absolute inset-y-0 left-0 flex w-[17rem] max-w-[85vw] flex-col bg-white shadow-xl transition-transform duration-200 ${
+          className={`absolute inset-y-0 left-0 flex w-[17.5rem] max-w-[86vw] flex-col shadow-elevada transition-transform duration-200 ${fondoOscuro} ${
             abierto ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-            <span className="text-sm font-semibold text-slate-700">Menú</span>
-            <button onClick={onCerrar} className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Cerrar menú">
+          <div className="flex items-center justify-between px-4 pb-3 pt-4">
+            <img src={logoBlanco} alt="CUIDA" className="h-7 w-auto" />
+            <button onClick={onCerrar} className="rounded-xl p-1.5 text-white/60 transition hover:bg-white/10 hover:text-white" aria-label="Cerrar menú">
               <IconX className="h-5 w-5" />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto p-3">
-            {cabecera && <div className="mb-3">{cabecera}</div>}
-            {acciones && <div className="mb-3">{acciones}</div>}
+          <div className="flex-1 overflow-y-auto barra-fina px-3 pb-5">
+            <QuienEres />
+            {cabecera && <div className="mb-4">{cabecera}</div>}
+            {acciones && <div className="mb-5">{acciones}</div>}
             <Lista items={items} areas={areas} activo={activo} onIr={onIr} badges={badges} />
+            <Firma />
           </div>
         </div>
       </div>
+
+      {/* La barra de abajo del móvil: lo que se toca todos los días, al
+          alcance del pulgar, sin tener que abrir el cajón. */}
+      {pestanasMovil && pestanasMovil.length > 0 && (
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+          <div className="mx-auto flex max-w-lg">
+            {pestanasMovil.map((n) => {
+              const seleccionado = activo === n.key;
+              const badge = badges?.[n.key];
+              return (
+                <button
+                  key={n.key}
+                  onClick={() => onIr(n.key)}
+                  aria-current={seleccionado ? "page" : undefined}
+                  className={`relative flex flex-1 flex-col items-center gap-0.5 px-1 py-2 text-[10px] font-medium transition ${
+                    seleccionado ? "text-brand-700" : "text-slate-400"
+                  }`}
+                >
+                  <n.icon className="h-5 w-5" />
+                  <span className="truncate">{n.label}</span>
+                  {badge && badge.valor > 0 && (
+                    <span className="absolute right-[22%] top-1 h-2 w-2 rounded-full bg-rose-500" aria-hidden />
+                  )}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => onAbrir?.()}
+              className="flex flex-1 flex-col items-center gap-0.5 px-1 py-2 text-[10px] font-medium text-slate-400 transition"
+            >
+              <IconMenu className="h-5 w-5" />
+              Menú
+            </button>
+          </div>
+        </nav>
+      )}
     </>
   );
 }

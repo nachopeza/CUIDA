@@ -6,7 +6,7 @@ import { IconSearch, IconX } from "./icons.js";
 // distinto en cada pestaña.
 export function SearchBox({ value, onChange, placeholder, className = "" }: { value: string; onChange: (v: string) => void; placeholder: string; className?: string }) {
   return (
-    <div className={`flex items-center gap-2 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 ${className}`}>
+    <div className={`flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 ${className}`}>
       <IconSearch className="h-4 w-4 shrink-0 text-slate-400" />
       <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full text-sm outline-none" />
       {value && (

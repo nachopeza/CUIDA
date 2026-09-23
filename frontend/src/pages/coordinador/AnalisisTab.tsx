@@ -206,7 +206,7 @@ export function AnalisisTab() {
       </header>
 
       {sinDatos ? (
-        <p className="rounded-lg border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
+        <p className="tarjeta px-4 py-6 text-center text-sm text-slate-500">
           No hay jornadas cerradas en ese periodo. Las cifras aparecen cuando se cierra la primera.
         </p>
       ) : (
@@ -228,7 +228,7 @@ export function AnalisisTab() {
           </div>
 
           {/* --- Los cuatro tiempos ------------------------------------ */}
-          <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <section className="tarjeta p-4">
             <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
               <IconClock className="h-4 w-4 text-slate-400" aria-hidden /> Horas del periodo
             </h3>
@@ -243,7 +243,7 @@ export function AnalisisTab() {
               <Barra etiqueta="Se pagó" minutos={d.total.minutosLiquidables} maximo={maxHoras} ayuda={AYUDA_TIEMPO.liquidables} destacada />
             </div>
             {dif !== 0 && (
-              <p className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
                 Se trabajó <strong className="text-slate-700">{duracion(Math.abs(dif))}</strong> {dif > 0 ? "más" : "menos"} de lo
                 acordado, y se facturó <strong className="text-slate-700">{duracion(d.total.minutosFacturables)}</strong>: la
                 diferencia la decide la regla de la casa, no el fichaje.
@@ -252,7 +252,7 @@ export function AnalisisTab() {
           </section>
 
           {/* --- Mes a mes -------------------------------------------- */}
-          <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <section className="tarjeta p-4">
             <h3 className="text-sm font-semibold text-slate-700">Mes a mes</h3>
             <p className="mt-0.5 text-xs text-slate-500">Horas facturadas y el reparto del dinero de cada mes.</p>
             <div className="mt-3 overflow-x-auto">
@@ -294,7 +294,7 @@ export function AnalisisTab() {
           </section>
 
           {/* --- Donde se separa lo acordado de lo trabajado ----------- */}
-          <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <section className="tarjeta p-4">
             <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
               <IconAlert className="h-4 w-4 text-slate-400" aria-hidden /> Desviaciones
             </h3>
@@ -321,7 +321,7 @@ export function AnalisisTab() {
 
           {/* --- Rankings --------------------------------------------- */}
           <div className="grid gap-4 lg:grid-cols-3">
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
+            <section className="tarjeta p-4">
               <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
                 <IconEuro className="h-4 w-4 text-slate-400" aria-hidden /> Por persona
               </h3>
@@ -339,7 +339,7 @@ export function AnalisisTab() {
               </ul>
             </section>
 
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
+            <section className="tarjeta p-4">
               <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
                 <IconUsers className="h-4 w-4 text-slate-400" aria-hidden /> Por profesional
               </h3>
@@ -361,7 +361,7 @@ export function AnalisisTab() {
               </ul>
             </section>
 
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
+            <section className="tarjeta p-4">
               <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
                 <IconPencil className="h-4 w-4 text-slate-400" aria-hidden /> Por tipo de servicio
               </h3>

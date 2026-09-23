@@ -319,7 +319,7 @@ export function VerificacionTab({ solicitudes, servicios, focoVisitaId, onFocoCo
       {error && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
 
       {visibles.length === 0 ? (
-        <div className="rounded-lg border border-brand-green-200 bg-brand-green-50 px-4 py-8 text-center">
+        <div className="rounded-xl border border-brand-green-200 bg-brand-green-50 px-4 py-8 text-center">
           <IconCheckCircle className="mx-auto mb-2 h-6 w-6 text-brand-green-600" />
           <p className="text-sm text-brand-green-700">
             {filas.length === 0
@@ -334,15 +334,15 @@ export function VerificacionTab({ solicitudes, servicios, focoVisitaId, onFocoCo
           {/* Lo que está en juego ahora mismo: tiempo cerrado sin verificar y
               el dinero que sale de él en cuanto se dé el visto bueno. */}
           <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+            <div className="tarjeta px-3 py-2">
               <p className="text-xs text-slate-500">{pestana === "verificadas" ? "Tiempo verificado" : "Tiempo por verificar"}</p>
               <p className="text-lg font-semibold text-slate-900">{duracion(totales.minutos)}</p>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+            <div className="tarjeta px-3 py-2">
               <p className="text-xs text-slate-500">{pestana === "verificadas" ? "Pagado a profesionales" : "A pagar a profesionales"}</p>
               <p className="text-lg font-semibold text-slate-900">{euros(totales.aProfesionales)}</p>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+            <div className="tarjeta px-3 py-2">
               <p className="text-xs text-slate-500">{pestana === "verificadas" ? "Facturado" : "A facturar"}</p>
               <p className="text-lg font-semibold text-slate-900">{euros(totales.aFacturar)}</p>
             </div>
@@ -423,7 +423,7 @@ export function VerificacionTab({ solicitudes, servicios, focoVisitaId, onFocoCo
                         <button
                           onClick={() => verificar(f)}
                           disabled={verificando === f.visita.id}
-                          className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+                          className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
                         >
                           <IconCheck className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
                           {verificando === f.visita.id ? "Verificando…" : "Verificar"}

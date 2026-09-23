@@ -113,7 +113,7 @@ export function CoberturaTab({ solicitudes, servicios, onAbrirSolicitud, onAbrir
     <div className="space-y-4">
       {/* La frase de cabecera. Un número suelto no dice si vas bien; esta
           lectura sí. */}
-      <section className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+      <section className="tarjeta px-4 py-3">
         <p className="text-lg text-slate-800">
           <span className="font-semibold">{demanda.total}</span> servicios activos ·{" "}
           <span className="font-semibold text-brand-green-700">{demanda.cubiertos.length}</span> cubiertos ·{" "}
@@ -129,24 +129,24 @@ export function CoberturaTab({ solicitudes, servicios, onAbrirSolicitud, onAbrir
       </section>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <section className="rounded-lg border border-slate-200 bg-white p-3">
+        <section className="tarjeta p-3">
           <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
             <IconBriefcase className="h-4 w-4 text-slate-400" /> Capacidad del equipo
           </h3>
           <dl className="grid grid-cols-2 gap-2 text-sm">
-            <div className="rounded-md bg-slate-50 px-3 py-2">
+            <div className="rounded-xl bg-slate-50 px-3 py-2">
               <dt className="text-xs text-slate-500">Profesionales activos</dt>
               <dd className="text-lg font-semibold text-slate-900">{capacidad.activos.length}</dd>
             </div>
-            <div className="rounded-md bg-slate-50 px-3 py-2">
+            <div className="rounded-xl bg-slate-50 px-3 py-2">
               <dt className="text-xs text-slate-500">Disponibles hoy</dt>
               <dd className="text-lg font-semibold text-brand-green-700">{capacidad.disponibles.length}</dd>
             </div>
-            <div className="rounded-md bg-slate-50 px-3 py-2">
+            <div className="rounded-xl bg-slate-50 px-3 py-2">
               <dt className="text-xs text-slate-500">Horas contratadas/semana</dt>
               <dd className="text-lg font-semibold text-slate-900">{duracion(capacidad.minutosContratados)}</dd>
             </div>
-            <div className="rounded-md bg-slate-50 px-3 py-2">
+            <div className="rounded-xl bg-slate-50 px-3 py-2">
               <dt className="text-xs text-slate-500">Comprometidas esta semana</dt>
               <dd className="text-lg font-semibold text-slate-900">{duracion(semana.minutos)}</dd>
             </div>
@@ -174,7 +174,7 @@ export function CoberturaTab({ solicitudes, servicios, onAbrirSolicitud, onAbrir
           )}
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-3">
+        <section className="tarjeta p-3">
           <h3 className="mb-2 text-sm font-semibold text-slate-700">Carga por profesional</h3>
           {carga.length === 0 ? (
             <p className="py-3 text-center text-xs text-slate-400">Sin profesionales activos.</p>
@@ -213,7 +213,7 @@ export function CoberturaTab({ solicitudes, servicios, onAbrirSolicitud, onAbrir
           comprobaciones que al asignar, así que el aviso y el bloqueo dicen
           siempre lo mismo. */}
       {riesgos && (
-        <section className="rounded-lg border border-slate-200 bg-white">
+        <section className="tarjeta">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2.5">
             <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
               <IconShield className="h-4 w-4 text-slate-400" /> Jornadas en riesgo
@@ -273,7 +273,7 @@ export function CoberturaTab({ solicitudes, servicios, onAbrirSolicitud, onAbrir
         </section>
       )}
 
-      <section className="rounded-lg border border-slate-200 bg-white">
+      <section className="tarjeta">
         <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2.5">
           <h3 className="text-sm font-semibold text-slate-700">Servicios que requieren cobertura</h3>
           <span className="text-xs text-slate-400">{demanda.sinCubrir.length + demanda.sinConfirmar.length}</span>

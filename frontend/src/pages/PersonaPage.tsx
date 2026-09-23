@@ -48,8 +48,10 @@ export function PersonaPage() {
   const proximaVisita = enCurso?.servicio?.visitas?.find((v) => v.fecha.slice(0, 10) >= hoyISO && v.estado !== "REVISADA");
 
   return (
-    <div>
-      <h2 className="mb-4 text-xl font-semibold">¿En qué necesitas ayuda?</h2>
+    // Sin barra de navegación —la persona atendida tiene una sola pantalla—,
+    // así que el aire del contenido lo pone ella misma.
+    <div className="mx-auto max-w-3xl px-4 py-6">
+      <h2 className="mb-4 text-xl font-semibold text-slate-800">¿En qué necesitas ayuda?</h2>
 
       {enCurso?.servicio && (
         <Card title="Tu próximo servicio">
@@ -80,7 +82,7 @@ export function PersonaPage() {
       )}
 
       {mensaje && (
-        <div className="mb-4 rounded-lg border border-brand-green-200 bg-brand-green-50 px-4 py-3 text-base text-brand-green-700">{mensaje}</div>
+        <div className="mb-4 rounded-xl border border-brand-green-200 bg-brand-green-50 px-4 py-3 text-base text-brand-green-700">{mensaje}</div>
       )}
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">

@@ -41,7 +41,7 @@ export function GlobalSearch({ personas, solicitudes, onAbrirPersona, onAbrirSol
 
   return (
     <div className="relative w-full max-w-sm" ref={ref}>
-      <div className="flex items-center gap-2 rounded-md border border-slate-300 bg-white px-2.5 py-1.5">
+      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5">
         <IconSearch className="h-4 w-4 shrink-0 text-slate-400" />
         <input
           value={q}
@@ -58,7 +58,7 @@ export function GlobalSearch({ personas, solicitudes, onAbrirPersona, onAbrirSol
       </div>
 
       {abierto && q.trim().length >= 2 && (
-        <div className="absolute left-0 right-0 z-30 mt-1 max-h-96 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+        <div className="absolute left-0 right-0 z-30 mt-1 max-h-96 overflow-y-auto tarjeta shadow-lg">
           {!hayResultados && <p className="p-4 text-sm text-slate-500">Sin resultados para "{q}".</p>}
 
           {usuariosMatch.length > 0 && (

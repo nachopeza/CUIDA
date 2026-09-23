@@ -72,7 +72,7 @@ export function ArchivoUpload({
 
   if (valor) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-brand-green-200 bg-brand-green-50 px-3 py-2 text-sm">
+      <div className="flex items-center gap-2 rounded-xl border border-brand-green-200 bg-brand-green-50 px-3 py-2 text-sm">
         <IconCheck className="h-4 w-4 shrink-0 text-brand-green-600" aria-hidden />
         <span className="min-w-0 flex-1 truncate text-brand-green-800">{valor.nombre}</span>
         <span className="shrink-0 text-xs text-brand-green-700">{tamanoLegible(valor.bytes)}</span>

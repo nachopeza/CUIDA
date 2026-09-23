@@ -135,7 +135,7 @@ export function PersonasTab({ onAbrirFicha, refreshKey }: { onAbrirFicha: (id: s
             onEliminar={eliminarSeleccionados}
             etiquetaEliminar="Eliminar usuarios"
           />
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="overflow-x-auto tarjeta">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>

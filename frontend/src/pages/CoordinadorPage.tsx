@@ -36,7 +36,10 @@ import {
 } from "../components/icons.js";
 import { ResumenTab } from "./coordinador/ResumenTab.js";
 import { GlobalSearch } from "./coordinador/GlobalSearch.js";
-import { Navegacion, type AreaNav } from "../components/Navegacion.js";
+import { createPortal } from "react-dom";
+import { Navegacion, type AreaNav, type ItemNav } from "../components/Navegacion.js";
+import { Panel } from "../components/Layout.js";
+import { RANURA_BUSCADOR, useRanura } from "../lib/ranuras.js";
 import { duracion, minutosEntre } from "../lib/economia.js";
 import { PersonasTab } from "./coordinador/PersonasTab.js";
 import { NuevoUsuarioModal } from "./coordinador/NuevoUsuarioModal.js";
@@ -98,7 +101,7 @@ const AREAS: AreaNav[] = [
     // necesita que nadie le ponga nombre.
     titulo: "",
     items: [
-      { key: "escritorio", label: "Centro de coordinación", icon: IconHome },
+      { key: "escritorio", label: "Inicio", icon: IconHome },
       // La bandeja va pegada al escritorio: son la misma pregunta, una
       // resumida y la otra completa.
       { key: "bandeja", label: "Bandeja de trabajo", icon: IconList },
@@ -161,6 +164,15 @@ const AREAS: AreaNav[] = [
 // sigue haciendo falta aunque la navegación esté agrupada.
 const NAV = AREAS.flatMap((a) => a.items) as { key: Tab; label: string; icon: typeof IconHome }[];
 
+// Lo que va en la barra de abajo del móvil: las cuatro cosas que se tocan
+// todos los días. El resto sigue estando en el cajón, a un toque de "Menú".
+const PESTANAS_MOVIL: ItemNav[] = [
+  { key: "escritorio", label: "Inicio", icon: IconHome },
+  { key: "calendario", label: "Agenda", icon: IconCalendar },
+  { key: "personas", label: "Personas", icon: IconUsers },
+  { key: "profesionales", label: "Pros", icon: IconBriefcase },
+];
+
 // El filtro de la lista usa el mismo vocabulario que los badges y las
 // casillas de conteo (estadoUnificado.ts): una fase de trabajo, o bien el
 // corte transversal "tiene una incidencia abierta".
@@ -205,6 +217,7 @@ export function CoordinadorPage() {
   const [personaAbierta, setPersonaAbierta] = useState<string | null>(null);
   const [personasRefreshKey, setPersonasRefreshKey] = useState(0);
   const [riesgos, setRiesgos] = useState<RiesgosCobertura | null>(null);
+  const ranuraBuscador = useRanura(RANURA_BUSCADOR);
 
   async function cargar() {
     const [sols, servs, incs, pers, necs, pros, ries] = await Promise.all([
@@ -404,14 +417,31 @@ export function CoordinadorPage() {
 
   const tituloTab = NAV.find((n) => n.key === tab)?.label ?? "";
 
+  // El buscador se pinta en la ranura de la cabecera: quien sabe qué hay que
+  // buscar es este panel, pero dónde se busca lo dice la cabecera.
+  const buscador = (
+    <GlobalSearch
+      personas={personas}
+      solicitudes={solicitudes}
+      onAbrirPersona={abrirPersona}
+      onAbrirSolicitud={(id) => {
+        setTab("solicitudes");
+        setFichaAbierta(id);
+      }}
+    />
+  );
+
   return (
-    <div className="flex flex-col gap-4 md:flex-row">
+    <Panel
+      nav={
       <Navegacion
         areas={AREAS}
         activo={tab}
         onIr={irA}
         badges={badges}
+        pestanasMovil={PESTANAS_MOVIL}
         abierto={menuMovilAbierto}
+        onAbrir={() => setMenuMovilAbierto(true)}
         onCerrar={() => setMenuMovilAbierto(false)}
         acciones={
           // Lo que se crea, arriba del menú y siempre a la vista: dar de alta
@@ -422,7 +452,7 @@ export function CoordinadorPage() {
                 setMenuMovilAbierto(false);
                 void abrirNuevaSolicitud();
               }}
-              className="flex w-full items-center justify-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-800"
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand-green-500 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-green-700"
             >
               <IconPlus className="h-4 w-4" /> Nueva solicitud
             </button>
@@ -431,49 +461,23 @@ export function CoordinadorPage() {
                 setMenuMovilAbierto(false);
                 setNuevoUsuario(true);
               }}
-              className="flex w-full items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-2.5 text-sm font-medium text-white/90 transition hover:bg-white/15"
             >
               <IconPlus className="h-4 w-4" /> Nuevo usuario
             </button>
           </div>
         }
-        cabecera={
-          <GlobalSearch
-            personas={personas}
-            solicitudes={solicitudes}
-            onAbrirPersona={abrirPersona}
-            onAbrirSolicitud={(id) => {
-              setTab("solicitudes");
-              setFichaAbierta(id);
-            }}
-          />
-        }
+        cabecera={buscador}
       />
+      }
+    >
+      {/* En escritorio el buscador va en la cabecera de la aplicación. */}
+      {ranuraBuscador && createPortal(buscador, ranuraBuscador)}
 
-      {/* En móvil sólo queda el buscador: el botón de menú vive ahora en la
-          cabecera, que es donde la mano lo busca y donde no se va al
-          desplazar la página. */}
-      <div className="flex items-center gap-2 md:hidden">
-        <div className="min-w-0 flex-1">
-          <GlobalSearch
-            personas={personas}
-            solicitudes={solicitudes}
-            onAbrirPersona={abrirPersona}
-            onAbrirSolicitud={(id) => {
-              setTab("solicitudes");
-              setFichaAbierta(id);
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Contenido principal */}
       <div className="min-w-0 flex-1">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-800">{tab === "escritorio" ? "" : tituloTab}</h2>
-          </div>
-        </div>
+        {/* El título de la sección. El escritorio no lo lleva: su tarjeta de
+            saludo ya dice dónde estás. */}
+        {tab !== "escritorio" && <h2 className="mb-4 text-xl font-semibold text-slate-800">{tituloTab}</h2>}
 
         {tab === "escritorio" && (
           <ResumenTab
@@ -634,7 +638,7 @@ export function CoordinadorPage() {
                   onEliminar={eliminarSolicitudes}
                   etiquetaEliminar="Eliminar solicitudes"
                 />
-                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                <div className="overflow-x-auto tarjeta">
                 <table className="min-w-full divide-y divide-slate-100 text-sm">
                   <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     <tr>
@@ -826,6 +830,6 @@ export function CoordinadorPage() {
           />
         )}
       </div>
-    </div>
+    </Panel>
   );
 }

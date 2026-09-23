@@ -115,7 +115,7 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
         <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por código, motivo, descripción o persona…" className="flex-1 sm:max-w-xs" />
         {/* Abiertas y archivadas son dos bandejas distintas: mezclarlas hacía
             que lo cerrado tapara lo que hay que atender. */}
-        <div className="flex rounded-md border border-slate-300 bg-white p-0.5 text-xs">
+        <div className="flex rounded-xl border border-slate-200 bg-white p-0.5 text-xs">
           {[
             { valor: "abiertas", etiqueta: `Abiertas (${abiertasCount})` },
             { valor: "archivadas", etiqueta: `Archivadas (${archivadasCount})` },
@@ -148,7 +148,7 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
         </select>
         <button
           onClick={() => setNuevaAbierta(true)}
-          className="ml-auto flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800"
+          className="ml-auto flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800"
         >
           <IconPlus className="h-3.5 w-3.5" /> Incidencia
         </button>
@@ -157,7 +157,7 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
       {error && <p className="mb-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
 
       {filtradas.length === 0 ? (
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center">
+        <div className="tarjeta px-4 py-8 text-center">
           <IconAlert className="mx-auto mb-2 h-6 w-6 text-slate-300" />
           <p className="text-sm text-slate-500">
             {incidencias.length === 0 ? "No hay ninguna incidencia abierta. Buena señal." : "Ninguna incidencia coincide con estos filtros."}
@@ -190,7 +190,7 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
             etiquetaEliminar="Eliminar incidencias"
           />
 
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="overflow-x-auto tarjeta">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>

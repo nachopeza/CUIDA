@@ -91,21 +91,21 @@ export function NuevoUsuarioModal({ onClose, onCreated }: { onClose: () => void;
             Perfil <strong>{resultado.personaCodigo}</strong> creado correctamente.
           </p>
           {resultado.emailPersona && (
-            <div className="rounded-lg bg-slate-50 p-3">
+            <div className="rounded-xl bg-slate-50 p-3">
               <p className="font-medium text-slate-700">Acceso de la persona (simple y directo)</p>
               <p className="text-slate-600">Email: {resultado.emailPersona}</p>
               {resultado.passwordPersona && <p className="text-slate-600">Contraseña: <strong>{resultado.passwordPersona}</strong></p>}
             </div>
           )}
           {resultado.emailFamiliar && (
-            <div className="rounded-lg bg-slate-50 p-3">
+            <div className="rounded-xl bg-slate-50 p-3">
               <p className="font-medium text-slate-700">Acceso del familiar (más opciones de gestión)</p>
               <p className="text-slate-600">Email: {resultado.emailFamiliar}</p>
               {resultado.passwordFamiliar && <p className="text-slate-600">Contraseña: <strong>{resultado.passwordFamiliar}</strong></p>}
             </div>
           )}
           <p className="text-xs text-slate-400">Apunta estas contraseñas ahora: no se volverán a mostrar.</p>
-          <button onClick={onClose} className="w-full rounded-md bg-brand px-4 py-2 font-medium text-white hover:bg-brand-800">
+          <button onClick={onClose} className="w-full rounded-xl bg-brand px-4 py-2 font-medium text-white hover:bg-brand-800">
             Cerrar
           </button>
         </div>
@@ -119,14 +119,14 @@ export function NuevoUsuarioModal({ onClose, onCreated }: { onClose: () => void;
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Datos de la persona</p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <input required placeholder="Nombre" value={persona.nombre} onChange={(e) => setPersona((p) => ({ ...p, nombre: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-            <input required placeholder="Apellidos" value={persona.apellidos} onChange={(e) => setPersona((p) => ({ ...p, apellidos: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-            <input placeholder="Teléfono" value={persona.telefono} onChange={(e) => setPersona((p) => ({ ...p, telefono: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-            <input placeholder="Dirección" value={persona.direccion} onChange={(e) => setPersona((p) => ({ ...p, direccion: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2" />
-            <input placeholder="Medicación" value={persona.medicacion} onChange={(e) => setPersona((p) => ({ ...p, medicacion: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-            <input placeholder="Médico / centro de referencia" value={persona.medico} onChange={(e) => setPersona((p) => ({ ...p, medico: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2" />
-            <input placeholder="Contactos de emergencia" value={persona.contactos} onChange={(e) => setPersona((p) => ({ ...p, contactos: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-3" />
-            <textarea placeholder="Recomendaciones" value={persona.recomendaciones} onChange={(e) => setPersona((p) => ({ ...p, recomendaciones: e.target.value }))} rows={2} className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-3" />
+            <input required placeholder="Nombre" value={persona.nombre} onChange={(e) => setPersona((p) => ({ ...p, nombre: e.target.value }))} className="campo" />
+            <input required placeholder="Apellidos" value={persona.apellidos} onChange={(e) => setPersona((p) => ({ ...p, apellidos: e.target.value }))} className="campo" />
+            <input placeholder="Teléfono" value={persona.telefono} onChange={(e) => setPersona((p) => ({ ...p, telefono: e.target.value }))} className="campo" />
+            <input placeholder="Dirección" value={persona.direccion} onChange={(e) => setPersona((p) => ({ ...p, direccion: e.target.value }))} className="campo sm:col-span-2" />
+            <input placeholder="Medicación" value={persona.medicacion} onChange={(e) => setPersona((p) => ({ ...p, medicacion: e.target.value }))} className="campo" />
+            <input placeholder="Médico / centro de referencia" value={persona.medico} onChange={(e) => setPersona((p) => ({ ...p, medico: e.target.value }))} className="campo sm:col-span-2" />
+            <input placeholder="Contactos de emergencia" value={persona.contactos} onChange={(e) => setPersona((p) => ({ ...p, contactos: e.target.value }))} className="campo sm:col-span-3" />
+            <textarea placeholder="Recomendaciones" value={persona.recomendaciones} onChange={(e) => setPersona((p) => ({ ...p, recomendaciones: e.target.value }))} rows={2} className="campo sm:col-span-3" />
           </div>
         </div>
 
@@ -142,7 +142,7 @@ export function NuevoUsuarioModal({ onClose, onCreated }: { onClose: () => void;
                 placeholder="Email de acceso de la persona"
                 value={emailPersona}
                 onChange={(e) => setEmailPersona(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-1/2"
+                className="w-full campo sm:w-1/2"
               />
               <p className="mt-1 text-xs text-slate-400">Se generará una contraseña automáticamente y se mostrará al terminar.</p>
             </div>
@@ -156,9 +156,9 @@ export function NuevoUsuarioModal({ onClose, onCreated }: { onClose: () => void;
           </label>
           {conFamiliar && (
             <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <input placeholder="Nombre del familiar" value={familiar.nombre} onChange={(e) => setFamiliar((f) => ({ ...f, nombre: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-              <input placeholder="Parentesco (ej. Hija)" value={familiar.parentesco} onChange={(e) => setFamiliar((f) => ({ ...f, parentesco: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-              <input type="email" placeholder="Email del familiar" value={familiar.email} onChange={(e) => setFamiliar((f) => ({ ...f, email: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              <input placeholder="Nombre del familiar" value={familiar.nombre} onChange={(e) => setFamiliar((f) => ({ ...f, nombre: e.target.value }))} className="campo" />
+              <input placeholder="Parentesco (ej. Hija)" value={familiar.parentesco} onChange={(e) => setFamiliar((f) => ({ ...f, parentesco: e.target.value }))} className="campo" />
+              <input type="email" placeholder="Email del familiar" value={familiar.email} onChange={(e) => setFamiliar((f) => ({ ...f, email: e.target.value }))} className="campo" />
               <label className="flex items-center gap-2 text-xs text-slate-500 sm:col-span-3">
                 <input type="checkbox" checked={familiar.puedeVerImportes} onChange={(e) => setFamiliar((f) => ({ ...f, puedeVerImportes: e.target.checked }))} />
                 Puede ver importes/tarifas

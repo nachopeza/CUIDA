@@ -46,6 +46,9 @@ authRouter.post("/login", async (req, res) => {
     usuario: {
       id: usuario.id,
       email: usuario.email,
+      // El nombre de pila: la cabecera saluda a una persona, no a una
+      // dirección de correo. "Buenos días, Laura" y no "coordinadora".
+      nombre: usuario.nombre,
       rol: usuario.rol,
       organizacionId: usuario.organizacionId,
       personaId: usuario.personaId,

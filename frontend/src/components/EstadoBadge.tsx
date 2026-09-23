@@ -55,12 +55,11 @@ const TEXTOS: Record<string, string> = {
 };
 
 export function EstadoBadge({ estado }: { estado: string }) {
-  const clase = COLORES[estado] ?? "bg-slate-200 text-slate-700";
-  return (
-    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${clase}`}>
-      {TEXTOS[estado] ?? estado.replace(/_/g, " ")}
-    </span>
-  );
+  const clase = COLORES[estado] ?? "bg-slate-100 text-slate-600";
+  // En píldora y con la primera en mayúscula: "En curso", no "EN CURSO".
+  // Un estado es una palabra, no una sigla a gritos.
+  const texto = TEXTOS[estado] ?? estado.replace(/_/g, " ").toLowerCase();
+  return <span className={`pastilla ${clase}`}>{texto.charAt(0).toUpperCase() + texto.slice(1)}</span>;
 }
 
 // Badge del estado de trabajo (sección "simplifica estados de solicitudes,

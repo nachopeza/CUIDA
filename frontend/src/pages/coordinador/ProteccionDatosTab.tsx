@@ -155,7 +155,7 @@ export function ProteccionDatosTab() {
       {/* Esto no es asesoría jurídica y conviene que lo diga la propia
           pantalla, no solo la documentación: quien cambie un plazo aquí tiene
           que saber de dónde salen los que vienen puestos. */}
-      <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+      <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
         Los plazos que trae CUIDA son los que se citan habitualmente en España y cada uno lleva su norma al lado, pero{" "}
         <strong>no son asesoría jurídica</strong>: confírmalos con la vuestra y ajústalos aquí. Quien responde de que sean
         correctos es el responsable del tratamiento, no la aplicación.
@@ -164,7 +164,7 @@ export function ProteccionDatosTab() {
       {/* El art. 30 pide tener este documento y enseñarlo cuando lo pidan.
           Generarlo desde lo que la aplicación ya hace evita el Word que se
           queda viejo en cuanto cambia un plazo. */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
+      <section className="tarjeta p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-slate-700">Registro de actividades de tratamiento</h3>
@@ -183,7 +183,7 @@ export function ProteccionDatosTab() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
+      <section className="tarjeta p-4">
         <h3 className="text-sm font-semibold text-slate-700">Quién responde</h3>
         <p className="mt-0.5 text-xs text-slate-500">
           Va en la información que se entrega a las personas y en la respuesta a un derecho de acceso. Sin esto, la copia que se
@@ -227,11 +227,11 @@ export function ProteccionDatosTab() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
+      <section className="tarjeta p-4">
         <h3 className="text-sm font-semibold text-slate-700">Plazos de conservación</h3>
         <div className="mt-3 space-y-2.5">
           {vencidos.map((v) => (
-            <div key={v.categoria} className="rounded-lg border border-slate-200 p-3">
+            <div key={v.categoria} className="rounded-xl border border-slate-200 p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-800">
@@ -328,7 +328,7 @@ export function ProteccionDatosTab() {
       <button
         onClick={guardar}
         disabled={guardando}
-        className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+        className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
       >
         {guardando ? "Guardando…" : "Guardar los plazos"}
       </button>

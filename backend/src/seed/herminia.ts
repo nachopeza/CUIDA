@@ -222,7 +222,7 @@ async function main() {
   const necesidadCompra = await prisma.necesidadCatalogo.findUniqueOrThrow({ where: { codigo: "compra" } });
 
   // 3. Coordinador de la organización
-  const coordinador = await crearUsuario("coordinadora@cuida.demo", "COORDINADOR", { nombre: "Coordinación", organizacionId: organizacion.id });
+  const coordinador = await crearUsuario("coordinadora@cuida.demo", "COORDINADOR", { nombre: "Laura Sánchez", organizacionId: organizacion.id });
 
   // 4. Persona: Herminia
   const codigoPersona = await generarCodigo("persona");

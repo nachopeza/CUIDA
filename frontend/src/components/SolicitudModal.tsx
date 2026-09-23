@@ -335,7 +335,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
                 {/* Antes de crear nada, lo que se va a crear, en una frase. Es
                     la comprobación que evita la solicitud a la persona
                     equivocada o con la fecha del mes pasado. */}
-                <p className="rounded-lg border border-brand-green-200 bg-brand-green-50 px-3 py-2.5 text-sm text-brand-green-800">
+                <p className="rounded-xl border border-brand-green-200 bg-brand-green-50 px-3 py-2.5 text-sm text-brand-green-800">
                   {resumen}.
                 </p>
                 <label className="block text-xs font-medium text-slate-500">
@@ -465,7 +465,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
 
             <div>
               <label className="mb-1 block text-sm text-slate-500">¿Algo más que quieras contarnos? (opcional)</label>
-              <textarea value={nota} onChange={(e) => setNota(e.target.value)} rows={2} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              <textarea value={nota} onChange={(e) => setNota(e.target.value)} rows={2} className="w-full campo" />
             </div>
           </>
         )}

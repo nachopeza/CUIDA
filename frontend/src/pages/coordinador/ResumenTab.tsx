@@ -111,6 +111,46 @@ function nombrePersona(s?: Servicio) {
 // bandeja de lo que sólo puede resolver coordinación (se resuelve desde
 // aquí, sin navegar); a la derecha la situación del mes, la plantilla y la
 // demanda. La actividad reciente cierra, porque es contexto, no tarea.
+// Una casilla del resumen: el icono en su círculo, el número grande y lo que
+// cuenta debajo. Los cuatro tintes son los de la casa —rosa para lo urgente,
+// ámbar para lo que espera, verde para lo que está en marcha y azul para el
+// equipo— y siempre el mismo tinte para el mismo tipo de cifra.
+const TINTES = {
+  rose: { caja: "bg-rose-50 border-rose-100", icono: "bg-rose-100 text-rose-600", numero: "text-rose-700" },
+  amber: { caja: "bg-amber-50 border-amber-100", icono: "bg-amber-100 text-amber-600", numero: "text-amber-700" },
+  verde: { caja: "bg-brand-green-50 border-brand-green-100", icono: "bg-brand-green-100 text-brand-green-700", numero: "text-brand-green-800" },
+  azul: { caja: "bg-brand-50 border-brand-100", icono: "bg-brand-100 text-brand-700", numero: "text-brand-800" },
+} as const;
+
+function Casilla({
+  tono,
+  valor,
+  titulo,
+  detalle,
+  Icono,
+  onClick,
+}: {
+  tono: keyof typeof TINTES;
+  valor: number;
+  titulo: string;
+  detalle?: string;
+  Icono: (p: { className?: string }) => JSX.Element;
+  onClick: () => void;
+}) {
+  const t = TINTES[tono];
+  return (
+    <button onClick={onClick} className={`rounded-tarjeta border p-3 text-left transition hover:brightness-[0.98] ${t.caja}`}>
+      <span className={`flex h-9 w-9 items-center justify-center rounded-full ${t.icono}`}>
+        <Icono className="h-4 w-4" />
+      </span>
+      <p className={`mt-2 text-2xl font-semibold leading-none tabular-nums ${t.numero}`}>{valor}</p>
+      <p className="mt-1 text-xs font-medium text-slate-600">{titulo}</p>
+      {detalle && <p className="text-[11px] text-slate-400">{detalle}</p>}
+    </button>
+  );
+}
+
+
 export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrirSolicitud, onAbrirIncidencia, onAbrirPersona, onCambiado }: Props) {
   const { token } = useAuth();
   const [facturas, setFacturas] = useState<Factura[]>([]);
@@ -429,39 +469,88 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
 
   return (
     <div className="space-y-4">
-      {/* Mi día: la primera línea responde a "¿qué requiere atención?" y la
-          segunda a "¿cómo va la jornada?". Es lo que se mira al entrar. */}
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-800">
-            {saludo()}
-            {nombre ? `, ${nombre.split(" ")[0]}` : ""}
-            {pendientes.length > 0 && (
-              <span className="ml-2 text-base font-normal text-slate-500">
-                · {pendientes.length} {pendientes.length === 1 ? "asunto requiere" : "asuntos requieren"} atención
-              </span>
-            )}
-          </h2>
-          <p className="text-sm text-slate-500">
-            {conMayusculaInicial(new Date().toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" }))}
-            {criticos.length > 0 && <span className="font-medium text-rose-700"> · {criticos.length} urgente{criticos.length === 1 ? "" : "s"}</span>}
-            {" · "}
-            {agendaHoy.length === 0 ? "sin visitas hoy" : `${agendaHoy.length} ${agendaHoy.length === 1 ? "visita" : "visitas"} hoy`}
-            {enMarcha.length > 0 && <span className="font-medium text-brand-green-700"> · {enMarcha.length} en marcha ahora</span>}
-          </p>
-        </div>
-        <button
-          onClick={refrescar}
-          disabled={refrescando}
-          className="flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 disabled:opacity-60"
-          title="Volver a cargar los datos del escritorio"
-        >
-          <IconRefresh className={`h-3.5 w-3.5 ${refrescando ? "animate-spin" : ""}`} />
-          {refrescando ? "Actualizando…" : `Actualizado ${haceCuanto(ultimaCarga, ahora)}`}
-        </button>
-      </header>
+      {/* Mi día. Es lo primero que se ve al entrar, así que va en su propia
+          tarjeta: el saludo, la fecha y la hora, y debajo las cuatro cifras
+          que deciden en qué se emplea la mañana. */}
+      <section className="tarjeta relative overflow-hidden p-4 sm:p-5">
+        {/* La hoja de la marca, en la esquina y apenas insinuada: identidad
+            sin quitarle sitio a ningún dato. */}
+        <svg viewBox="0 0 64 64" className="pointer-events-none absolute -right-6 -top-8 h-44 w-44 text-brand-green-400/10" aria-hidden>
+          <path fill="currentColor" d="M56 8C33 8 14 18 9 38c-2 8 1 15 6 18 2-14 10-26 24-33-11 9-18 20-20 34 15 3 28-3 34-15 4-9 5-22 3-34Z" />
+        </svg>
 
-      {error && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
+        <header className="relative flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold text-slate-800 sm:text-2xl">
+              {saludo()}
+              {nombre ? `, ${conMayusculaInicial(nombre.split(" ")[0])}` : ""}
+            </h2>
+            <p className="mt-0.5 text-sm text-slate-500">
+              {pendientes.length > 0
+                ? `Aquí tienes lo más importante de hoy: ${pendientes.length} ${pendientes.length === 1 ? "asunto requiere" : "asuntos requieren"} tu atención.`
+                : "Aquí tienes un resumen de lo más importante de hoy."}
+            </p>
+          </div>
+          <div className="shrink-0 sm:text-right">
+            <p className="flex items-center gap-2 text-sm text-slate-500 sm:justify-end">
+              <span>{conMayusculaInicial(new Date().toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" }))}</span>
+              <span className="flex items-center gap-1 font-medium tabular-nums text-slate-700 sm:hidden">
+                <IconClock className="h-3.5 w-3.5 text-slate-400" />
+                {new Date(ahora).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            </p>
+            <p className="mt-0.5 hidden items-center justify-end gap-1.5 text-sm font-medium tabular-nums text-slate-700 sm:flex">
+              <IconClock className="h-3.5 w-3.5 text-slate-400" />
+              {new Date(ahora).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+            </p>
+            <button
+              onClick={refrescar}
+              disabled={refrescando}
+              className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-400 transition hover:text-slate-600 disabled:opacity-60 sm:ml-auto"
+              title="Volver a cargar los datos del escritorio"
+            >
+              <IconRefresh className={`h-3 w-3 ${refrescando ? "animate-spin" : ""}`} />
+              {refrescando ? "Actualizando…" : `Actualizado ${haceCuanto(ultimaCarga, ahora)}`}
+            </button>
+          </div>
+        </header>
+
+        {/* Las casillas. Cada una es un botón que lleva a lo que cuenta: el
+            número no se queda en número. */}
+        <div className="relative mt-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+          <Casilla
+            tono="rose"
+            valor={criticos.length}
+            titulo={criticos.length === 1 ? "Asunto urgente" : "Asuntos urgentes"}
+            Icono={IconAlert}
+            onClick={() => onIrA("bandeja")}
+          />
+          <Casilla
+            tono="amber"
+            valor={pendientes.length}
+            titulo={pendientes.length === 1 ? "Pendiente" : "Pendientes"}
+            Icono={IconClipboard}
+            onClick={() => onIrA("bandeja")}
+          />
+          <Casilla
+            tono="verde"
+            valor={agendaHoy.length}
+            titulo={agendaHoy.length === 1 ? "Visita hoy" : "Visitas hoy"}
+            detalle={enMarcha.length > 0 ? `${enMarcha.length} en marcha ahora` : undefined}
+            Icono={IconCalendar}
+            onClick={() => onIrA("calendario")}
+          />
+          <Casilla
+            tono="azul"
+            valor={profesionalesActivos}
+            titulo={profesionalesActivos === 1 ? "Profesional activo" : "Profesionales activos"}
+            Icono={IconUsers}
+            onClick={() => onIrA("profesionales")}
+          />
+        </div>
+      </section>
+
+      {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
 
       {/* Lo que ha cambiado desde la última vez. Antes sólo estaba en la
           campana, y la campana hay que abrirla para enterarse. */}
@@ -473,21 +562,27 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
       />
 
       {avisos.length === 0 ? (
-        <div className="rounded-lg border border-brand-green-200 bg-brand-green-50 px-4 py-3 text-sm text-brand-green-700">
+        <div className="rounded-tarjeta border border-brand-green-200 bg-brand-green-50 px-4 py-3 text-sm text-brand-green-800">
           Todo al día — no hay nada que requiera tu acción ahora mismo.
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
           {avisos.map((a) => (
             <button
               key={a.clave}
               onClick={a.onClick}
               title={a.detalle}
-              className={`flex items-start gap-2 rounded-lg border p-2.5 text-left transition hover:brightness-[0.98] ${
-                a.tono === "rose" ? "border-rose-200 bg-rose-50/60" : "border-amber-200 bg-amber-50/60"
+              className={`flex items-start gap-2.5 rounded-tarjeta border px-3 py-2.5 text-left transition hover:brightness-[0.98] ${
+                a.tono === "rose" ? "border-rose-200 bg-rose-50/70" : "border-amber-200 bg-amber-50/70"
               }`}
             >
-              <a.icon className={`mt-0.5 h-4 w-4 shrink-0 ${a.tono === "rose" ? "text-rose-600" : "text-amber-600"}`} />
+              <span
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                  a.tono === "rose" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"
+                }`}
+              >
+                <a.icon className="h-3.5 w-3.5" />
+              </span>
               <p className="text-xs leading-snug text-slate-700">
                 <span className="font-semibold text-slate-900">{a.valor}</span> {a.valor === 1 ? a.singular : a.plural}
               </p>
@@ -498,7 +593,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
-          <section className="rounded-lg border border-slate-200 bg-white p-3">
+          <section className="tarjeta p-3">
             <div className="mb-2 flex items-center justify-between">
               <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
                 <IconCalendar className="h-4 w-4 text-slate-400" /> Hoy
@@ -648,7 +743,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
               acción por fila: es la pregunta "¿qué tengo que hacer?" y su
               respuesta, sin que haya que deducirla de cuatro bloques sueltos.
               La prioridad lleva punto y palabra, no sólo color. */}
-          <section className="rounded-lg border border-slate-200 bg-white">
+          <section className="tarjeta">
             <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2.5">
               <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
                 <IconClipboard className="h-4 w-4 text-slate-400" /> Pendiente de ti
@@ -681,9 +776,16 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                           {a.desde > 0 && <span className="text-slate-400"> · hace {hace(a.desde)}</span>}
                         </p>
                       </button>
+                      {/* Lo crítico lleva el botón lleno y lo demás el de
+                          contorno: en una lista de veinte, el ojo tiene que
+                          saber por cuál empezar sin leerse las veinte. */}
                       <button
                         onClick={() => irAsunto(a)}
-                        className="shrink-0 rounded-md border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white"
+                        className={`shrink-0 rounded-xl px-3 py-1.5 text-xs font-medium transition ${
+                          a.prioridad === "critico"
+                            ? "bg-brand text-white hover:bg-brand-800"
+                            : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
                       >
                         {a.accion}
                       </button>
@@ -704,7 +806,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
         </div>
 
         <div className="space-y-4">
-          <section className="rounded-lg border border-slate-200 bg-white p-3">
+          <section className="tarjeta p-3">
             <div className="mb-2 flex items-center justify-between">
               <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
                 <IconReceipt className="h-4 w-4 text-slate-400" /> Este mes
@@ -751,7 +853,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
             </dl>
           </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-3">
+          <section className="tarjeta p-3">
             <div className="mb-2 flex items-center justify-between">
               <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
                 <IconUsers className="h-4 w-4 text-slate-400" /> Plantilla
@@ -783,7 +885,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
           </section>
 
           {distribucionNecesidad.length > 0 && (
-            <section className="rounded-lg border border-slate-200 bg-white p-3">
+            <section className="tarjeta p-3">
               <h3 className="mb-2 text-sm font-semibold text-slate-700">Qué se pide más</h3>
               <div className="space-y-1.5">
                 {distribucionNecesidad.map((d) => (
