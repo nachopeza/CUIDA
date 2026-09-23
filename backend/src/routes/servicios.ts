@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
 import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
-import { esGestorOrganizacion, puedeVerImportes, ocultarTarifaSiProcede, soloLoQueCobraElProfesional } from "../services/permisos.js";
+import { esGestorOrganizacion, puedeVerImportes, filtrarEconomia, ocultarTarifaSiProcede, soloLoQueCobraElProfesional } from "../services/permisos.js";
 import { ausenteEse, carenciasDe } from "../services/rrhh.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
@@ -75,7 +75,7 @@ serviciosRouter.get("/", async (req, res) => {
       : usuario.rol === "FAMILIAR"
         ? (relacionesVisibles?.has(s.solicitud.personaId) ?? false)
         : false;
-    return ocultarTarifaSiProcede(s, visible);
+    return filtrarEconomia(s, usuario, visible);
   });
 
   res.json(resultado);
@@ -165,7 +165,7 @@ serviciosRouter.get("/:id", async (req, res) => {
     return res.json(suyo ? soloLoQueCobraElProfesional(servicio) : ocultarTarifaSiProcede(servicio, false));
   }
   const visible = await puedeVerImportes(usuario, servicio.solicitud.personaId);
-  res.json(ocultarTarifaSiProcede(servicio, visible));
+  res.json(filtrarEconomia(servicio, usuario, visible));
 });
 
 const tarifaSchema = z.object({

@@ -123,3 +123,45 @@ jornada → **Desglose***.
 
 Cambiar una regla **no recalcula el pasado**: solo afecta a las jornadas que
 se cierren a partir de ese momento.
+
+---
+
+## Quién ve qué del dinero
+
+Comprobado por API en los cuatro roles:
+
+| Rol | Lo que paga la familia | Lo que cobra el profesional | Ingreso de CUIDA |
+|---|---|---|---|
+| Coordinación | sí | sí | sí |
+| Familiar autorizado | sí | no | no |
+| Familiar sin autorización | no | no | no |
+| Persona atendida | no | no | no |
+| Profesional | no | **su parte, sí** | no |
+
+Un familiar autorizado tiene derecho a saber qué paga y por qué; cuánto gana
+la empresa y cuánto cobra la cuidadora son los otros dos contratos, y no le
+corresponden. El profesional ve su nómina y nada más.
+
+## El mismo importe en los cuatro sitios
+
+El motor escribe las cifras una vez, al cerrar la jornada, y desde entonces
+las leen todos: el desglose, Verificación, la factura y la liquidación. Con
+los datos de la demo, la jornada del 21 de septiembre de Dolores:
+
+```
+desglose      2 h 30 min × 17,00 €/h = 42,50 €   profesional 30,00 €   CUIDA 12,50 €
+Verificación  Profesional 30,00 € · CUIDA 12,50 € · Familia 46,75 € (con IVA)
+factura       una línea por jornada, 42,50 € de base, 46,75 € con IVA
+liquidación   2 h 30 min liquidables × 12,00 €/h = 30,00 €
+```
+
+Y el cuadre se cumple en la propia factura: **cobrado − pagado = ingreso de
+CUIDA**.
+
+## Verificada → liquidable → liquidada
+
+- Una jornada con tiempo adicional **sin decidir** no se factura ni se liquida:
+  la generación de la factura del mes se detiene y dice qué jornadas son.
+- Aprobar la liquidación marca sus jornadas como `LIQUIDADA`, así que no pueden
+  volver a entrar en la del mes siguiente.
+- Un borrador de factura no tiene número fiscal: se le asigna al emitir.

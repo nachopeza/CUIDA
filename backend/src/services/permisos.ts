@@ -72,15 +72,39 @@ const CAMPOS_TARIFA = [
   "ivaPorcentaje",
   "ivaImporte",
   "totalConIva",
+  // El motor de tiempo dejó estas cifras escritas en cada jornada. Viajan con
+  // la visita, no con el servicio, así que había que añadirlas: si no, el
+  // importe que se le esconde en el servicio reaparecía en sus jornadas.
+  "precioHoraCliente",
+  "precioHoraProfesional",
+  "importeCliente",
+  "importeCuida",
 ] as const;
 
 // Elimina del objeto Servicio (o de una Solicitud con .servicio anidado) los
 // campos económicos cuando el solicitante no tiene permiso para verlos.
+// Los mismos campos pueden venir en el objeto o en sus jornadas anidadas, así
+// que el filtro baja también por ahí. Antes cada ruta tenía que acordarse de
+// limpiar las visitas una por una, y basta con olvidar una para filtrar dinero.
+function limpiarRecursivo(objeto: Record<string, unknown>, campos: readonly string[]): Record<string, unknown> {
+  const copia: Record<string, unknown> = { ...objeto };
+  for (const campo of campos) delete copia[campo];
+
+  if (Array.isArray(copia.visitas)) {
+    copia.visitas = copia.visitas.map((v) => (v && typeof v === "object" ? limpiarRecursivo(v as Record<string, unknown>, campos) : v));
+  }
+  if (copia.visita && typeof copia.visita === "object") {
+    copia.visita = limpiarRecursivo(copia.visita as Record<string, unknown>, campos);
+  }
+  if (copia.servicio && typeof copia.servicio === "object") {
+    copia.servicio = limpiarRecursivo(copia.servicio as Record<string, unknown>, campos);
+  }
+  return copia;
+}
+
 export function ocultarTarifaSiProcede<T extends Record<string, unknown>>(servicio: T | null | undefined, visible: boolean): T | null | undefined {
   if (!servicio || visible) return servicio;
-  const copia = { ...servicio };
-  for (const campo of CAMPOS_TARIFA) delete (copia as Record<string, unknown>)[campo];
-  return copia;
+  return limpiarRecursivo(servicio, CAMPOS_TARIFA) as T;
 }
 
 // Lo que paga la familia y el margen de CUIDA no son asunto del profesional,
@@ -100,16 +124,50 @@ const CAMPOS_SOLO_DE_COORDINACION = [
   "ivaImporte",
   "totalConIva",
   "facturaId",
+  // Del motor de tiempo: lo que paga la familia y el margen no son asunto del
+  // profesional. Su precio/hora y su importe sí se quedan: es su nómina.
+  "precioHoraCliente",
+  "importeCliente",
+  "importeCuida",
 ];
 
 export function soloLoQueCobraElProfesional<T extends Record<string, unknown>>(servicio: T | null | undefined): T | null | undefined {
   if (!servicio) return servicio;
-  const copia = { ...servicio };
-  for (const campo of CAMPOS_SOLO_DE_COORDINACION) delete (copia as Record<string, unknown>)[campo];
-  return copia;
+  return limpiarRecursivo(servicio, CAMPOS_SOLO_DE_COORDINACION) as T;
 }
 
 export function scopeOrganizacion(usuario: TokenPayload): { organizacionId: string } | {} {
   if (usuario.rol === "SUPERADMIN") return {};
   return { organizacionId: usuario.organizacionId ?? "__none__" };
+}
+
+// Lo que nunca sale de coordinación, ni aunque el familiar esté autorizado a
+// ver importes: el margen de CUIDA y lo que se le paga al profesional. La
+// familia tiene derecho a saber qué paga y por qué; cuánto gana la empresa y
+// cuánto cobra la cuidadora son acuerdos de otros dos contratos.
+const CAMPOS_SOLO_INTERNOS = [
+  "comisionImporte",
+  "comisionPorcentaje",
+  "importeProfesional",
+  "precioHoraProfesional",
+  "importeCuida",
+];
+
+// Un único sitio donde se decide qué parte de la economía ve cada rol, para no
+// tener que acordarse en cada ruta:
+//
+//   coordinación   lo ve todo
+//   profesional    lo que cobra él
+//   familiar        lo que paga la familia, si su relación lo autoriza
+//   persona         nada
+export function filtrarEconomia<T extends Record<string, unknown>>(
+  objeto: T | null | undefined,
+  usuario: TokenPayload,
+  veImportes: boolean,
+): T | null | undefined {
+  if (!objeto) return objeto;
+  if (esGestorOrganizacion(usuario)) return objeto;
+  if (usuario.rol === "PROFESIONAL") return soloLoQueCobraElProfesional(objeto);
+  if (!veImportes) return ocultarTarifaSiProcede(objeto, false);
+  return limpiarRecursivo(objeto, CAMPOS_SOLO_INTERNOS) as T;
 }

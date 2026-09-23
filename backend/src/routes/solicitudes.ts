@@ -5,7 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
 import { autenticar } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
-import { puedeAccederPersona, esGestorOrganizacion, ocultarTarifaSiProcede, puedeVerImportes } from "../services/permisos.js";
+import { puedeAccederPersona, esGestorOrganizacion, filtrarEconomia, puedeVerImportes } from "../services/permisos.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
 import { asegurarSesiones, sincronizarSesionesConPlan } from "../services/sesiones.js";
@@ -189,7 +189,7 @@ solicitudesRouter.get("/", async (req, res) => {
 
   const resultado = solicitudes.map((s) => {
     const visible = esGestorOrganizacion(usuario) ? true : usuario.rol === "FAMILIAR" ? (relacionesVisibles?.has(s.personaId) ?? false) : false;
-    return { ...s, servicio: ocultarTarifaSiProcede(s.servicio, visible) };
+    return { ...s, servicio: filtrarEconomia(s.servicio, usuario, visible) };
   });
 
   res.json(resultado);
@@ -259,8 +259,10 @@ solicitudesRouter.get("/:id", async (req, res) => {
   const permitido = await puedeAccederPersona(req.usuario!, solicitud.personaId);
   if (!permitido) return res.status(403).json({ error: "Sin permiso" });
 
-  const visible = req.usuario!.rol === "PROFESIONAL" ? false : await puedeVerImportes(req.usuario!, solicitud.personaId);
-  res.json({ ...solicitud, servicio: ocultarTarifaSiProcede(solicitud.servicio, visible) });
+  // El profesional pasa por su propio filtro dentro de filtrarEconomia, así que
+  // aquí basta con saber si la familia está autorizada a ver importes.
+  const visible = await puedeVerImportes(req.usuario!, solicitud.personaId);
+  res.json({ ...solicitud, servicio: filtrarEconomia(solicitud.servicio, req.usuario!, visible) });
 });
 
 const planSchema = z.object({

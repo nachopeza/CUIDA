@@ -53,89 +53,79 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
 
   const { desde, hasta } = rangoMes(parsed.data.mes);
 
-  // PUNTUAL: el servicio completo ya validado/cerrado dentro del mes — el
-  // flujo original, sin cambios.
-  const serviciosConDetalle = await prisma.servicio.findMany({
-    where: {
-      organizacionId: usuario.organizacionId!,
-      solicitud: { personaId: persona.id },
-      tarifaTipo: "PAGADO",
-      facturaId: null,
-      estado: { in: ["VALIDADO", "CERRADO"] },
-      createdAt: { gte: desde, lt: hasta },
-    },
-    include: { solicitud: { include: { necesidad: true } } },
-  });
-  const servicios = serviciosConDetalle;
-
-  // RECURRENTE: el servicio nunca se cierra (sección "las que son
-  // recurrentes... se facturan mensualmente"), así que se factura por las
-  // horas reales de las visitas verificadas dentro del mes que todavía no
-  // se hayan facturado — tarifaImporte se interpreta aquí como precio/hora.
-  const visitasRecurrentes = await prisma.visita.findMany({
+  // La unidad económica de CUIDA es la jornada, no el servicio: el servicio es
+  // el contrato y la jornada es la ejecución. Así que la factura se arma con
+  // las jornadas del mes y con las cifras que el motor de tiempo ya dejó
+  // escritas en cada una — el tiempo facturable y el importe a esa tarifa.
+  //
+  // Antes esto se calculaba aquí otra vez, a partir de las horas fichadas y
+  // del precio del servicio, y podía no coincidir con lo que el desglose le
+  // había enseñado a la familia. Dos cuentas distintas para el mismo dinero.
+  const visitasDelMes = await prisma.visita.findMany({
     where: {
       facturaId: null,
-      estado: { in: ["FINALIZADA", "REVISADA"] },
-      horaInicioReal: { not: null },
-      horaFinReal: { not: null },
       fecha: { gte: desde, lt: hasta },
+      importeCliente: { not: null },
+      estado: { in: ["FINALIZADA", "REVISADA", "CANCELADA", "NO_PRESENTADO"] },
       servicio: {
         organizacionId: usuario.organizacionId!,
         solicitud: { personaId: persona.id },
         tarifaTipo: "PAGADO",
-        tipoServicio: "RECURRENTE",
       },
     },
     include: { servicio: { include: { solicitud: { include: { necesidad: true } } } } },
+    orderBy: { fecha: "asc" },
   });
 
-  if (servicios.length === 0 && visitasRecurrentes.length === 0) {
-    return res.status(409).json({ error: "No hay servicios ni visitas pendientes de facturar para esa persona en ese mes" });
+  // Una jornada con tiempo adicional sin decidir no se factura: cobrar de más
+  // y devolverlo después cuesta una rectificativa y la confianza de la
+  // familia. Se dice cuáles son, para poder resolverlas y reintentar.
+  const sinDecidir = visitasDelMes.filter((v) => v.ajusteEstado === "PENDIENTE");
+  if (sinDecidir.length > 0) {
+    return res.status(409).json({
+      error: `${sinDecidir.length === 1 ? "Una jornada tiene" : `${sinDecidir.length} jornadas tienen`} tiempo por encima de lo acordado sin aprobar (${sinDecidir
+        .map((v) => v.codigo)
+        .join(", ")}). Decide ese tiempo en su desglose antes de facturar el mes`,
+    });
+  }
+
+  // Servicios PUNTUAL cerrados dentro del mes cuyas jornadas no pasaron por el
+  // motor (las de antes de que existiera). Se facturan como siempre, para no
+  // dejar fuera nada ya prestado.
+  const yaCubiertos = new Set(visitasDelMes.map((v) => v.servicioId));
+  const serviciosConDetalle = (
+    await prisma.servicio.findMany({
+      where: {
+        organizacionId: usuario.organizacionId!,
+        solicitud: { personaId: persona.id },
+        tarifaTipo: "PAGADO",
+        facturaId: null,
+        estado: { in: ["VALIDADO", "CERRADO"] },
+        createdAt: { gte: desde, lt: hasta },
+      },
+      include: { solicitud: { include: { necesidad: true } } },
+    })
+  ).filter((s) => !yaCubiertos.has(s.id));
+  const servicios = serviciosConDetalle;
+
+  if (servicios.length === 0 && visitasDelMes.length === 0) {
+    return res.status(409).json({ error: "No hay servicios ni jornadas pendientes de facturar para esa persona en ese mes" });
   }
 
   const organizacion = await prisma.organizacion.findUnique({ where: { id: usuario.organizacionId! } });
-  const comisionPorcentaje = Number(organizacion?.comisionPorcentaje ?? 15);
-
-  let importeTotal = servicios.reduce((acc, s) => acc + Number(s.tarifaImporte ?? 0), 0);
-  let ivaTotal = servicios.reduce((acc, s) => acc + Number(s.ivaImporte ?? 0), 0);
-  let totalConIva = servicios.reduce((acc, s) => acc + Number(s.totalConIva ?? s.tarifaImporte ?? 0), 0);
-  let comisionTotal = servicios.reduce((acc, s) => acc + Number(s.comisionImporte ?? 0), 0);
-  let importeProfesionales = servicios.reduce((acc, s) => acc + Number(s.importeProfesional ?? 0), 0);
-
-  // Una línea por servicio recurrente (horas totales del mes × precio/hora),
-  // no una por visita: más legible en la factura.
-  const horasPorServicio = new Map<string, { horas: number; servicio: (typeof visitasRecurrentes)[number]["servicio"] }>();
-  for (const v of visitasRecurrentes) {
-    const horas = (v.horaFinReal!.getTime() - v.horaInicioReal!.getTime()) / 3600000;
-    const actual = horasPorServicio.get(v.servicioId) ?? { horas: 0, servicio: v.servicio };
-    actual.horas += horas;
-    horasPorServicio.set(v.servicioId, actual);
-  }
-  for (const { horas, servicio } of horasPorServicio.values()) {
-    const precioHora = Number(servicio.tarifaImporte ?? 0);
-    const base = Math.round(horas * precioHora * 100) / 100;
-    const ivaPct = servicio.ivaPorcentaje != null ? Number(servicio.ivaPorcentaje) : Number(servicio.solicitud.necesidad.ivaPorcentaje);
-    const iva = Math.round(base * (ivaPct / 100) * 100) / 100;
-    const comision = Math.round(base * (comisionPorcentaje / 100) * 100) / 100;
-    importeTotal += base;
-    ivaTotal += iva;
-    totalConIva += base + iva;
-    comisionTotal += comision;
-    importeProfesionales += base - comision;
-  }
 
   // Solo puede haber una factura por persona y mes: si ya se generó (por
-  // ejemplo antes de verificar las últimas visitas del mes), se avisa en vez
-  // de reventar con el error de unicidad de la base de datos.
+  // ejemplo antes de verificar las últimas jornadas), se avisa en vez de
+  // reventar con el error de unicidad de la base de datos.
   const yaExiste = await prisma.factura.findUnique({ where: { personaId_mes: { personaId: persona.id, mes: parsed.data.mes } } });
   if (yaExiste) {
     return res.status(409).json({ error: `Ya existe la factura ${yaExiste.codigo} para esa persona y ese mes` });
   }
 
   // Las líneas se escriben ahora y ya no se recalculan: una factura que se
-  // deriva de las visitas cada vez que se pinta cambia sola cuando alguien
-  // verifica una jornada más tarde, y entonces deja de coincidir con la copia
-  // que tiene el cliente.
+  // deriva de las jornadas cada vez que se pinta cambia sola cuando alguien
+  // verifica una más tarde, y entonces deja de coincidir con la copia que
+  // tiene el cliente.
   const lineas: {
     orden: number;
     concepto: string;
@@ -147,7 +137,53 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
     ivaImporte: number;
     visitaId?: string | null;
   }[] = [];
+
+  let importeTotal = 0;
+  let ivaTotal = 0;
+  let totalConIva = 0;
+  let comisionTotal = 0;
+  let importeProfesionales = 0;
   let orden = 0;
+
+  const dia = (d: Date) => d.toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" });
+  const NO_PRESTADA: Record<string, string> = {
+    CANCELADA: " · cancelada fuera de plazo",
+    NO_PRESENTADO: " · la persona no estaba",
+  };
+
+  // Una línea por jornada, con su fecha: es lo que permite responder "¿por qué
+  // este importe?" sin salir de la factura.
+  for (const v of visitasDelMes) {
+    const base = Number(v.importeCliente);
+    const delProfesional = Number(v.importeProfesional ?? 0);
+    const minutos = v.minutosFacturables ?? 0;
+    const horas = redondear(minutos / 60);
+    const ivaPct = Number(v.servicio.ivaPorcentaje ?? v.servicio.solicitud.necesidad.ivaPorcentaje);
+    const iva = redondear(base * (ivaPct / 100));
+
+    lineas.push({
+      orden: orden++,
+      concepto: `${v.servicio.solicitud.necesidad.nombre} · ${dia(v.fecha)}${NO_PRESTADA[v.estado] ?? ""}`,
+      minutos,
+      cantidad: horas > 0 ? horas : 1,
+      precioUnitario: Number(v.precioHoraCliente ?? 0),
+      importe: base,
+      ivaPorcentaje: ivaPct,
+      ivaImporte: iva,
+      visitaId: v.id,
+    });
+
+    importeTotal += base;
+    ivaTotal += iva;
+    totalConIva += base + iva;
+    // La comisión ya no es un porcentaje aplicado aquí: es lo que de verdad
+    // queda entre lo cobrado y lo pagado en esa jornada. Si cobro y pago usan
+    // tiempos distintos, el porcentaje habría mentido.
+    comisionTotal += redondear(base - delProfesional);
+    importeProfesionales += delProfesional;
+  }
+
+  // Camino antiguo, solo para lo que no pasó por el motor.
   for (const srv of serviciosConDetalle) {
     const base = Number(srv.tarifaImporte ?? 0);
     const minutos = srv.minutosPrevistos ?? null;
@@ -162,22 +198,18 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
       ivaPorcentaje: Number(srv.ivaPorcentaje ?? srv.solicitud.necesidad.ivaPorcentaje),
       ivaImporte: Number(srv.ivaImporte ?? 0),
     });
+    importeTotal += base;
+    ivaTotal += Number(srv.ivaImporte ?? 0);
+    totalConIva += Number(srv.totalConIva ?? base);
+    comisionTotal += Number(srv.comisionImporte ?? 0);
+    importeProfesionales += Number(srv.importeProfesional ?? 0);
   }
-  for (const { horas, servicio: srv } of horasPorServicio.values()) {
-    const precioHora = Number(srv.tarifaImporte ?? 0);
-    const base = redondear(horas * precioHora);
-    const ivaPct = srv.ivaPorcentaje != null ? Number(srv.ivaPorcentaje) : Number(srv.solicitud.necesidad.ivaPorcentaje);
-    lineas.push({
-      orden: orden++,
-      concepto: `${srv.solicitud.necesidad.nombre} · ${srv.codigo} · horas del mes`,
-      minutos: Math.round(horas * 60),
-      cantidad: redondear(horas),
-      precioUnitario: precioHora,
-      importe: base,
-      ivaPorcentaje: ivaPct,
-      ivaImporte: redondear(base * (ivaPct / 100)),
-    });
-  }
+
+  importeTotal = redondear(importeTotal);
+  ivaTotal = redondear(ivaTotal);
+  totalConIva = redondear(totalConIva);
+  comisionTotal = redondear(comisionTotal);
+  importeProfesionales = redondear(importeProfesionales);
 
   const datosCobro = await prisma.datosFacturacion.findUnique({ where: { personaId: persona.id } });
   const codigo = await generarCodigo("factura");
@@ -196,7 +228,7 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
       organizacionId: usuario.organizacionId!,
       personaId: persona.id,
       servicios: { connect: servicios.map((s) => ({ id: s.id })) },
-      visitas: { connect: visitasRecurrentes.map((v) => ({ id: v.id })) },
+      visitas: { connect: visitasDelMes.map((v) => ({ id: v.id })) },
       lineas: { create: lineas },
     },
     include: { servicios: true, visitas: true, persona: true, lineas: { orderBy: { orden: "asc" } } },

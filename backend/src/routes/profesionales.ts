@@ -341,9 +341,9 @@ profesionalesRouter.get("/:id/agenda", async (req, res) => {
   // El profesional no ve lo que paga la familia ni el margen de CUIDA
   // (sección 4/14), pero sí lo que cobra él: es su nómina, y sin ella no
   // puede saber lo que va a ingresar este mes. Un gestor lo ve todo.
-  const resultado = visitas.map((v) => ({
-    ...v,
-    servicio: esGestor ? v.servicio : soloLoQueCobraElProfesional(v.servicio),
-  }));
+  // El filtro se aplica a la jornada entera, no solo a su servicio: desde que
+  // el motor de tiempo escribe los importes en la propia visita, lo que paga la
+  // familia y el margen de CUIDA también viajan ahí.
+  const resultado = esGestor ? visitas : visitas.map((v) => soloLoQueCobraElProfesional(v as unknown as Record<string, unknown>));
   res.json(resultado);
 });

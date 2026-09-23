@@ -724,7 +724,10 @@ model Factura {
   // que identifica la factura ante Hacienda y ante el cliente es serie +
   // número dentro del ejercicio, correlativo y sin huecos.
   serie            String      @default("A")
-  numero           Int         @default(0)
+  // Nulo mientras es borrador: un borrador todavía no tiene número fiscal, y
+  // si ocupara uno solo cabría un borrador por serie y ejercicio. El número
+  // se asigna al emitir, y desde entonces ya no cambia.
+  numero           Int?
   ejercicio        Int         @default(2026)
   tipo             TipoFactura @default(ORDINARIA)
   fechaEmision     DateTime?

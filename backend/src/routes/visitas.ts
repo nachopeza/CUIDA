@@ -5,7 +5,7 @@ import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError, TRANSICIONES_SERVICIO } from "../services/estados.js";
 import { notificarGestores } from "../services/notificaciones.js";
-import { esGestorOrganizacion, ocultarTarifaSiProcede } from "../services/permisos.js";
+import { esGestorOrganizacion, ocultarTarifaSiProcede, soloLoQueCobraElProfesional } from "../services/permisos.js";
 import { asegurarSesiones } from "../services/sesiones.js";
 import { formatearDuracion, minutosFichados } from "../services/economia.js";
 import { generarCodigo } from "../lib/codes.js";
@@ -105,7 +105,13 @@ visitasRouter.get("/:id", async (req, res) => {
   });
   if (!completa) return res.status(404).json({ error: "No encontrada" });
 
-  res.json({ ...completa, servicio: ocultarTarifaSiProcede(completa.servicio, esGestorOrganizacion(req.usuario!)) });
+  // El filtro entra por la jornada, no por su servicio: los importes del motor
+  // de tiempo están en la propia visita. El profesional ve lo que cobra él; la
+  // familia y la persona, nada de esto.
+  const usuario = req.usuario!;
+  if (esGestorOrganizacion(usuario)) return res.json(completa);
+  const visible = completa as unknown as Record<string, unknown>;
+  res.json(usuario.rol === "PROFESIONAL" ? soloLoQueCobraElProfesional(visible) : ocultarTarifaSiProcede(visible, false));
 });
 
 // "6. Ejecución": inicio + tareas + observaciones → Visita registrada

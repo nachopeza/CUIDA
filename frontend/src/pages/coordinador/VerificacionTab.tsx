@@ -3,6 +3,7 @@ import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { SearchBox } from "../../components/SearchBox.js";
 import { IconAlert, IconCheck, IconCheckCircle, IconClock, IconEuro, IconUsers } from "../../components/icons.js";
+import { DesgloseVisitaModal } from "../../components/DesgloseVisitaModal.js";
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
 import { calcularReparto, compararConAcordado, duracion, euros, horaDe, minutosFichados } from "../../lib/economia.js";
 import { IncidenciaFormModal } from "./IncidenciaFormModal.js";
@@ -20,6 +21,33 @@ interface Fila {
   // anteriores a ese sello no lo tienen y salían sin nombre: entonces no
   // aparecían al filtrar por profesional. Cuando falta, vale el del servicio.
   profesional: Pick<Profesional, "id" | "codigo" | "nombre" | "apellidos" | "foto"> | null;
+}
+
+// Los importes de una jornada. Los pone el motor de tiempo al cerrarla y ya
+// están escritos; esta pantalla solo los lee. Rehacer la cuenta aquí era lo
+// que hacía que Verificación dijera un importe y el desglose otro.
+function importesDe(f: { visita: Visita; servicio: Servicio; fichados: number | null }) {
+  if (f.visita.importeCliente != null) {
+    const base = Number(f.visita.importeCliente);
+    const iva = Number(f.servicio.ivaPorcentaje ?? 0);
+    return {
+      profesional: Number(f.visita.importeProfesional ?? 0),
+      cuida: Number(f.visita.importeCuida ?? 0),
+      familia: Math.round(base * (1 + iva / 100) * 100) / 100,
+      delMotor: true,
+    };
+  }
+  // Jornadas anteriores al motor: se calcula como antes para no dejarlas en
+  // blanco, y se marca que es una estimación.
+  const precioHora = Number(f.servicio.precioHora ?? 0);
+  if (f.fichados == null || precioHora <= 0) return null;
+  const r = calcularReparto({
+    minutos: f.fichados,
+    precioHora,
+    comisionPorcentaje: Number(f.servicio.comisionPorcentaje ?? 15),
+    ivaPorcentaje: Number(f.servicio.ivaPorcentaje ?? 0),
+  });
+  return { profesional: r.importeProfesional, cuida: r.comision, familia: r.totalConIva, delMotor: false };
 }
 
 const TONO_DESVIO = {
@@ -90,6 +118,7 @@ export function VerificacionTab({ solicitudes, servicios, onAbrirSolicitud, onCa
   const [verificando, setVerificando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [incidenciaPara, setIncidenciaPara] = useState<Fila | null>(null);
+  const [desgloseDe, setDesgloseDe] = useState<string | null>(null);
 
   const filas = useMemo<Fila[]>(() => {
     const porServicio = new Map(solicitudes.filter((s) => s.servicio).map((s) => [s.servicio!.id, s]));
@@ -182,16 +211,10 @@ export function VerificacionTab({ solicitudes, servicios, onAbrirSolicitud, onCa
     for (const f of visibles) {
       if (f.fichados == null) continue;
       minutos += f.fichados;
-      const precioHora = Number(f.servicio.precioHora ?? 0);
-      if (precioHora > 0) {
-        const r = calcularReparto({
-          minutos: f.fichados,
-          precioHora,
-          comisionPorcentaje: Number(f.servicio.comisionPorcentaje ?? 15),
-          ivaPorcentaje: Number(f.servicio.ivaPorcentaje ?? 0),
-        });
-        aProfesionales += r.importeProfesional;
-        aFacturar += r.totalConIva;
+      const i = importesDe(f);
+      if (i) {
+        aProfesionales += i.profesional;
+        aFacturar += i.familia;
       }
     }
     return { minutos, aProfesionales, aFacturar };
@@ -315,16 +338,7 @@ export function VerificacionTab({ solicitudes, servicios, onAbrirSolicitud, onCa
             {visibles.map((f) => {
               const comparacion = f.fichados != null && f.acordados != null ? compararConAcordado(f.fichados, f.acordados) : null;
               const tono = comparacion ? TONO_DESVIO[comparacion.desvio] : null;
-              const precioHora = Number(f.servicio.precioHora ?? 0);
-              const reparto =
-                f.fichados != null && precioHora > 0
-                  ? calcularReparto({
-                      minutos: f.fichados,
-                      precioHora,
-                      comisionPorcentaje: Number(f.servicio.comisionPorcentaje ?? 15),
-                      ivaPorcentaje: Number(f.servicio.ivaPorcentaje ?? 0),
-                    })
-                  : null;
+              const importes = importesDe(f);
               const tareas = f.visita.tareas ?? [];
               const hechas = tareas.filter((t) => t.completada).length;
               const verificada = f.visita.estado === "REVISADA";
@@ -351,12 +365,35 @@ export function VerificacionTab({ solicitudes, servicios, onAbrirSolicitud, onCa
                           {f.profesional.nombre} {f.profesional.apellidos}
                         </p>
                       )}
+                      {/* Tiempo por encima de lo acordado que nadie ha
+                          decidido todavía: esta jornada no se puede facturar
+                          ni liquidar hasta resolverlo, y se ve aquí para que
+                          no aparezca como sorpresa a fin de mes. */}
+                      {f.visita.ajusteEstado === "PENDIENTE" && (
+                        <button
+                          onClick={() => setDesgloseDe(f.visita.id)}
+                          className="mt-1 flex items-center gap-1 rounded-md bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800 hover:bg-orange-200"
+                        >
+                          <IconAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                          Tiempo de más sin decidir · no se facturará
+                        </button>
+                      )}
                     </div>
 
                     {/* Una jornada ya verificada se consulta, no se vuelve a
                         verificar: sólo queda el sello y la posibilidad de
                         abrir una incidencia si aparece algo después. */}
                     <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      {/* La cuenta de esta jornada, entera. Verificar es dar
+                          por bueno un importe, así que se tiene que poder ver
+                          de dónde sale antes de firmarlo. */}
+                      <button
+                        onClick={() => setDesgloseDe(f.visita.id)}
+                        className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                      >
+                        <IconEuro className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
+                        Desglose
+                      </button>
                       <button
                         onClick={() => setIncidenciaPara(f)}
                         className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
@@ -419,15 +456,17 @@ export function VerificacionTab({ solicitudes, servicios, onAbrirSolicitud, onCa
                     ) : (
                       <span />
                     )}
-                    {/* Lo que se paga y lo que se cobra sale de lo fichado,
-                        no de lo previsto: si se trabajó de más, se paga de
-                        más. Por eso importa verificar antes. */}
-                    {reparto && (
+                    {/* Las tres cifras que dejó el motor al cerrar la jornada:
+                        las mismas que se verán en el desglose, en la factura y
+                        en la liquidación. Son las que se están dando por
+                        buenas al verificar. */}
+                    {importes && (
                       <p className="text-slate-500">
                         <IconEuro className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
-                        Profesional <strong className="text-slate-700">{euros(reparto.importeProfesional)}</strong> · CUIDA{" "}
-                        <strong className="text-slate-700">{euros(reparto.comision)}</strong> · Familia{" "}
-                        <strong className="text-slate-700">{euros(reparto.totalConIva)}</strong>
+                        Profesional <strong className="text-slate-700">{euros(importes.profesional)}</strong> · CUIDA{" "}
+                        <strong className="text-slate-700">{euros(importes.cuida)}</strong> · Familia{" "}
+                        <strong className="text-slate-700">{euros(importes.familia)}</strong>
+                        {!importes.delMotor && <span className="text-slate-400"> · estimado</span>}
                       </p>
                     )}
                   </div>
@@ -471,6 +510,8 @@ export function VerificacionTab({ solicitudes, servicios, onAbrirSolicitud, onCa
           onCreada={onCambiado}
         />
       )}
+
+      {desgloseDe && <DesgloseVisitaModal visitaId={desgloseDe} onClose={() => setDesgloseDe(null)} onCambio={onCambiado} />}
     </div>
   );
 }

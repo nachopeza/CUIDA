@@ -203,6 +203,26 @@ export interface Visita {
   // traer) los datos bancarios del profesional.
   profesional?: Pick<Profesional, "id" | "codigo" | "nombre" | "apellidos" | "foto"> | null;
   facturaId?: string | null;
+  // Lo que dejó escrito el motor de tiempo al cerrar la jornada. Son las
+  // cifras que acaban en la factura y en la liquidación: ninguna pantalla
+  // vuelve a calcularlas por su cuenta.
+  minutosProgramados?: number | null;
+  minutosReales?: number | null;
+  minutosFacturables?: number | null;
+  minutosLiquidables?: number | null;
+  desviacionMinutos?: number | null;
+  explicacionTiempo?: string | null;
+  // SIN_AJUSTE | PENDIENTE | APROBADO | RECHAZADO. Mientras está PENDIENTE la
+  // jornada no se factura ni se liquida: hay tiempo que nadie ha decidido.
+  ajusteEstado?: string | null;
+  cierreManual?: boolean | null;
+  // La instantánea de la tarifa que se le aplicó y los tres importes. Nulos
+  // mientras la jornada no se ha cerrado.
+  precioHoraCliente?: string | number | null;
+  precioHoraProfesional?: string | number | null;
+  importeCliente?: string | number | null;
+  importeProfesional?: string | number | null;
+  importeCuida?: string | number | null;
   tareas: Tarea[];
   actuaciones?: Actuacion[];
   incidencias?: Incidencia[];

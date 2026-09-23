@@ -84,10 +84,12 @@ liquidacionesRouter.post("/generar", soloGestion, async (req, res) => {
   for (const profesional of profesionales) {
     const visitas = await prisma.visita.findMany({
       where: {
-        estado: "REVISADA",
+        // Una jornada cancelada o con la persona ausente también se le paga,
+        // en el porcentaje que digan las reglas: reservó el hueco o se
+        // desplazó. Lo que nunca se liquida es un tiempo sin decidir.
+        estado: { in: ["REVISADA", "CANCELADA", "NO_PRESENTADO"] },
+        ajusteEstado: { not: "PENDIENTE" },
         fecha: { gte: desde, lt: hasta },
-        horaInicioReal: { not: null },
-        horaFinReal: { not: null },
         OR: [{ profesionalId: profesional.id }, { profesionalId: null, servicio: { profesionalId: profesional.id } }],
         servicio: { organizacionId, tarifaTipo: "PAGADO" },
       },
@@ -108,19 +110,34 @@ liquidacionesRouter.post("/generar", soloGestion, async (req, res) => {
       continue;
     }
 
+    // Lo que se le paga sale del motor de tiempo: el tiempo liquidable de esa
+    // jornada a su precio/hora, ya congelados cuando se cerró. Antes se
+    // rehacía aquí la cuenta a partir de las horas fichadas y del importe del
+    // servicio, y podía no coincidir con lo que el desglose le había enseñado
+    // al profesional.
     const lineas = visitas.map((v) => {
-      const minutos = minutosFichados(v.horaInicioReal, v.horaFinReal) ?? 0;
-      // Lo que cobra por hora sale de su propio importe pactado en el
-      // servicio, no del precio de la familia.
-      const minutosPrevistos = v.servicio.minutosPrevistos ?? minutos;
-      const importePorJornada = Number(v.servicio.importeProfesional ?? 0);
-      const porMinuto = minutosPrevistos > 0 ? importePorJornada / minutosPrevistos : 0;
+      const delMotor = v.importeProfesional != null;
+      const minutos = delMotor
+        ? (v.minutosLiquidables ?? 0)
+        : (minutosFichados(v.horaInicioReal, v.horaFinReal) ?? 0);
+      let importe: number;
+      if (delMotor) {
+        importe = Number(v.importeProfesional);
+      } else {
+        // Jornadas anteriores al motor: se conserva el cálculo antiguo para no
+        // dejar sin pagar trabajo ya hecho.
+        const minutosPrevistos = v.servicio.minutosPrevistos ?? minutos;
+        const importePorJornada = Number(v.servicio.importeProfesional ?? 0);
+        const porMinuto = minutosPrevistos > 0 ? importePorJornada / minutosPrevistos : 0;
+        importe = redondear(porMinuto * minutos);
+      }
+      const noPrestada = v.estado === "CANCELADA" ? " · cancelada fuera de plazo" : v.estado === "NO_PRESENTADO" ? " · la persona no estaba" : "";
       return {
         visitaId: v.id,
         fecha: v.fecha,
-        concepto: `${v.servicio.solicitud.necesidad.nombre} · ${v.servicio.solicitud.persona.nombre} ${v.servicio.solicitud.persona.apellidos}`,
+        concepto: `${v.servicio.solicitud.necesidad.nombre} · ${v.servicio.solicitud.persona.nombre} ${v.servicio.solicitud.persona.apellidos}${noPrestada}`,
         minutos,
-        importe: redondear(porMinuto * minutos),
+        importe,
       };
     });
 
@@ -191,6 +208,17 @@ liquidacionesRouter.post("/:id/aprobar", soloGestion, async (req, res) => {
   if (liquidacion.estado !== "BORRADOR") return res.status(409).json({ error: "Esta liquidación ya está aprobada" });
 
   const aprobada = await prisma.liquidacion.update({ where: { id: liquidacion.id }, data: { estado: "APROBADA" }, include: INCLUDE_LIQ });
+
+  // Verificada → liquidable → liquidada. Aprobar la liquidación es lo que
+  // cierra el ciclo de esas jornadas: quedan marcadas y ya no pueden volver a
+  // entrar en la liquidación del mes siguiente.
+  const jornadasLiquidadas = aprobada.lineas.map((l) => l.visitaId).filter((id): id is string => id != null);
+  if (jornadasLiquidadas.length > 0) {
+    await prisma.visita.updateMany({
+      where: { id: { in: jornadasLiquidadas }, estado: "REVISADA" },
+      data: { estado: "LIQUIDADA" },
+    });
+  }
 
   const cuenta = await prisma.usuario.findFirst({ where: { profesionalId: liquidacion.profesionalId }, select: { id: true } });
   if (cuenta) {

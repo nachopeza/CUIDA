@@ -22,8 +22,10 @@ export async function siguienteNumero(organizacionId: string, serie: string, eje
   return (ultima?.numero ?? 0) + 1;
 }
 
-// "A/2026/0007": lo que ve el cliente y lo que se declara.
-export function referenciaFactura(serie: string, ejercicio: number, numero: number): string {
+// "A/2026/0007": lo que ve el cliente y lo que se declara. Un borrador todavía
+// no tiene número, y decirlo es mejor que enseñar un "0000" que parece real.
+export function referenciaFactura(serie: string, ejercicio: number, numero: number | null): string {
+  if (numero == null) return `${serie}/${ejercicio}/borrador`;
   return `${serie}/${ejercicio}/${String(numero).padStart(4, "0")}`;
 }
 
