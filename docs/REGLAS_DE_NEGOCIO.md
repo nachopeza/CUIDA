@@ -217,3 +217,37 @@ de jornada anual máxima (RD 87/2025 y art. 34 del Estatuto de los Trabajadores)
 unos 9,08 €/h. **El convenio de ayuda a domicilio que aplique suele estar por
 encima**, así que es configurable y hay que subirlo a lo que diga el convenio:
 la aplicación solo impide lo que es ilegal en cualquier caso.
+
+
+---
+
+## Cuando el tiempo se decide después de facturar o de pagar
+
+La familia llama una semana más tarde: ese cuarto de hora de más se lo pidieron
+ellos. La jornada pasa a valer 3 h 15 min en vez de 3 h, y eso cambia **los
+tres importes a la vez**: lo que paga la familia, lo que cobra quien trabajó y
+el ingreso de gestión, todos al precio/hora congelado de esa jornada.
+
+Tres reglas sostienen ese caso:
+
+1. **Se puede volver a decidir.** Aprobar o rechazar el tiempo de más no es una
+   puerta de un solo sentido: la decisión se puede cambiar, y el historial
+   guarda las dos con su motivo, su autor y su fecha.
+2. **La decisión manda sobre la regla de la casa, y manda siempre.** Una
+   jornada con tiempo aprobado se calcula sobre el tiempo fichado aunque la
+   regla general diga "se cobra lo acordado", y sigue haciéndolo cada vez que
+   el motor rehace la cuenta. Antes bastaba con corregir después una hora de
+   fichaje para que el recálculo se llevara por delante la decisión —y con
+   ella el dinero prometido a quien trabajó.
+3. **La diferencia se arrastra, no se pierde ni se apaña.** Si esa jornada ya
+   está en una factura emitida o en una liquidación aprobada, esos documentos
+   no se tocan —una factura emitida se rectifica, no se edita, y una
+   liquidación aprobada es lo que se le prometió a alguien—: la diferencia
+   entra como **línea de regularización** en la siguiente factura y en la
+   siguiente nómina, diciendo de qué jornada y de qué día viene. Cuando esa
+   línea se aprueba, la suma vuelve a cuadrar y la regularización desaparece
+   sola. Funciona en los dos sentidos: lo cobrado de más sale en negativo y se
+   devuelve.
+
+El desglose de la jornada avisa antes de decidir: "esta jornada ya está en la
+factura A/2026/0002; la diferencia entrará como regularización en la siguiente".

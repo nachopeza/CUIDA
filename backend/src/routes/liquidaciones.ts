@@ -6,6 +6,7 @@ import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
 import { esGestorOrganizacion } from "../services/permisos.js";
 import { notificarUsuario } from "../services/notificaciones.js";
+import { pagosPendientes } from "../services/regularizaciones.js";
 import { minutosFichados } from "../services/economia.js";
 import { redondear } from "../services/facturacion.js";
 
@@ -97,7 +98,12 @@ liquidacionesRouter.post("/generar", soloGestion, async (req, res) => {
       orderBy: { fecha: "asc" },
     });
 
-    if (visitas.length === 0) {
+    // Lo que quedó a deber (o de más) de meses ya liquidados: aprobar tiempo
+    // de una jornada vieja no puede quedarse sin llegar a la nómina sólo
+    // porque aquella liquidación ya estaba aprobada.
+    const regularizaciones = await pagosPendientes(profesional.id, organizacionId, hasta);
+
+    if (visitas.length === 0 && regularizaciones.length === 0) {
       saltadas.push(`${profesional.nombre} ${profesional.apellidos}`);
       continue;
     }
@@ -140,6 +146,10 @@ liquidacionesRouter.post("/generar", soloGestion, async (req, res) => {
         importe,
       };
     });
+
+    for (const r of regularizaciones) {
+      lineas.push({ visitaId: r.visitaId, fecha: r.fecha, concepto: r.concepto, minutos: r.minutos, importe: r.importe });
+    }
 
     const minutos = lineas.reduce((a, l) => a + l.minutos, 0);
     const bruto = redondear(lineas.reduce((a, l) => a + l.importe, 0));

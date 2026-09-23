@@ -137,16 +137,27 @@ export function DesgloseVisitaModal({ visitaId, onClose, onCambio }: { visitaId:
           </section>
 
           {/* --- El tiempo de más, que no se cobra solo ------------------ */}
-          {d.ajuste.estado === "PENDIENTE" && (
+          {d.ajuste.estado !== "SIN_AJUSTE" && (
             <section className="rounded-lg border border-orange-200 bg-orange-50 p-3">
               <p className="flex items-center gap-1.5 text-sm font-medium text-orange-800">
                 <IconAlert className="h-4 w-4" aria-hidden />
                 {duracion(d.tiempos.desviacionMinutos)} por encima de lo acordado
               </p>
               <p className="mt-1 text-xs text-orange-700">
-                CUIDA no cobra ese tiempo por su cuenta. Di por qué se ha alargado y decide si entra en la factura y en la
-                liquidación o si la jornada se queda en lo acordado.
+                {d.ajuste.estado === "PENDIENTE"
+                  ? "CUIDA no cobra ese tiempo por su cuenta. Di por qué se ha alargado y decide si entra en la factura y en la liquidación o si la jornada se queda en lo acordado."
+                  : "Se puede volver a decidir: si la familia confirma después que pidió ese tiempo, cámbialo aquí. La diferencia con lo ya facturado o ya pagado se arrastra sola a los documentos siguientes."}
               </p>
+              {/* Dónde está ya esta jornada. Quien decide tiene que saber, antes
+                  de pulsar, que la factura de aquel mes no se va a reescribir. */}
+              {(d.documentada?.facturada || d.documentada?.liquidada) && (
+                <p className="mt-1.5 rounded-md bg-white/70 px-2 py-1.5 text-xs text-orange-800">
+                  Esta jornada ya está{d.documentada.facturada ? ` en la factura ${d.documentada.facturada}` : ""}
+                  {d.documentada.facturada && d.documentada.liquidada ? " y" : ""}
+                  {d.documentada.liquidada ? " en una liquidación aprobada" : ""}. Esos documentos no se tocan: la diferencia
+                  entrará como regularización en la siguiente factura y en la siguiente nómina.
+                </p>
+              )}
               {esGestor ? (
                 <div className="mt-2 space-y-2">
                   <div className="flex flex-wrap gap-1.5">
@@ -185,7 +196,11 @@ export function DesgloseVisitaModal({ visitaId, onClose, onCambio }: { visitaId:
                   </div>
                 </div>
               ) : (
-                <p className="mt-1.5 text-xs text-orange-700">Coordinación tiene que revisarlo antes de que cuente.</p>
+                <p className="mt-1.5 text-xs text-orange-700">
+                  {d.ajuste.estado === "PENDIENTE"
+                    ? "Coordinación tiene que revisarlo antes de que cuente."
+                    : `Coordinación ya lo ha ${d.ajuste.estado === "APROBADO" ? "aprobado" : "dejado en lo acordado"}.`}
+                </p>
               )}
             </section>
           )}

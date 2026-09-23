@@ -146,6 +146,9 @@ export interface EntradaVisita {
   // Cuando la jornada no se hizo, la regla aplica un porcentaje sobre lo
   // acordado en vez de sobre lo fichado (que no existe).
   estado?: string;
+  // Si el tiempo de más ya lo decidió una persona, la explicación lo dice en
+  // pasado en vez de seguir pidiendo una aprobación que ya se dio.
+  ajusteEstado?: string;
 }
 
 // Porcentaje de lo acordado que se cobra y se paga cuando la jornada no se ha
@@ -240,7 +243,13 @@ export function calcularTiempos(entrada: EntradaVisita, reglas: Reglas): Tiempos
     explicacion += ` Entrada con ${retraso} min de retraso sobre lo previsto.`;
   }
   if (requiereAprobacion) {
-    explicacion += ` Hay ${exceso} min por encima de lo acordado: pendientes de que coordinación los apruebe.`;
+    if (entrada.ajusteEstado === "APROBADO") {
+      explicacion += ` Los ${exceso} min por encima de lo acordado están aprobados: entran en la factura y en la liquidación.`;
+    } else if (entrada.ajusteEstado === "RECHAZADO") {
+      explicacion += ` Los ${exceso} min por encima de lo acordado se decidieron no cobrar: la jornada se queda en lo acordado.`;
+    } else {
+      explicacion += ` Hay ${exceso} min por encima de lo acordado: pendientes de que coordinación los apruebe.`;
+    }
   }
 
   return {

@@ -91,5 +91,9 @@ export interface Desglose {
   } | null;
   definitivo: boolean;
   ajuste: { estado: string; motivo: string | null; nota: string | null; decididoAt: string | null };
+  // Dónde está ya documentada esta jornada. Si está en una factura emitida o
+  // en una liquidación aprobada, lo que se decida ahora no cambia esos
+  // documentos: entra como regularización en los siguientes.
+  documentada?: { facturada: string | null; liquidada: boolean };
   correcciones: { campo: string; valorAnterior: string | null; valorNuevo: string | null; motivo: string; quien: string; cuando: string }[];
 }

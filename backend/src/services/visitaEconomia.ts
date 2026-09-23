@@ -74,7 +74,20 @@ export async function liquidarVisita(visitaId: string, reglasDadas?: Reglas) {
   });
   if (!visita) return null;
 
-  const reglas = reglasDadas ?? (await reglasDe(visita.servicio.organizacionId));
+  const deLaCasa = reglasDadas ?? (await reglasDe(visita.servicio.organizacionId));
+  // Una decisión humana sobre el tiempo de más manda sobre la regla de la
+  // casa, y manda siempre: si se aprobaron 15 minutos porque la familia los
+  // pidió, esta jornada vale el tiempo fichado aunque la regla general diga
+  // que se cobra lo acordado. Antes esto vivía en el endpoint que decidía, y
+  // bastaba con corregir después una hora de fichaje para que el motor
+  // recalculara con la regla general y se llevara por delante la decisión —y
+  // con ella el dinero que se le había prometido a quien trabajó.
+  const reglas: Reglas =
+    visita.ajusteEstado === "APROBADO"
+      ? { ...deLaCasa, baseCobro: "REAL", baseLiquidacion: "REAL" }
+      : visita.ajusteEstado === "RECHAZADO"
+        ? { ...deLaCasa, baseCobro: "PROGRAMADO", baseLiquidacion: "PROGRAMADO" }
+        : deLaCasa;
   const tiempos = calcularTiempos(
     {
       horaInicioProg: visita.horaInicioProg,
@@ -83,6 +96,7 @@ export async function liquidarVisita(visitaId: string, reglasDadas?: Reglas) {
       horaFinReal: visita.horaFinReal,
       fecha: visita.fecha,
       estado: visita.estado,
+      ajusteEstado: visita.ajusteEstado,
     },
     reglas,
   );

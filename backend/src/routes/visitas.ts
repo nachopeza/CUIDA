@@ -10,6 +10,7 @@ import { asegurarSesiones } from "../services/sesiones.js";
 import { formatearDuracion, minutosFichados } from "../services/economia.js";
 import { generarCodigo } from "../lib/codes.js";
 import { liquidarVisita, tarifaAplicable } from "../services/visitaEconomia.js";
+import { yaDocumentada } from "../services/regularizaciones.js";
 import { calcularEconomia, calcularTiempos, reglasDe } from "../services/motorTiempo.js";
 
 export const visitasRouter = Router();
@@ -403,6 +404,7 @@ visitasRouter.get("/:id/desglose", async (req, res) => {
       horaFinReal: visita.horaFinReal,
       fecha: visita.fecha,
       estado: visita.estado,
+      ajusteEstado: visita.ajusteEstado,
     },
     reglas,
   );
@@ -475,6 +477,11 @@ visitasRouter.get("/:id/desglose", async (req, res) => {
       nota: visita.ajusteNota,
       decididoAt: visita.ajusteDecididoAt,
     },
+    // Si esta jornada ya está en una factura emitida o en una liquidación
+    // aprobada, lo que se decida ahora no cambia esos documentos: entra como
+    // regularización en los siguientes. Quien decide tiene que saberlo antes
+    // de pulsar, no después.
+    documentada: await yaDocumentada(visita.id),
     correcciones: correcciones.map((c) => ({
       campo: c.campo,
       valorAnterior: c.valorAnterior,
@@ -571,7 +578,8 @@ visitasRouter.patch("/:id/fichaje", requiereRol("COORDINADOR", "ORGANIZACION", "
     visitaId: visita.id,
   });
 
-  res.json({ ...liquidada?.visita, tiempos: liquidada?.tiempos ?? null });
+  const documentada = await yaDocumentada(visita.id);
+  res.json({ ...liquidada?.visita, tiempos: liquidada?.tiempos ?? null, documentada });
 });
 
 function horaDe(d: Date): string {
@@ -591,9 +599,16 @@ visitasRouter.post("/:id/ajuste", requiereRol("COORDINADOR", "ORGANIZACION", "AD
   const visita = await prisma.visita.findUnique({ where: { id: req.params.id }, include: { servicio: true } });
   if (!visita) return res.status(404).json({ error: "No encontrada" });
   if (visita.servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
-  if (visita.ajusteEstado !== "PENDIENTE") {
-    return res.status(409).json({ error: "Esta jornada no tiene ningún tiempo pendiente de aprobar" });
+  // Se puede volver a decidir. La familia llama una semana después —"ese
+  // cuarto de hora se lo pedimos nosotros"— y la decisión tiene que poder
+  // cambiar: la diferencia con lo ya facturado o ya pagado se arrastra sola a
+  // los documentos siguientes, y el historial guarda las dos decisiones con
+  // su motivo. Lo único que no se puede decidir es una jornada que nunca tuvo
+  // tiempo de más.
+  if (visita.ajusteEstado === "SIN_AJUSTE") {
+    return res.status(409).json({ error: "Esta jornada no tiene tiempo por encima de lo acordado que decidir" });
   }
+  const cambioDeDecision = visita.ajusteEstado !== "PENDIENTE";
 
   const parsed = ajusteSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -609,22 +624,17 @@ visitasRouter.post("/:id/ajuste", requiereRol("COORDINADOR", "ORGANIZACION", "AD
     },
   });
 
-  // Aprobar el tiempo extra es cobrarlo y pagarlo: se pasa a tiempo real.
-  // Rechazarlo es quedarse en lo acordado. En los dos casos el motor vuelve a
-  // hacer la cuenta, así que el importe y su explicación quedan coherentes.
-  const reglas = await reglasDe(visita.servicio.organizacionId);
-  const liquidada = await liquidarVisita(
-    visita.id,
-    parsed.data.decision === "APROBADO"
-      ? { ...reglas, baseCobro: "REAL", baseLiquidacion: "REAL" }
-      : { ...reglas, baseCobro: "PROGRAMADO", baseLiquidacion: "PROGRAMADO" },
-  );
+  // Aprobar el tiempo extra es cobrarlo y pagarlo; rechazarlo es quedarse en
+  // lo acordado. La decisión ya está guardada en la jornada, y el motor la
+  // respeta cada vez que vuelve a hacer la cuenta, así que aquí basta con
+  // pedirle que la rehaga.
+  const liquidada = await liquidarVisita(visita.id);
 
   await registrarHistorial({
     entidadTipo: "Visita",
     estadoAnterior: visita.estado,
     estadoNuevo: visita.estado,
-    motivo: `Tiempo adicional ${parsed.data.decision === "APROBADO" ? "aprobado" : "rechazado"} · ${parsed.data.motivo.replace(/_/g, " ").toLowerCase()}${parsed.data.nota ? ` · ${parsed.data.nota}` : ""}`,
+    motivo: `${cambioDeDecision ? `Tiempo adicional: se cambia de ${visita.ajusteEstado.toLowerCase()} a ${parsed.data.decision.toLowerCase()}` : `Tiempo adicional ${parsed.data.decision === "APROBADO" ? "aprobado" : "rechazado"}`} · ${parsed.data.motivo.replace(/_/g, " ").toLowerCase()}${parsed.data.nota ? ` · ${parsed.data.nota}` : ""}`,
     visitaId: visita.id,
   });
 
@@ -636,7 +646,11 @@ visitasRouter.post("/:id/ajuste", requiereRol("COORDINADOR", "ORGANIZACION", "AD
     entidadId: visita.id,
   });
 
-  res.json({ ...liquidada?.visita, tiempos: liquidada?.tiempos ?? null });
+  // Si la jornada ya estaba facturada o liquidada, la diferencia no se pierde
+  // ni se mete a mano: entra sola como regularización en la siguiente factura
+  // y en la siguiente liquidación. Se dice aquí para poder contárselo a quien
+  // acaba de decidir.
+  res.json({ ...liquidada?.visita, tiempos: liquidada?.tiempos ?? null, documentada: await yaDocumentada(visita.id) });
 });
 
 // ---------------------------------------------------------------------------

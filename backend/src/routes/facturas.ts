@@ -6,6 +6,7 @@ import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
 import { esGestorOrganizacion } from "../services/permisos.js";
 import { comprobarCadena, registrarAlta, qrSvg } from "../services/registroFacturacion.js";
+import { cobrosPendientes } from "../services/regularizaciones.js";
 import {
   calcularVencimiento,
   partesDeLaFactura,
@@ -109,7 +110,13 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
   ).filter((s) => !yaCubiertos.has(s.id));
   const servicios = serviciosConDetalle;
 
-  if (servicios.length === 0 && visitasDelMes.length === 0) {
+  // Diferencias de meses ya facturados: si se aprobó (o se quitó) tiempo de
+  // una jornada después de emitir su factura, esa factura no se toca —se
+  // rectifica, no se edita— pero la diferencia tiene que llegar a alguna
+  // parte, y la parte es la factura siguiente.
+  const regularizaciones = await cobrosPendientes(persona.id, usuario.organizacionId!, hasta);
+
+  if (servicios.length === 0 && visitasDelMes.length === 0 && regularizaciones.length === 0) {
     return res.status(409).json({ error: "No hay servicios ni jornadas pendientes de facturar para esa persona en ese mes" });
   }
 
@@ -181,6 +188,41 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
     // queda entre lo cobrado y lo pagado en esa jornada. Si cobro y pago usan
     // tiempos distintos, el porcentaje habría mentido.
     comisionTotal += redondear(base - delProfesional);
+    importeProfesionales += delProfesional;
+  }
+
+  // Las regularizaciones van al final y con su propio concepto: quien lea la
+  // factura tiene que poder ver de qué jornada viene ese importe suelto.
+  for (const r of regularizaciones) {
+    const visita = await prisma.visita.findUnique({
+      where: { id: r.visitaId },
+      include: { servicio: { include: { solicitud: { include: { necesidad: true } } } } },
+    });
+    const ivaPct = Number(visita?.servicio.ivaPorcentaje ?? visita?.servicio.solicitud.necesidad.ivaPorcentaje ?? 0);
+    const iva = redondear(r.importe * (ivaPct / 100));
+    const horas = redondear(r.minutos / 60);
+    lineas.push({
+      orden: orden++,
+      concepto: r.concepto,
+      minutos: r.minutos,
+      cantidad: horas !== 0 ? horas : 1,
+      precioUnitario: Number(visita?.precioHoraCliente ?? 0),
+      importe: r.importe,
+      ivaPorcentaje: ivaPct,
+      ivaImporte: iva,
+      visitaId: r.visitaId,
+    });
+    importeTotal += r.importe;
+    ivaTotal += iva;
+    totalConIva += r.importe + iva;
+    // El reparto de la diferencia, igual que en una jornada normal: de esos
+    // minutos, una parte es de quien trabajó —le llegará por su liquidación—
+    // y el resto es gestión. Se calcula sobre los minutos regularizados a su
+    // precio/hora congelado, no sobre lo que se le deba en total de esa
+    // jornada: si no, una jornada aún sin liquidar metía aquí su importe
+    // entero y la comisión salía en negativo.
+    const delProfesional = redondear((r.minutos / 60) * Number(visita?.precioHoraProfesional ?? 0));
+    comisionTotal += redondear(r.importe - delProfesional);
     importeProfesionales += delProfesional;
   }
 
