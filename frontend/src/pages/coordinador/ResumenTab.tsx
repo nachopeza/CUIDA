@@ -17,7 +17,7 @@ interface Props {
   solicitudes: Solicitud[];
   servicios: Servicio[];
   incidencias: Incidencia[];
-  onIrA: (tab: string, filtro?: string) => void;
+  onIrA: (tab: string, filtro?: string, foco?: string) => void;
   onAbrirSolicitud: (solicitudId: string) => void;
   // Abrir la incidencia en su ficha. Antes el aviso solo llevaba a la
   // pestaña de incidencias y había que volver a buscarla en el listado.
@@ -416,7 +416,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   function irAsunto(a: Asunto) {
     if (a.destino.tipo === "solicitud") onAbrirSolicitud(a.destino.id);
     else if (a.destino.tipo === "incidencia") onAbrirIncidencia(a.destino.id);
-    else onIrA(a.destino.tab);
+    else onIrA(a.destino.tab, undefined, a.destino.foco);
   }
 
   return (
@@ -542,7 +542,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                           // delante, que es donde están las horas y las
                           // tareas para poder decidir.
                           <button
-                            onClick={() => onIrA("verificacion")}
+                            onClick={() => onIrA("verificacion", undefined, visita.id)}
                             className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700 transition hover:bg-orange-200"
                           >
                             Verificar

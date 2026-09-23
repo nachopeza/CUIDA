@@ -24,10 +24,13 @@ export interface Asunto {
   desde: number;
   accion: string;
   // A dónde lleva la acción.
+  // A dónde lleva la acción. `foco` es lo que hay que abrir nada más llegar:
+  // una pestaña con un listado de veinte filas no resuelve nada si la fila que
+  // se venía a resolver hay que buscarla a ojo.
   destino:
     | { tipo: "solicitud"; id: string }
     | { tipo: "incidencia"; id: string }
-    | { tipo: "tab"; tab: string };
+    | { tipo: "tab"; tab: string; foco?: string };
 }
 
 export const INFO_PRIORIDAD: Record<Prioridad, { etiqueta: string; orden: number; punto: string; texto: string; fondo: string }> = {
@@ -111,7 +114,7 @@ export function calcularPendientes(datos: {
               : `${new Date(visita.fecha).toLocaleDateString("es-ES", { day: "numeric", month: "short" })} · ${duracion(fichados)} fichadas`,
           desde: Math.max(0, Math.floor((Date.now() - new Date(visita.fecha).getTime()) / 60000)),
           accion: "Verificar",
-          destino: { tipo: "tab", tab: "verificacion" },
+          destino: { tipo: "tab", tab: "verificacion", foco: visita.id },
         });
       }
     }
@@ -148,7 +151,7 @@ export function calcularPendientes(datos: {
           detalle: `${visita.codigo} · ${visita.desviacionMinutos ?? 0} min por encima de lo acordado, sin aprobar`,
           desde: Math.floor((Date.now() - new Date(visita.fecha).getTime()) / 60000),
           accion: "Decidir",
-          destino: { tipo: "tab", tab: "verificacion" },
+          destino: { tipo: "tab", tab: "verificacion", foco: visita.id },
         });
       }
     }
@@ -249,7 +252,7 @@ export function calcularPendientes(datos: {
       detalle: miembro.carencias.map((c) => c.etiqueta).join(", "),
       desde: 0,
       accion: "Ver expediente",
-      destino: { tipo: "tab", tab: "personal" },
+      destino: { tipo: "tab", tab: "personal", foco: miembro.id },
     });
   }
 
@@ -265,7 +268,7 @@ export function calcularPendientes(datos: {
       detalle: `${factura.codigo} · ${Number(factura.totalConIva).toFixed(2)} €${factura.motivoImpago ? ` · ${factura.motivoImpago}` : ""}`,
       desde: factura.fechaVencimiento ? Math.floor((Date.now() - new Date(factura.fechaVencimiento).getTime()) / 60000) : 0,
       accion: "Gestionar cobro",
-      destino: { tipo: "tab", tab: "facturacion" },
+      destino: { tipo: "tab", tab: "facturacion", foco: factura.id },
     });
   }
 

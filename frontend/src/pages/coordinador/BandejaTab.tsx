@@ -23,7 +23,7 @@ interface Props {
   solicitudes: Solicitud[];
   servicios: Servicio[];
   incidencias: Incidencia[];
-  onIrA: (tab: string, filtro?: string) => void;
+  onIrA: (tab: string, filtro?: string, foco?: string) => void;
   onAbrirSolicitud: (solicitudId: string) => void;
   onAbrirIncidencia: (incidenciaId: string) => void;
 }
@@ -82,7 +82,7 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   function abrir(a: Asunto) {
     if (a.destino.tipo === "solicitud") onAbrirSolicitud(a.destino.id);
     else if (a.destino.tipo === "incidencia") onAbrirIncidencia(a.destino.id);
-    else onIrA(a.destino.tab);
+    else onIrA(a.destino.tab, undefined, a.destino.foco);
   }
 
   const hayFiltro = Boolean(busqueda || prioridad || tipo || persona);

@@ -54,7 +54,14 @@ function Cifra({ etiqueta, valor, tono }: { etiqueta: string; valor: string; ton
 // que sale hacia quien trabaja y los envíos al banco. Antes sólo existía una
 // lista de facturas sin identidad fiscal y el pago a profesionales era un
 // sí/no escondido en cada servicio.
-export function FacturacionTab() {
+interface PropsFacturacion {
+  // La factura que se venía a gestionar desde la bandeja ("cobro vencido",
+  // "recibo devuelto"), para abrirla sin buscarla en la lista del mes.
+  focoFacturaId?: string | null;
+  onFocoConsumido?: () => void;
+}
+
+export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturacion = {}) {
   const { token } = useAuth();
   const [vista, setVista] = useState<Vista>("cobrar");
   const [mes, setMes] = useState(mesActualISO());
@@ -89,6 +96,18 @@ export function FacturacionTab() {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // El foco llega antes que las facturas, así que se abre en cuanto la lista
+  // la contiene.
+  useEffect(() => {
+    if (!focoFacturaId) return;
+    const factura = facturas.find((f) => f.id === focoFacturaId);
+    if (!factura) return;
+    setVista("cobrar");
+    setFacturaAbierta(factura);
+    onFocoConsumido?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focoFacturaId, facturas]);
 
   async function accion(clave: string, fn: () => Promise<unknown>, exito?: string) {
     setOcupado(clave);

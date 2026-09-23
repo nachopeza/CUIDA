@@ -44,7 +44,14 @@ const ESTADO_AUSENCIA: Record<string, string> = {
 // Está separado del perfil operativo (zona, disponibilidad, foto) porque se
 // consulta en momentos distintos y porque tiene consecuencias distintas: sin
 // ciertos papeles no se le puede asignar a nadie.
-export function PersonalTab() {
+interface PropsPersonal {
+  // Quién es el expediente que se venía a mirar desde la bandeja: "no puede
+  // trabajar" sin decir de quién obliga a buscarlo en la lista.
+  focoProfesionalId?: string | null;
+  onFocoConsumido?: () => void;
+}
+
+export function PersonalTab({ focoProfesionalId, onFocoConsumido }: PropsPersonal = {}) {
   const { token } = useAuth();
   const [vista, setVista] = useState<Vista>("plantilla");
   const [plantilla, setPlantilla] = useState<FichaProfesional[]>([]);
@@ -75,6 +82,18 @@ export function PersonalTab() {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // El foco llega antes de que la plantilla esté cargada, así que se abre el
+  // expediente en cuanto aparece la ficha, no en cuanto llega el identificador.
+  useEffect(() => {
+    if (!focoProfesionalId) return;
+    const ficha = plantilla.find((m) => m.id === focoProfesionalId);
+    if (!ficha) return;
+    setVista("plantilla");
+    setExpediente(ficha);
+    onFocoConsumido?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focoProfesionalId, plantilla]);
 
   async function accion(clave: string, fn: () => Promise<unknown>, exito?: string) {
     setOcupado(clave);

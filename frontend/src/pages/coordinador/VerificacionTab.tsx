@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { SearchBox } from "../../components/SearchBox.js";
@@ -95,6 +95,12 @@ function Filtro({
 interface Props {
   solicitudes: Solicitud[];
   servicios: Servicio[];
+  // La jornada que se venía a resolver desde el escritorio o la bandeja. Se
+  // abre su desglose directamente y se pone la vista en "todas", porque una
+  // jornada ya verificada no está en "pendientes" y aun así se puede querer
+  // mirar por qué salió ese importe.
+  focoVisitaId?: string | null;
+  onFocoConsumido?: () => void;
   onAbrirSolicitud: (id: string) => void;
   onCambiado: () => void;
 }
@@ -104,7 +110,7 @@ interface Props {
 // tocan desde aquí —las pone quien trabaja, al empezar y al cerrar—: si algo
 // no cuadra, se abre una incidencia y se habla. Verificar cierra la jornada y
 // la manda a la vez a pagar a la profesional y a facturar a la familia.
-export function VerificacionTab({ solicitudes, servicios, onAbrirSolicitud, onCambiado }: Props) {
+export function VerificacionTab({ solicitudes, servicios, focoVisitaId, onFocoConsumido, onAbrirSolicitud, onCambiado }: Props) {
   const { token } = useAuth();
   const [busqueda, setBusqueda] = useState("");
   const [soloDescuadres, setSoloDescuadres] = useState(false);
@@ -119,6 +125,14 @@ export function VerificacionTab({ solicitudes, servicios, onAbrirSolicitud, onCa
   const [error, setError] = useState<string | null>(null);
   const [incidenciaPara, setIncidenciaPara] = useState<Fila | null>(null);
   const [desgloseDe, setDesgloseDe] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focoVisitaId) return;
+    setPestana("todas");
+    limpiarFiltros();
+    setDesgloseDe(focoVisitaId);
+    onFocoConsumido?.();
+  }, [focoVisitaId]);
 
   const filas = useMemo<Fila[]>(() => {
     const porServicio = new Map(solicitudes.filter((s) => s.servicio).map((s) => [s.servicio!.id, s]));

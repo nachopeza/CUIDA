@@ -170,6 +170,10 @@ export function CoordinadorPage() {
   const [tab, setTab] = useState<Tab>("escritorio");
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
   const [filtro, setFiltro] = useState<Filtro>(null);
+  // Lo que hay que abrir nada más aterrizar en la pestaña de destino: la
+  // jornada concreta, el expediente concreto. Sin esto, "Decidir" dejaba a la
+  // coordinadora buscando a ojo la fila que venía a resolver.
+  const [foco, setFoco] = useState<string | null>(null);
   const [tipoFiltro, setTipoFiltro] = useState("");
   const [profesionalFiltro, setProfesionalFiltro] = useState("");
   const [busquedaSolicitudes, setBusquedaSolicitudes] = useState("");
@@ -252,9 +256,10 @@ export function CoordinadorPage() {
     await cargar();
   }
 
-  function irA(t: string, f?: string) {
+  function irA(t: string, f?: string, fo?: string) {
     setTab(t as Tab);
     setFiltro((f ?? null) as Filtro);
+    setFoco(fo ?? null);
     setMenuMovilAbierto(false);
   }
 
@@ -699,6 +704,8 @@ export function CoordinadorPage() {
           <VerificacionTab
             solicitudes={solicitudes}
             servicios={servicios}
+            focoVisitaId={foco}
+            onFocoConsumido={() => setFoco(null)}
             onAbrirSolicitud={(id) => setFichaAbierta(id)}
             onCambiado={cargar}
           />
@@ -719,7 +726,7 @@ export function CoordinadorPage() {
 
         {tab === "personas" && <PersonasTab onAbrirFicha={abrirPersona} refreshKey={personasRefreshKey} />}
         {tab === "profesionales" && <ProfesionalesTab />}
-        {tab === "personal" && <PersonalTab />}
+        {tab === "personal" && <PersonalTab focoProfesionalId={foco} onFocoConsumido={() => setFoco(null)} />}
         {tab === "cobertura" && (
           <CoberturaTab solicitudes={solicitudes} servicios={servicios} onAbrirSolicitud={(id) => setFichaAbierta(id)} />
         )}
@@ -743,7 +750,7 @@ export function CoordinadorPage() {
         )}
         {tab === "empresas" && <EmpresasTab />}
         {tab === "calendario" && <CalendarioTab onAbrirSolicitud={(id) => setFichaAbierta(id)} />}
-        {tab === "facturacion" && <FacturacionTab />}
+        {tab === "facturacion" && <FacturacionTab focoFacturaId={foco} onFocoConsumido={() => setFoco(null)} />}
         {tab === "actividad" && <ActividadTab />}
 
         {nuevaSolicitud && (

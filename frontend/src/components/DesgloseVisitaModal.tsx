@@ -58,7 +58,10 @@ export function DesgloseVisitaModal({ visitaId, onClose, onCambio }: { visitaId:
   const { token, usuario } = useAuth();
   const [d, setD] = useState<Desglose | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [motivo, setMotivo] = useState<string>("NECESIDAD_DEL_SERVICIO");
+  // Sin motivo elegido de salida. Un motivo que viene marcado de fábrica se
+  // acaba guardando tal cual, y esta decisión se defiende después ante la
+  // familia o ante quien trabajó: tiene que decirla una persona.
+  const [motivo, setMotivo] = useState<string>("");
   const [nota, setNota] = useState("");
   const [guardando, setGuardando] = useState(false);
   const esGestor = usuario?.rol !== "PROFESIONAL" && usuario?.rol !== "FAMILIAR" && usuario?.rol !== "PERSONA";
@@ -163,17 +166,18 @@ export function DesgloseVisitaModal({ visitaId, onClose, onCambio }: { visitaId:
                     placeholder="Nota (opcional): qué pasó exactamente"
                     className="w-full rounded-md border border-orange-200 px-2 py-1.5 text-xs"
                   />
+                  {!motivo && <p className="text-xs text-orange-700">Elige antes por qué se alargó.</p>}
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => decidir("APROBADO")}
-                      disabled={guardando}
+                      disabled={guardando || !motivo}
                       className="rounded-md bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-700 disabled:opacity-50"
                     >
                       Aprobar el tiempo de más
                     </button>
                     <button
                       onClick={() => decidir("RECHAZADO")}
-                      disabled={guardando}
+                      disabled={guardando || !motivo}
                       className="rounded-md border border-orange-300 bg-white px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-100 disabled:opacity-50"
                     >
                       Quedarse en lo acordado

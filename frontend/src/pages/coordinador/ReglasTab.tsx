@@ -312,6 +312,7 @@ export function ReglasTab() {
                 <th className="py-1.5 pr-3 text-right font-medium">Familia</th>
                 <th className="py-1.5 pr-3 text-right font-medium">Profesional</th>
                 <th className="py-1.5 pr-3 text-right font-medium">CUIDA</th>
+                <th className="py-1.5 pr-3 text-right font-medium">% gestión</th>
                 <th className="py-1.5 pr-3 font-medium">Vigencia</th>
                 <th />
               </tr>
@@ -324,6 +325,15 @@ export function ReglasTab() {
                   <td className="py-1.5 pr-3 text-right">{euros(t.precioHoraCliente)}/h</td>
                   <td className="py-1.5 pr-3 text-right">{euros(t.precioHoraProfesional)}/h</td>
                   <td className="py-1.5 pr-3 text-right">{euros(t.comisionHora)}/h</td>
+                  {/* El porcentaje que sale de verdad de esta tarifa. El de la
+                      ficha de empresa es solo el de reserva, para un servicio
+                      sin tarifa; quien mira aquí quiere saber cuánto se queda
+                      CUIDA en este servicio. */}
+                  <td className="py-1.5 pr-3 text-right text-xs text-slate-500">
+                    {Number(t.precioHoraCliente) > 0
+                      ? `${Math.round((Number(t.comisionHora) / Number(t.precioHoraCliente)) * 100)} %`
+                      : "—"}
+                  </td>
                   <td className="py-1.5 pr-3 text-xs">
                     {new Date(t.vigenteDesde).toLocaleDateString("es-ES")} →{" "}
                     {t.vigenteHasta ? new Date(t.vigenteHasta).toLocaleDateString("es-ES") : "sin fin"}
@@ -341,7 +351,7 @@ export function ReglasTab() {
               ))}
               {tarifas.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-3 text-center text-xs text-slate-400">
+                  <td colSpan={8} className="py-3 text-center text-xs text-slate-400">
                     Sin tarifas: se usa el precio acordado en cada servicio.
                   </td>
                 </tr>
