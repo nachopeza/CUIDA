@@ -32,6 +32,7 @@ const reglasSchema = z.object({
   cancelacionTardiaPago: z.number().min(0).max(100),
   noPresentadoCobro: z.number().min(0).max(100),
   noPresentadoPago: z.number().min(0).max(100),
+  salarioMinimoHora: z.number().min(0).max(200),
 });
 
 reglasRouter.put("/", soloGestion, async (req, res) => {
@@ -98,6 +99,15 @@ reglasRouter.post("/tarifas", soloGestion, async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   if (parsed.data.precioHoraProfesional > parsed.data.precioHoraCliente) {
     return res.status(400).json({ error: "El profesional no puede cobrar más de lo que paga la familia: revisa los dos precios" });
+  }
+  // Y tampoco por debajo del mínimo por hora. Una tarifa mal puesta se
+  // convierte en nóminas mal pagadas durante meses, y eso no lo arregla una
+  // rectificación: lo persigue la Inspección de Trabajo.
+  const reglas = await reglasDe(req.usuario!.organizacionId!);
+  if (parsed.data.precioHoraProfesional < Number(reglas.salarioMinimoHora)) {
+    return res.status(400).json({
+      error: `Por debajo del mínimo por hora configurado (${Number(reglas.salarioMinimoHora).toFixed(2).replace(".", ",")} €/h). Si el convenio permite menos, cámbialo antes en las reglas de la casa.`,
+    });
   }
 
   const tarifa = await prisma.tarifa.create({

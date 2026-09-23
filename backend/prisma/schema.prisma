@@ -1447,6 +1447,14 @@ model ReglasNegocio {
   noPresentadoCobro Decimal @default(100) @db.Decimal(5, 2)
   noPresentadoPago  Decimal @default(100) @db.Decimal(5, 2)
 
+  // Lo mínimo que se puede pagar por hora de trabajo. El valor que trae es el
+  // suelo del SMI: 1.184 €/mes × 14 pagas ÷ 1.826 horas de jornada anual
+  // máxima (RD 87/2025 y art. 34 del Estatuto de los Trabajadores) ≈ 9,08 €/h.
+  // El convenio de ayuda a domicilio que aplique suele estar por encima, así
+  // que esto es configurable y hay que subirlo a lo que diga el convenio: aquí
+  // solo impide lo que es ilegal en cualquier caso.
+  salarioMinimoHora Decimal @default(9.08) @db.Decimal(6, 2)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

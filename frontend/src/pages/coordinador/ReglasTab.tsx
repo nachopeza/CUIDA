@@ -28,6 +28,7 @@ interface Reglas {
   cancelacionTardiaPago: number;
   noPresentadoCobro: number;
   noPresentadoPago: number;
+  salarioMinimoHora: number;
 }
 
 interface Tarifa {
@@ -246,6 +247,27 @@ export function ReglasTab() {
               <input type="number" min={0} max={100} value={r.noPresentadoPago} onChange={(e) => set("noPresentadoPago", Number(e.target.value))} className={numero} />
             </Campo>
           </div>
+        </Bloque>
+
+        <Bloque
+          titulo="Lo mínimo que se puede pagar"
+          ayuda="Ninguna tarifa nueva podrá pagar por debajo de esta cifra. Una tarifa mal puesta se convierte en meses de nóminas mal pagadas."
+        >
+          <Campo etiqueta="Mínimo por hora" ayuda="€/h de trabajo">
+            <input
+              type="number"
+              step="0.01"
+              min={0}
+              value={r.salarioMinimoHora}
+              onChange={(e) => set("salarioMinimoHora", Number(e.target.value))}
+              className={numero}
+            />
+          </Campo>
+          <p className="mt-2 text-xs text-slate-500">
+            Viene puesto el suelo del SMI: 1.184 €/mes × 14 pagas ÷ 1.826 horas de jornada anual máxima (RD 87/2025 y art. 34 del
+            Estatuto de los Trabajadores). <strong>El convenio de ayuda a domicilio que os aplique suele estar por encima</strong>:
+            súbelo a lo que diga el convenio, porque esto solo impide lo que es ilegal en cualquier caso.
+          </p>
         </Bloque>
       </div>
 

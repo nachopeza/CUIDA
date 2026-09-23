@@ -201,3 +201,19 @@ fila y parece que ya está, y es justo el caso que engañaba.
   En producción eso se sustituye por un bucket de objetos cambiando solo
   `guardar` y `leer` en `services/almacen.ts` — el resto del sistema no sabe
   dónde están.
+
+
+---
+
+## Lo mínimo que se puede pagar por hora
+
+Las reglas de la casa incluyen un **suelo por hora de trabajo**. Ninguna tarifa
+nueva puede pagar por debajo: una tarifa mal puesta no se arregla con una
+rectificación, se convierte en meses de nóminas mal pagadas y eso lo persigue
+la Inspección de Trabajo.
+
+El valor de fábrica es el suelo del SMI — 1.184 €/mes × 14 pagas ÷ 1.826 horas
+de jornada anual máxima (RD 87/2025 y art. 34 del Estatuto de los Trabajadores),
+unos 9,08 €/h. **El convenio de ayuda a domicilio que aplique suele estar por
+encima**, así que es configurable y hay que subirlo a lo que diga el convenio:
+la aplicación solo impide lo que es ilegal en cualquier caso.

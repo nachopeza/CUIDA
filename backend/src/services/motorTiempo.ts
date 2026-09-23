@@ -35,6 +35,10 @@ export interface Reglas {
   cancelacionTardiaPago: number;
   noPresentadoCobro: number;
   noPresentadoPago: number;
+  // Suelo de lo que se puede pagar por hora de trabajo. Ver el comentario del
+  // campo en el esquema: el valor de fábrica es el del SMI, y el convenio de
+  // ayuda a domicilio suele estar por encima.
+  salarioMinimoHora: number;
 }
 
 // Lo que trae CUIDA de fábrica: se cobra y se paga lo acordado, sin redondeos
@@ -55,6 +59,7 @@ export const REGLAS_POR_DEFECTO: Reglas = {
   cancelacionTardiaPago: 50,
   noPresentadoCobro: 100,
   noPresentadoPago: 100,
+  salarioMinimoHora: 9.08,
 };
 
 // Las reglas de una organización, creándolas con los valores por defecto la
@@ -81,6 +86,7 @@ export async function reglasDe(organizacionId: string): Promise<Reglas> {
     cancelacionTardiaPago: Number(guardadas.cancelacionTardiaPago),
     noPresentadoCobro: Number(guardadas.noPresentadoCobro),
     noPresentadoPago: Number(guardadas.noPresentadoPago),
+    salarioMinimoHora: Number(guardadas.salarioMinimoHora),
   };
 }
 
