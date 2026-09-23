@@ -161,6 +161,12 @@ function porcentajesDeNoPrestada(entrada: EntradaVisita, reglas: Reglas): { cobr
       porque: "la persona no estaba y el profesional sí se desplazó",
     };
   }
+  if (entrada.estado === "FALTA_PROFESIONAL") {
+    // No fue nadie: no se cobra, porque no se prestó el servicio, y no se
+    // paga, porque no se trabajó. No es configurable a propósito — cobrarle a
+    // una familia un servicio que nadie le dio no tiene defensa posible.
+    return { cobro: 0, pago: 0, porque: "no fue nadie a prestar el servicio" };
+  }
   if (entrada.estado === "CANCELADA") {
     return {
       cobro: reglas.cancelacionTardiaCobro,

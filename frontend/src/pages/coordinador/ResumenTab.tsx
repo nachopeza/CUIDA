@@ -11,6 +11,7 @@ import { IconAlert, IconArrowDown, IconArrowUp, IconBriefcase, IconCalendar, Ico
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
 import { TiempoTrabajadoModal } from "../../components/TiempoTrabajadoModal.js";
 import { IncidenciaFormModal } from "./IncidenciaFormModal.js";
+import { FaltaProfesionalModal } from "../../components/FaltaProfesionalModal.js";
 import type { Factura, Incidencia, Profesional, Servicio, Solicitud, Visita, Ausencia, FichaProfesional, Persona } from "../../lib/types.js";
 
 interface Props {
@@ -129,6 +130,8 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   // descubrirse al facturar el mes.
   const [abiertas, setAbiertas] = useState<JornadaAbierta[]>([]);
   const [cerrando, setCerrando] = useState<JornadaAbierta | null>(null);
+  // La jornada a la que no fue nadie, mientras se registra.
+  const [faltaProfesional, setFaltaProfesional] = useState<{ visitaId: string; codigo: string; persona: string } | null>(null);
 
   const cargarPropios = useCallback(async () => {
     const [facs, pros, me, eq, aus, abis, pers] = await Promise.all([
@@ -556,9 +559,26 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                           <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-medium text-teal-700">
                             <IconCheck className="h-3 w-3" /> Verificada
                           </span>
+                        ) : visita.estado === "FALTA_PROFESIONAL" ? (
+                          <span className="rounded-full bg-rose-200 px-2.5 py-0.5 text-xs font-medium text-rose-800">No fue nadie</span>
                         ) : noPresentado ? (
                           <>
-                            <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-medium text-rose-700">No presentado</span>
+                            {/* "Nadie ha fichado" es lo que la aplicación sabe;
+                                si de verdad no fue nadie, lo dice una persona
+                                con el botón de al lado. */}
+                            <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-medium text-rose-700">Nadie ha fichado</span>
+                            <button
+                              onClick={() =>
+                                setFaltaProfesional({
+                                  visitaId: visita.id,
+                                  codigo: visita.codigo,
+                                  persona: nombrePersona(servicio),
+                                })
+                              }
+                              className="rounded-md border border-rose-300 px-2 py-0.5 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                            >
+                              No fue nadie
+                            </button>
                             <button
                               onClick={() => setIncidenciaFichaje({ visita, servicio })}
                               title="Abrir una incidencia de fichaje"
@@ -793,6 +813,16 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
 
       {/* Nadie ha fichado y ya ha pasado la hora larga: se abre la incidencia
           con el caso redactado, para no tener que contarlo a mano cada vez. */}
+      {faltaProfesional && (
+        <FaltaProfesionalModal
+          visitaId={faltaProfesional.visitaId}
+          codigo={faltaProfesional.codigo}
+          persona={faltaProfesional.persona}
+          onClose={() => setFaltaProfesional(null)}
+          onRegistrada={onCambiado}
+        />
+      )}
+
       {incidenciaFichaje && (
         <IncidenciaFormModal
           servicios={servicios}

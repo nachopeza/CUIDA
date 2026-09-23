@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "EstadoVisita" ADD VALUE 'FALTA_PROFESIONAL';
+

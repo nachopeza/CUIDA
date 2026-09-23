@@ -6,7 +6,8 @@ import { autenticar } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
 import { esGestorOrganizacion, ocultarTarifaSiProcede } from "../services/permisos.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
-import { notificarGestores } from "../services/notificaciones.js";
+import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
+import { motivoParaNoAsignar } from "../services/asignacion.js";
 
 export const incidenciasRouter = Router();
 incidenciasRouter.use(autenticar);
@@ -400,4 +401,125 @@ incidenciasRouter.delete("/:id", async (req, res) => {
   });
 
   res.status(204).end();
+});
+
+// ---------------------------------------------------------------------------
+// Tramitar la incidencia: buscar quien vaya
+//
+// Una incidencia de "no fue nadie" o de "está de baja" no se resuelve
+// escribiendo una nota: se resuelve mandando a otra persona. Aquí es donde eso
+// pasa, en la misma pantalla en la que se está mirando el problema, con las
+// mismas comprobaciones que en cualquier asignación —papeles, encargo de
+// tratamiento, ausencias—, porque un reemplazo de urgencia es justo cuando más
+// fácil es saltárselas.
+// ---------------------------------------------------------------------------
+
+const reemplazoSchema = z.object({
+  profesionalId: z.string(),
+  // Reprogramar la jornada perdida: a veces se puede ir esa misma tarde.
+  recuperarJornada: z.boolean().optional(),
+  fechaRecuperacion: z.string().optional(),
+  nota: z.string().max(500).optional(),
+});
+
+incidenciasRouter.post("/:id/reemplazo", async (req, res) => {
+  if (!esGestorOrganizacion(req.usuario!)) return res.status(403).json({ error: "Sin permiso" });
+  const parsed = reemplazoSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const incidencia = await prisma.incidencia.findUnique({
+    where: { id: req.params.id },
+    include: { servicio: { include: { solicitud: { include: { persona: true, plan: true } } } }, visita: true },
+  });
+  if (!incidencia) return res.status(404).json({ error: "No encontrada" });
+  const servicio = incidencia.servicio;
+  if (!servicio) return res.status(409).json({ error: "Esta incidencia no cuelga de ningún servicio, así que no hay a quién reemplazar" });
+  const organizacionId = req.usuario!.organizacionId!;
+  if (servicio.organizacionId !== organizacionId) return res.status(403).json({ error: "Sin permiso" });
+
+  const anterior = servicio.profesionalId ? await prisma.profesional.findUnique({ where: { id: servicio.profesionalId } }) : null;
+  if (anterior?.id === parsed.data.profesionalId) {
+    return res.status(400).json({ error: "Ese profesional es el que ya estaba: elige a otra persona" });
+  }
+
+  const fechaRecuperacion = parsed.data.fechaRecuperacion ? new Date(parsed.data.fechaRecuperacion) : incidencia.visita?.fecha ?? null;
+  const impedimento = await motivoParaNoAsignar(parsed.data.profesionalId, organizacionId, fechaRecuperacion);
+  if (impedimento) return res.status(409).json({ error: impedimento });
+
+  const nuevo = await prisma.profesional.findUnique({ where: { id: parsed.data.profesionalId }, include: { usuario: true } });
+  if (!nuevo) return res.status(400).json({ error: "Profesional no válido" });
+
+  // El servicio pasa al sustituto, y con él las jornadas que todavía no han
+  // empezado. Las ya trabajadas siguen contando para quien las hizo: su
+  // liquidación no se toca.
+  await prisma.servicio.update({
+    where: { id: servicio.id },
+    data: { profesionalId: nuevo.id, empresaColaboradoraId: nuevo.empresaColaboradoraId ?? servicio.empresaColaboradoraId ?? undefined },
+  });
+  const traspasadas = await prisma.visita.updateMany({
+    where: { servicioId: servicio.id, estado: { in: ["PROGRAMADA", "CONFIRMADA"] }, horaInicioReal: null },
+    data: { profesionalId: nuevo.id },
+  });
+
+  // Recuperar la jornada perdida es crear una nueva, no reescribir la que no
+  // se hizo: aquel día no fue nadie y eso queda como pasó.
+  let recuperada: { codigo: string; fecha: Date } | null = null;
+  if (parsed.data.recuperarJornada && incidencia.visita) {
+    const fecha = fechaRecuperacion ?? incidencia.visita.fecha;
+    const creada = await prisma.visita.create({
+      data: {
+        codigo: await generarCodigo("visita"),
+        fecha,
+        horaInicioProg: incidencia.visita.horaInicioProg,
+        horaFinProg: incidencia.visita.horaFinProg,
+        estado: "PROGRAMADA",
+        servicioId: servicio.id,
+        profesionalId: nuevo.id,
+      },
+    });
+    recuperada = { codigo: creada.codigo, fecha: creada.fecha };
+  }
+
+  const resumen =
+    `Reemplazo: ${anterior ? `${anterior.nombre} ${anterior.apellidos}` : "sin asignar"} → ${nuevo.nombre} ${nuevo.apellidos}` +
+    (traspasadas.count > 0 ? ` · ${traspasadas.count} jornada(s) sin empezar pasan al sustituto` : "") +
+    (recuperada ? ` · jornada recuperada ${recuperada.codigo} el ${recuperada.fecha.toLocaleDateString("es-ES")}` : "") +
+    (parsed.data.nota ? ` · ${parsed.data.nota}` : "");
+
+  // La incidencia pasa a "en resolución", no a cerrada: queda avisar a la
+  // familia, y eso lo dice una persona cuando lo ha hecho.
+  const siguiente = incidencia.estado === "CERRADA" ? incidencia.estado : "EN_RESOLUCION";
+  const actualizada = await prisma.incidencia.update({
+    where: { id: incidencia.id },
+    data: { estado: siguiente as never },
+    include: { servicio: { include: { profesional: true } }, visita: true },
+  });
+
+  await registrarHistorial({
+    entidadTipo: "Incidencia",
+    estadoAnterior: incidencia.estado,
+    estadoNuevo: siguiente,
+    motivo: resumen,
+    incidenciaId: incidencia.id,
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId,
+    accion: "reemplazo_por_incidencia",
+    entidadTipo: "Incidencia",
+    entidadId: incidencia.id,
+    detalle: resumen,
+  });
+
+  if (nuevo.usuario) {
+    await notificarUsuario(
+      nuevo.usuario.id,
+      "propuesta_servicio",
+      `Te han asignado el servicio de ${servicio.solicitud.persona.nombre} como reemplazo${recuperada ? ` y una jornada el ${recuperada.fecha.toLocaleDateString("es-ES")}` : ""}. Revísalo.`,
+      servicio.solicitudId,
+    );
+  }
+
+  res.json({ incidencia: actualizada, resumen, traspasadas: traspasadas.count, recuperada });
 });

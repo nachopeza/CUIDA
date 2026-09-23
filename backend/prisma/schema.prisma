@@ -967,11 +967,16 @@ enum EstadoVisita {
   FINALIZADA
   INCIDENCIA
   REVISADA
-  // La jornada no se hizo. Son dos cosas distintas y con consecuencia
+  // La jornada no se hizo. Son tres cosas distintas y con consecuencia
   // económica distinta: en una cancelación nadie se desplazó; en un no
-  // presentado el profesional fue y la persona no estaba.
+  // presentado el profesional fue y la persona no estaba; en una falta del
+  // profesional no fue nadie a casa de la persona.
   CANCELADA
   NO_PRESENTADO
+  // No fue nadie. Ni se cobra —no se prestó el servicio— ni se paga —no se
+  // trabajó—, y deja a alguien esperando en su casa: es lo más grave que
+  // puede pasar en este negocio, así que abre incidencia sola.
+  FALTA_PROFESIONAL
   // Verificada y ya incluida en una liquidación al profesional.
   LIQUIDADA
 }

@@ -725,7 +725,7 @@ visitasRouter.post("/:id/cerrar-manual", requiereRol("COORDINADOR", "ORGANIZACIO
 // profesional ni para la factura: en una nadie se desplazó, en la otra sí.
 // ---------------------------------------------------------------------------
 const noPrestadaSchema = z.object({
-  tipo: z.enum(["CANCELADA", "NO_PRESENTADO"]),
+  tipo: z.enum(["CANCELADA", "NO_PRESENTADO", "FALTA_PROFESIONAL"]),
   motivo: z.string().min(3, "Di qué ha pasado"),
 });
 
@@ -747,16 +747,24 @@ visitasRouter.post("/:id/no-prestada", requiereRol("COORDINADOR", "ORGANIZACION"
   await prisma.visita.update({ where: { id: visita.id }, data: { estado: parsed.data.tipo } });
   const liquidada = await liquidarVisita(visita.id);
 
-  // Un no presentado es un problema operativo, no solo un apunte contable:
-  // deja incidencia para que alguien hable con la familia.
-  if (parsed.data.tipo === "NO_PRESENTADO") {
+  // Una jornada que no se presta nunca es sólo un apunte contable: alguien
+  // tiene que hablar con la familia, y si no fue nadie hay que buscar quien
+  // vaya. Las dos abren incidencia solas, colgando del servicio y de la
+  // jornada, para que se puedan tramitar como cualquier otra.
+  if (parsed.data.tipo === "NO_PRESENTADO" || parsed.data.tipo === "FALTA_PROFESIONAL") {
+    const faltaProfesional = parsed.data.tipo === "FALTA_PROFESIONAL";
     await prisma.incidencia.create({
       data: {
         codigo: await generarCodigo("incidencia"),
         tipo: "GENERAL",
         estado: "NUEVA",
         motivo: "AUSENCIA",
-        descripcion: `No presentado en ${visita.codigo}: ${parsed.data.motivo}`,
+        // Que no vaya nadie a casa de una persona mayor que espera es lo más
+        // grave que puede pasar aquí: entra como alta, no como una más.
+        prioridad: faltaProfesional ? "ALTA" : "MEDIA",
+        descripcion: faltaProfesional
+          ? `No fue nadie a la jornada ${visita.codigo}: ${parsed.data.motivo}. Hay que avisar a la familia y buscar reemplazo.`
+          : `No presentado en ${visita.codigo}: ${parsed.data.motivo}`,
         servicioId: visita.servicioId,
         visitaId: visita.id,
         creadoPorUsuarioId: req.usuario!.sub,
@@ -775,7 +783,12 @@ visitasRouter.post("/:id/no-prestada", requiereRol("COORDINADOR", "ORGANIZACION"
   await registrarAuditoria({
     usuarioId: req.usuario!.sub,
     organizacionId: visita.servicio.organizacionId,
-    accion: parsed.data.tipo === "CANCELADA" ? "cancelar_visita" : "marcar_no_presentado",
+    accion:
+      parsed.data.tipo === "CANCELADA"
+        ? "cancelar_visita"
+        : parsed.data.tipo === "FALTA_PROFESIONAL"
+          ? "marcar_falta_profesional"
+          : "marcar_no_presentado",
     entidadTipo: "Visita",
     entidadId: visita.id,
   });

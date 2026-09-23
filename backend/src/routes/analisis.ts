@@ -81,7 +81,7 @@ analisisRouter.get("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), asy
   const jornadas = await prisma.visita.findMany({
     where: {
       fecha: { gte: inicio, lt: fin },
-      estado: { in: ["FINALIZADA", "REVISADA", "LIQUIDADA", "CANCELADA", "NO_PRESENTADO"] },
+      estado: { in: ["FINALIZADA", "REVISADA", "LIQUIDADA", "CANCELADA", "NO_PRESENTADO", "FALTA_PROFESIONAL"] },
       servicio: { organizacionId: req.usuario!.organizacionId! },
     },
     include: {
@@ -119,6 +119,9 @@ analisisRouter.get("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), asy
     cierresManuales: 0,
     canceladas: 0,
     noPresentados: 0,
+    // Jornadas a las que no fue nadie. Si esta cifra crece, lo que falla no es
+    // el fichaje: es la plantilla o la planificación.
+    faltasProfesional: 0,
   };
 
   const sumar = (a: Acumulado, v: (typeof jornadas)[number]) => {
@@ -185,6 +188,7 @@ analisisRouter.get("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), asy
     if (v.cierreManual) desviaciones.cierresManuales += 1;
     if (v.estado === "CANCELADA") desviaciones.canceladas += 1;
     if (v.estado === "NO_PRESENTADO") desviaciones.noPresentados += 1;
+    if (v.estado === "FALTA_PROFESIONAL") desviaciones.faltasProfesional += 1;
   }
 
   const correcciones = await prisma.correccionFichaje.count({

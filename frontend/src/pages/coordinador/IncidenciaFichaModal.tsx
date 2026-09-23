@@ -5,8 +5,8 @@ import { Modal } from "../../components/Modal.js";
 import { EstadoBadge } from "../../components/EstadoBadge.js";
 import { infoMotivo } from "../../lib/incidencias.js";
 import { duracion, horaDe, minutosFichados, minutosEntre, compararConAcordado } from "../../lib/economia.js";
-import type { CuentaResumen, Incidencia, IncidenciaServicio } from "../../lib/types.js";
-import { IconArrowRight, IconCheckCircle, IconClipboard, IconClock, IconMail, IconPhone } from "../../components/icons.js";
+import type { CuentaResumen, Incidencia, IncidenciaServicio, Profesional } from "../../lib/types.js";
+import { IconArrowRight, IconCheckCircle, IconClipboard, IconClock, IconMail, IconPhone, IconRefresh } from "../../components/icons.js";
 
 // Espejo de TRANSICIONES_INCIDENCIA del backend (backend/src/services/estados.ts).
 const TRANSICIONES_INCIDENCIA: Record<string, string[]> = {
@@ -27,6 +27,13 @@ const ROL_LEGIBLE: Record<string, string> = {
   ADMIN: "coordinación",
   SUPERADMIN: "coordinación",
 };
+
+// La jornada perdida se recupera otro día: por defecto, el siguiente.
+function siguienteDia(iso: string): string {
+  const d = new Date(iso);
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 function fechaCorta(iso?: string | null) {
   if (!iso) return null;
@@ -58,13 +65,25 @@ interface Props {
 // la incidencia"): antes contaba el problema pero no de quién venía ni a qué
 // servicio pertenecía, y había que ir a buscarlo a tres sitios distintos.
 export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged, onAbrirSolicitud }: Props) {
-  const { token } = useAuth();
+  const { token, usuario } = useAuth();
+  const esGestor = ["COORDINADOR", "ORGANIZACION", "ADMIN"].includes(usuario?.rol ?? "");
   const [i, setI] = useState<Incidencia | null>(null);
   const [nota, setNota] = useState("");
   const [enviandoNota, setEnviandoNota] = useState(false);
   const [coordinadores, setCoordinadores] = useState<CuentaResumen[]>([]);
   const [cerrando, setCerrando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Reemplazo: a quién se pone en lugar de quien no puede ir, y si la jornada
+  // perdida se recupera otro día.
+  const [profesionales, setProfesionales] = useState<Profesional[]>([]);
+  const [sustitutoId, setSustitutoId] = useState("");
+  const [recuperar, setRecuperar] = useState(false);
+  const [fechaRecuperacion, setFechaRecuperacion] = useState("");
+  const [notaReemplazo, setNotaReemplazo] = useState("");
+  const [aplicando, setAplicando] = useState(false);
+  const [resumenReemplazo, setResumenReemplazo] = useState<string | null>(null);
+  const [errorReemplazo, setErrorReemplazo] = useState<string | null>(null);
 
   async function cargar() {
     setI(await api.get<Incidencia>(`/incidencias/${incidenciaId}`, token));
@@ -73,6 +92,7 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged, onAbrir
   useEffect(() => {
     cargar();
     api.get<CuentaResumen[]>("/cuenta/coordinadores", token).then(setCoordinadores).catch(() => setCoordinadores([]));
+    if (esGestor) api.get<Profesional[]>("/profesionales", token).then(setProfesionales).catch(() => setProfesionales([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incidenciaId]);
 
@@ -116,6 +136,40 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged, onAbrir
     }
   }
 
+  // Poner a otra persona en el servicio. Lo que impide asignar a alguien
+  // (papeles caducados, contrato de encargo sin firmar, una ausencia
+  // aprobada ese día) lo decide el backend y vuelve como un 409 con el
+  // motivo escrito: se enseña tal cual, que es lo que hay que resolver.
+  async function aplicarReemplazo() {
+    if (!sustitutoId) return;
+    setAplicando(true);
+    setErrorReemplazo(null);
+    setResumenReemplazo(null);
+    try {
+      const r = await api.post<{ resumen: string }>(
+        `/incidencias/${incidenciaId}/reemplazo`,
+        {
+          profesionalId: sustitutoId,
+          recuperarJornada: recuperar,
+          // Si no se toca el selector va la fecha que se está enseñando, no
+          // la del día que se perdió: lo que se ve es lo que se manda.
+          fechaRecuperacion: recuperar ? fechaRecuperacion || (i?.visita ? siguienteDia(i.visita.fecha) : undefined) : undefined,
+          nota: notaReemplazo.trim() || undefined,
+        },
+        token,
+      );
+      setResumenReemplazo(r.resumen);
+      setSustitutoId("");
+      setNotaReemplazo("");
+      setRecuperar(false);
+      await recargar();
+    } catch (e) {
+      setErrorReemplazo(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido aplicar el reemplazo");
+    } finally {
+      setAplicando(false);
+    }
+  }
+
   async function enviarNota() {
     if (!nota.trim()) return;
     setEnviandoNota(true);
@@ -147,6 +201,10 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged, onAbrir
   const solicitud = servicio?.solicitud;
   const persona = solicitud?.persona;
   const profesional = i.visita?.profesional ?? servicio?.profesional;
+  // Para reemplazar cuenta quién lleva el servicio ahora, no quién tenía
+  // sellada aquella jornada: si ya se sustituyó, la jornada sigue siendo de
+  // quien la tenía, pero a quien se releva es a la persona actual.
+  const profesionalActual = servicio?.profesional ?? i.visita?.profesional;
   const plan = solicitud?.plan;
   const visita = i.visita;
 
@@ -284,6 +342,103 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged, onAbrir
                   )}
                 </p>
               </div>
+            )}
+          </section>
+        )}
+
+        {/* Tramitar el reemplazo. Una baja, una enfermedad o un "no fue nadie"
+            no se resuelven con una anotación: hay que poner a otra persona en
+            el servicio. Se hace desde aquí, sin ir a buscar el servicio a otra
+            pestaña, y la incidencia queda en resolución —no cerrada—, porque
+            todavía falta avisar a la familia. */}
+        {esGestor && !esCancelacion && i.servicioId && i.estado !== "CERRADA" && (
+          <section className="rounded-xl border border-slate-200 p-3">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <IconRefresh className="h-3.5 w-3.5 text-slate-400" /> Buscar reemplazo
+            </p>
+            <p className="mb-2 text-xs text-slate-500">
+              {profesionalActual ? (
+                <>
+                  Pasa el servicio de{" "}
+                  <span className="font-medium text-slate-700">
+                    {profesionalActual.nombre} {profesionalActual.apellidos}
+                  </span>{" "}
+                  a otra persona. Las jornadas que aún no han empezado pasan al sustituto; las ya trabajadas siguen siendo de quien las hizo.
+                </>
+              ) : (
+                "El servicio está sin cubrir. Elige quién lo atiende a partir de ahora."
+              )}
+            </p>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Quién va en su lugar
+                <select
+                  value={sustitutoId}
+                  onChange={(e) => setSustitutoId(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm font-normal normal-case text-slate-700"
+                >
+                  <option value="">Elige un profesional…</option>
+                  {profesionales
+                    .filter((p) => p.id !== profesionalActual?.id)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre} {p.apellidos}
+                        {p.zona ? ` · ${p.zona}` : ""}
+                      </option>
+                    ))}
+                </select>
+              </label>
+
+              {/* Recuperar la jornada perdida crea una nueva, no reescribe la
+                  que no se hizo: aquel día no fue nadie y eso queda como pasó. */}
+              {visita && (
+                <div className="rounded-lg bg-slate-50 px-3 py-2">
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input type="checkbox" checked={recuperar} onChange={(e) => setRecuperar(e.target.checked)} className="h-4 w-4" />
+                    Recuperar la jornada perdida otro día
+                  </label>
+                  {recuperar && (
+                    <label className="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Cuándo se recupera
+                      <input
+                        type="date"
+                        value={fechaRecuperacion || siguienteDia(visita.fecha)}
+                        onChange={(e) => setFechaRecuperacion(e.target.value)}
+                        className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm font-normal normal-case text-slate-700"
+                      />
+                      <span className="mt-1 block text-[11px] font-normal normal-case text-slate-500">
+                        Se crea una jornada nueva a la misma hora ({visita.horaInicioProg ?? "?"}–{visita.horaFinProg ?? "?"}).
+                      </span>
+                    </label>
+                  )}
+                </div>
+              )}
+
+              <input
+                type="text"
+                value={notaReemplazo}
+                onChange={(e) => setNotaReemplazo(e.target.value)}
+                placeholder="Nota para el historial (opcional): qué se ha hablado con la familia…"
+                maxLength={500}
+                className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+              />
+
+              <button
+                onClick={aplicarReemplazo}
+                disabled={aplicando || !sustitutoId}
+                className="flex w-full items-center justify-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              >
+                <IconRefresh className="h-4 w-4" />
+                {aplicando ? "Aplicando…" : "Aplicar el reemplazo"}
+              </button>
+            </div>
+
+            {resumenReemplazo && (
+              <p className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">{resumenReemplazo}</p>
+            )}
+            {errorReemplazo && (
+              <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{errorReemplazo}</p>
             )}
           </section>
         )}

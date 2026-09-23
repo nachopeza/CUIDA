@@ -33,11 +33,12 @@ export const TRANSICIONES_SERVICIO: Record<string, string[]> = {
 };
 
 export const TRANSICIONES_VISITA: Record<string, string[]> = {
-  // Una jornada que no llega a prestarse tiene dos finales distintos, y la
+  // Una jornada que no llega a prestarse tiene tres finales distintos, y la
   // diferencia es económica: CANCELADA es que se avisó, NO_PRESENTADO es que
-  // el profesional se desplazó y no pudo entrar.
-  PROGRAMADA: ["CONFIRMADA", "EN_CURSO", "CANCELADA"],
-  CONFIRMADA: ["EN_CURSO", "CANCELADA"],
+  // el profesional se desplazó y no pudo entrar, y FALTA_PROFESIONAL es que no
+  // fue nadie —lo único de los tres que deja a la persona esperando en casa—.
+  PROGRAMADA: ["CONFIRMADA", "EN_CURSO", "CANCELADA", "FALTA_PROFESIONAL"],
+  CONFIRMADA: ["EN_CURSO", "CANCELADA", "FALTA_PROFESIONAL"],
   EN_CURSO: ["FINALIZADA", "INCIDENCIA", "NO_PRESENTADO"],
   FINALIZADA: ["REVISADA"],
   INCIDENCIA: ["FINALIZADA", "REVISADA", "NO_PRESENTADO"],
@@ -45,6 +46,9 @@ export const TRANSICIONES_VISITA: Record<string, string[]> = {
   REVISADA: ["LIQUIDADA"],
   CANCELADA: ["REVISADA"],
   NO_PRESENTADO: ["REVISADA"],
+  // Se revisa igual que las demás: hay que cerrarla para que deje de aparecer
+  // como pendiente, aunque no mueva ni un euro.
+  FALTA_PROFESIONAL: ["REVISADA"],
   LIQUIDADA: [],
 };
 

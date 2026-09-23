@@ -268,6 +268,66 @@ personalRouter.post("/ausencias/:id/estado", soloGestion, async (req, res) => {
     },
   });
 
+  // Aprobar una baja no es papeleo: son jornadas que se quedan sin nadie. Se
+  // abre una incidencia por cada servicio afectado —con las jornadas que
+  // quedan descubiertas— para poder tramitar el reemplazo desde ahí, en vez de
+  // descubrirlo el día que la persona espera en su casa.
+  // "baja_medica" no es castellano. Lo que se lee en la incidencia tiene que
+  // poder decirse en voz alta por teléfono.
+  const COMO_SE_DICE: Record<string, string> = {
+    VACACIONES: "vacaciones",
+    BAJA_MEDICA: "baja médica",
+    PERMISO_RETRIBUIDO: "permiso retribuido",
+    ASUNTOS_PROPIOS: "asuntos propios",
+  };
+  const incidenciasAbiertas: string[] = [];
+  if (parsed.data.estado === "APROBADA") {
+    const desde = new Date(ausencia.desde);
+    desde.setHours(0, 0, 0, 0);
+    const hasta = new Date(ausencia.hasta);
+    hasta.setHours(23, 59, 59, 999);
+
+    const descubiertas = await prisma.visita.findMany({
+      where: {
+        fecha: { gte: desde, lte: hasta },
+        estado: { in: ["PROGRAMADA", "CONFIRMADA"] },
+        OR: [{ profesionalId: ausencia.profesionalId }, { profesionalId: null, servicio: { profesionalId: ausencia.profesionalId } }],
+        servicio: { organizacionId: ausencia.profesional.organizacionId },
+      },
+      include: { servicio: { include: { solicitud: { include: { persona: true, necesidad: true } } } } },
+      orderBy: { fecha: "asc" },
+    });
+
+    const porServicio = new Map<string, typeof descubiertas>();
+    for (const v of descubiertas) {
+      porServicio.set(v.servicioId, [...(porServicio.get(v.servicioId) ?? []), v]);
+    }
+
+    for (const [servicioId, visitas] of porServicio) {
+      const primera = visitas[0];
+      const dias = visitas.map((v) => v.fecha.toLocaleDateString("es-ES", { day: "numeric", month: "short" })).join(", ");
+      const incidencia = await prisma.incidencia.create({
+        data: {
+          codigo: await generarCodigo("incidencia"),
+          tipo: "GENERAL",
+          estado: "NUEVA",
+          motivo: "AUSENCIA",
+          prioridad: "ALTA",
+          descripcion:
+            `${ausencia.profesional.nombre} ${ausencia.profesional.apellidos} está de ${COMO_SE_DICE[ausencia.tipo] ?? ausencia.tipo.toLowerCase().replace(/_/g, " ")} ` +
+            `del ${ausencia.desde.toLocaleDateString("es-ES")} al ${ausencia.hasta.toLocaleDateString("es-ES")}. ` +
+            `${visitas.length === 1 ? "Queda sin cubrir 1 jornada" : `Quedan sin cubrir ${visitas.length} jornadas`} de ` +
+            `${primera.servicio.solicitud.necesidad.nombre} con ${primera.servicio.solicitud.persona.nombre} ` +
+            `${primera.servicio.solicitud.persona.apellidos} (${dias}). Busca reemplazo.`,
+          servicioId,
+          visitaId: primera.id,
+          creadoPorUsuarioId: req.usuario!.sub,
+        },
+      });
+      incidenciasAbiertas.push(incidencia.codigo);
+    }
+  }
+
   const cuenta = await prisma.usuario.findFirst({ where: { profesionalId: ausencia.profesionalId }, select: { id: true } });
   if (cuenta) {
     const verbo = parsed.data.estado === "APROBADA" ? "aprobada" : parsed.data.estado === "RECHAZADA" ? "rechazada" : "cancelada";
@@ -284,9 +344,11 @@ personalRouter.post("/ausencias/:id/estado", soloGestion, async (req, res) => {
     accion: "resolver_ausencia",
     entidadTipo: "Profesional",
     entidadId: ausencia.profesionalId,
-    detalle: `${ausencia.tipo} → ${parsed.data.estado}`,
+    detalle:
+      `${ausencia.tipo} → ${parsed.data.estado}` +
+      (incidenciasAbiertas.length > 0 ? ` · ${incidenciasAbiertas.length} servicio(s) sin cubrir: ${incidenciasAbiertas.join(", ")}` : ""),
   });
-  res.json(actualizada);
+  res.json({ ...actualizada, incidenciasAbiertas });
 });
 
 // ----------------------------------------------------- registro de jornada

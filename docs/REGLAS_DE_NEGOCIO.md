@@ -83,6 +83,50 @@ ejecución; el tiempo es lo que genera dinero.
 | 29 | Servicio incompleto | Incidencia sobre la jornada; coordinación decide al verificar |
 | 30 | Sustitución | Reemplazo de profesional; las jornadas ya hechas conservan su profesional para que la liquidación de cada uno siga siendo correcta |
 
+## Cuando no va nadie
+
+Una jornada que no se presta puede fallar por dos lados distintos, y no es lo
+mismo: si la persona atendida no estaba, el profesional se desplazó; si el que
+falta es el profesional, no hay nada que cobrar ni nada que pagar. Por eso son
+dos estados, no uno con matices.
+
+| # | Caso | Estado de la jornada | Se cobra | Se paga |
+|---|---|---|---|---|
+| 30 bis | La persona no estaba o no abrió | `NO_PRESENTADO` | 100 % de lo acordado (configurable) | 100 % de lo acordado (configurable) |
+| 30 ter | No fue nadie a prestar el servicio | `FALTA_PROFESIONAL` | **0 %** | **0 %** |
+
+Las dos abren **incidencia automática**, colgando a la vez del servicio y de la
+jornada, para que se puedan tramitar como cualquier otra. La de
+`FALTA_PROFESIONAL` entra con **prioridad alta**: que no vaya nadie a casa de
+una persona que espera es lo más grave que puede pasar aquí, y no puede quedar
+sólo como un apunte contable.
+
+Una **ausencia aprobada** (baja médica, vacaciones, permiso) hace lo mismo sin
+esperar al día: al aprobarla se abre una incidencia por cada servicio que deja
+sin cubrir, diciendo cuántas jornadas son y de quién, para que coordinación
+busque reemplazo antes de que llegue la fecha.
+
+### Tramitar el reemplazo
+
+Desde la ficha de la incidencia se pone a otra persona en el servicio, y de ahí
+salen cuatro consecuencias:
+
+1. El **servicio** pasa al sustituto, y con él las jornadas que todavía no han
+   empezado. Las ya trabajadas no se tocan: siguen contando para quien las hizo,
+   y su liquidación sigue siendo correcta.
+2. La **jornada perdida** se puede recuperar otro día. Recuperarla es **crear
+   una jornada nueva**, nunca reescribir la que no se hizo: aquel día no fue
+   nadie y eso queda registrado como pasó.
+3. Al sustituto se le aplican **las mismas comprobaciones que a cualquier
+   asignación** —documentos obligatorios al día (certificado de delitos
+   sexuales incluido), contrato de encargo de tratamiento firmado si viene de
+   una empresa colaboradora, y ninguna ausencia aprobada ese día—. Un reemplazo
+   de urgencia es justo cuando más fácil es saltárselas, así que se comprueban
+   igual y el motivo del rechazo se dice por escrito.
+4. La incidencia queda **en resolución, no cerrada**: todavía falta avisar a la
+   familia, y eso lo da por hecho una persona cuando lo ha hecho.
+
+
 ## Dinero
 
 | # | Pregunta | Respuesta de CUIDA |

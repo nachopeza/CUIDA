@@ -31,6 +31,9 @@ const COLORES: Record<string, string> = {
   // La jornada no se prestó, pero no es lo mismo avisar que no abrir la
   // puerta: el no presentado tiene su propia consecuencia económica.
   NO_PRESENTADO: "bg-rose-100 text-rose-700",
+  // No fue nadie: lo más grave de los tres finales posibles de una jornada
+  // que no se presta, y por eso el rojo más oscuro.
+  FALTA_PROFESIONAL: "bg-rose-200 text-rose-800",
   // Verificada y ya pagada al profesional en una liquidación.
   LIQUIDADA: "bg-slate-300 text-slate-800",
   CANCELADO: "bg-rose-100 text-rose-700",
@@ -44,9 +47,20 @@ const COLORES: Record<string, string> = {
   RESUELTA: "bg-brand-green-100 text-brand-green-700",
 };
 
+// Los estados cuyo nombre en la base de datos no se puede enseñar tal cual:
+// "FALTA PROFESIONAL" no dice lo que pasó, "No fue nadie" sí.
+const TEXTOS: Record<string, string> = {
+  FALTA_PROFESIONAL: "No fue nadie",
+  NO_PRESENTADO: "No presentado",
+};
+
 export function EstadoBadge({ estado }: { estado: string }) {
   const clase = COLORES[estado] ?? "bg-slate-200 text-slate-700";
-  return <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${clase}`}>{estado.replace(/_/g, " ")}</span>;
+  return (
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${clase}`}>
+      {TEXTOS[estado] ?? estado.replace(/_/g, " ")}
+    </span>
+  );
 }
 
 // Badge del estado de trabajo (sección "simplifica estados de solicitudes,
