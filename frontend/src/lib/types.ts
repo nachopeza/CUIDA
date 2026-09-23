@@ -339,6 +339,9 @@ export interface Factura {
   emisorNombre?: string | null;
   emisorCif?: string | null;
   emisorDireccion?: string | null;
+  // Pie registral congelado al emitir: mención obligatoria en la factura de
+  // una sociedad (art. 24 LSC).
+  emisorRegistro?: string | null;
   facturaRectificadaId?: string | null;
   facturaRectificada?: { id: string; codigo: string; serie: string; numero: number; ejercicio: number } | null;
   rectificativas?: { id: string; codigo: string; serie: string; numero: number; ejercicio: number; totalConIva: string | number }[];

@@ -321,6 +321,13 @@ facturasRouter.post("/:id/emitir", requiereRol("COORDINADOR", "ORGANIZACION", "A
   }
 
   const emision = new Date();
+  // Los días de plazo salen de lo pactado con este cliente y, si no hay nada
+  // pactado, de lo que la empresa tenga puesto por defecto. Antes había un 30
+  // escrito en el código que nadie podía cambiar.
+  const empresa = await prisma.organizacion.findUnique({
+    where: { id: factura.organizacionId },
+    select: { diasVencimiento: true },
+  });
   const numero = await siguienteNumero(factura.organizacionId, factura.serie, factura.ejercicio);
   const emitida = await prisma.factura.update({
     where: { id: factura.id },
@@ -328,7 +335,7 @@ facturasRouter.post("/:id/emitir", requiereRol("COORDINADOR", "ORGANIZACION", "A
       estado: "EMITIDA",
       numero,
       fechaEmision: emision,
-      fechaVencimiento: calcularVencimiento(emision, domiciliado, datos?.diaCobro ?? 5, datos?.diasVencimiento ?? 30),
+      fechaVencimiento: calcularVencimiento(emision, domiciliado, datos?.diaCobro ?? 5, datos?.diasVencimiento ?? empresa?.diasVencimiento ?? 30),
       mandatoSepaId: domiciliado ? mandato!.id : null,
       ...partes,
     },
@@ -447,6 +454,7 @@ facturasRouter.post("/:id/rectificar", requiereRol("COORDINADOR", "ORGANIZACION"
       emisorNombre: original.emisorNombre,
       emisorCif: original.emisorCif,
       emisorDireccion: original.emisorDireccion,
+      emisorRegistro: original.emisorRegistro,
       importeTotal: redondear(signo * Number(original.importeTotal) * proporcion),
       ivaTotal: redondear(signo * Number(original.ivaTotal) * proporcion),
       totalConIva: redondear(signo * Number(original.totalConIva) * proporcion),

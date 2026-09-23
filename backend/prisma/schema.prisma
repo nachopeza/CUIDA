@@ -57,6 +57,43 @@ model Organizacion {
   // banco asigna a la empresa para poder girar recibos.
   ibanCobro             String?
   identificadorAcreedor String?
+  // El BIC ya no hace falta para SEPA dentro de la zona euro, pero algunos
+  // bancos lo siguen pidiendo en el fichero.
+  bicCobro              String?
+
+  // Forma jurídica y datos registrales. Una S.L. tiene que hacer constar en
+  // sus facturas y en su web los datos del Registro Mercantil (art. 24 de la
+  // Ley de Sociedades de Capital), y sin ellos la factura está incompleta.
+  formaJuridica     String?
+  registroMercantil String? // "Registro Mercantil de Cantabria"
+  registroTomo      String?
+  registroFolio     String?
+  registroHoja      String?
+  // Actividad económica: el CNAE clasifica la empresa y el epígrafe de IAE es
+  // el alta censal con la que se factura.
+  cnae              String?
+  epigrafeIae       String?
+  web               String?
+
+  // Seguro de responsabilidad civil. En ayuda a domicilio no es un extra: casi
+  // todas las comunidades lo exigen para poder prestar el servicio, y la
+  // póliza caduca.
+  seguroAseguradora String?
+  seguroPoliza      String?
+  seguroCobertura   Decimal?  @db.Decimal(12, 2)
+  seguroVencimiento DateTime?
+
+  // Autorización administrativa como entidad de servicios sociales. En
+  // Cantabria, el Registro de Entidades, Centros y Servicios Sociales; en cada
+  // comunidad cambia el nombre pero no la obligación.
+  registroEntidadesNumero String?
+  registroEntidadesOrgano String?
+
+  // Lo que se aplica por defecto al facturar, para no tenerlo que decidir cada
+  // vez: el IVA cuando la necesidad no trae el suyo, y los días que se da de
+  // plazo para pagar.
+  ivaPorDefecto   Decimal @default(10) @db.Decimal(5, 2)
+  diasVencimiento Int     @default(30)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -748,6 +785,10 @@ model Factura {
   emisorNombre     String?
   emisorCif        String?
   emisorDireccion  String?
+  // El pie registral de una sociedad es mención obligatoria de la factura
+  // (art. 24 LSC). Se congela como el resto de la identidad: si mañana cambia
+  // el tomo, la factura de ayer sigue diciendo lo que decía al emitirse.
+  emisorRegistro   String?
 
   // Una rectificativa apunta a la que corrige y no la modifica.
   facturaRectificadaId String?

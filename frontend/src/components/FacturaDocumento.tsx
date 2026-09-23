@@ -45,6 +45,10 @@ export function FacturaDocumento({ factura }: { factura: Factura }) {
           <p className="text-sm font-semibold">{factura.emisorNombre ?? "—"}</p>
           <p className="text-xs text-slate-500">{factura.emisorCif ?? "Sin CIF"}</p>
           <p className="text-xs text-slate-500">{factura.emisorDireccion ?? ""}</p>
+          {/* Pie registral: una sociedad tiene que hacerlo constar en sus
+              facturas (art. 24 de la Ley de Sociedades de Capital). Va con el
+              emisor, no al final, porque forma parte de quién expide. */}
+          {factura.emisorRegistro && <p className="mt-0.5 text-[11px] text-slate-400">{factura.emisorRegistro}</p>}
         </div>
         <div className="text-right">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">

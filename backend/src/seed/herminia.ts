@@ -18,9 +18,12 @@ const DEMO_PASSWORD = "cuida2026";
 
 async function crearUsuario(email: string, rol: "PERSONA" | "FAMILIAR" | "PROFESIONAL" | "COORDINADOR" | "ORGANIZACION" | "ADMIN", extra: Record<string, unknown> = {}) {
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
+  // El `update` no puede quedar vacío: si una siembra anterior dejó la cuenta
+  // colgando de otra organización, un upsert que no toca nada la deja apuntando
+  // al resto viejo y el usuario entra a una demo fantasma.
   return prisma.usuario.upsert({
     where: { email },
-    update: {},
+    update: { passwordHash, rol, ...extra },
     create: { email, passwordHash, rol, ...extra },
   });
 }
@@ -54,16 +57,32 @@ function enHora(fecha: Date, hora: string): Date {
   return d;
 }
 
-const NOMBRE_ORG_DEMO = "Ayuda a Domicilio Piloto";
+const NOMBRE_ORG_DEMO = "CUIDA Cantabria";
+const CORREO_DEMO = "@cuida.demo";
 
 // El seed debe poder relanzarse sin ir acumulando organizaciones duplicadas
 // (los códigos CUI-/ORG-/... se generan por conteo, así que un upsert por
 // código nunca encontraría el registro anterior). En vez de eso, limpiamos
 // primero cualquier resto del mismo caso de demostración.
 async function limpiarDemoAnterior() {
-  const orgsExistentes = await prisma.organizacion.findMany({ where: { nombre: NOMBRE_ORG_DEMO } });
-  for (const org of orgsExistentes) {
-    await limpiarOrganizacion(org.id);
+  const ids = new Set<string>();
+  for (const org of await prisma.organizacion.findMany({ where: { nombre: NOMBRE_ORG_DEMO } })) {
+    ids.add(org.id);
+  }
+  // El nombre de la organización se edita desde el panel de empresa, así que el
+  // seed no se puede reconocer solo por él: en cuanto alguien lo cambia, la
+  // siembra siguiente crea una organización nueva y deja la anterior viva con
+  // las cuentas colgando de ella. Cualquier organización a la que pertenezca
+  // una cuenta @cuida.demo es, por definición, un resto de la demostración.
+  const cuentasDemo = await prisma.usuario.findMany({
+    where: { email: { endsWith: CORREO_DEMO } },
+    select: { organizacionId: true },
+  });
+  for (const cuenta of cuentasDemo) {
+    if (cuenta.organizacionId) ids.add(cuenta.organizacionId);
+  }
+  for (const id of ids) {
+    await limpiarOrganizacion(id);
   }
 }
 
@@ -150,6 +169,27 @@ async function main() {
       serieFactura: "A",
       ibanCobro: "ES9121000418450200051332",
       identificadorAcreedor: "ES12ZZZB12345678",
+      bicCobro: "CAIXESBBXXX",
+      // La ficha completa de la empresa: lo que sale impreso en cada factura y
+      // lo que hace falta para operar como entidad de servicios sociales.
+      formaJuridica: "Sociedad Limitada",
+      web: "https://cuida.example",
+      registroMercantil: "Registro Mercantil de Cantabria",
+      registroTomo: "412",
+      registroFolio: "88",
+      registroHoja: "S-9021",
+      cnae: "8810 - Actividades de servicios sociales sin alojamiento para personas mayores",
+      epigrafeIae: "952 - Asistencia y servicios sociales para niños, jóvenes, disminuidos y ancianos",
+      ivaPorDefecto: 10,
+      diasVencimiento: 30,
+      seguroAseguradora: "Mutua Cántabra de Seguros",
+      seguroPoliza: "RC-2026-004471",
+      seguroCobertura: 600000,
+      // Vence dentro de cinco meses: ni caducada ni en el aviso de sesenta
+      // días, para que la demo arranque sin alarmas falsas.
+      seguroVencimiento: fechaEn(150),
+      registroEntidadesNumero: "E-CANT-0472",
+      registroEntidadesOrgano: "Consejería de Inclusión Social del Gobierno de Cantabria",
     },
   });
 

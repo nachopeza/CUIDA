@@ -57,11 +57,13 @@ import { AnalisisTab } from "./coordinador/AnalisisTab.js";
 import { BandejaTab } from "./coordinador/BandejaTab.js";
 import { ReglasTab } from "./coordinador/ReglasTab.js";
 import { ProteccionDatosTab } from "./coordinador/ProteccionDatosTab.js";
+import { EmpresaTab } from "./coordinador/EmpresaTab.js";
 import { PersonalTab } from "./coordinador/PersonalTab.js";
 import { CoberturaTab } from "./coordinador/CoberturaTab.js";
 import type { EmpresaColaboradora, Incidencia, Necesidad, Persona, Profesional, Servicio, Solicitud } from "../lib/types.js";
 
 type Tab =
+  | "empresa"
   | "proteccion"
   | "bandeja"
   | "analisis"
@@ -130,6 +132,9 @@ const AREAS: AreaNav[] = [
   {
     titulo: "Administración",
     items: [
+      // La empresa va primero en Administración: es lo que hay que configurar
+      // antes de poder facturar nada.
+      { key: "empresa", label: "Mi empresa", icon: IconBuilding },
       { key: "equipo", label: "Equipo", icon: IconUsersGroup },
       { key: "empresas", label: "Empresas colaboradoras", icon: IconBuilding },
       { key: "servicios", label: "Catálogo de servicios", icon: IconTag },
@@ -721,6 +726,7 @@ export function CoordinadorPage() {
         {tab === "equipo" && <EquipoTab />}
         {tab === "reglas" && <ReglasTab />}
         {tab === "proteccion" && <ProteccionDatosTab />}
+        {tab === "empresa" && <EmpresaTab />}
         {tab === "analisis" && <AnalisisTab />}
         {tab === "bandeja" && (
           <BandejaTab

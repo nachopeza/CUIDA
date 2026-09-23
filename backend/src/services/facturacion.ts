@@ -55,6 +55,7 @@ export interface PartesFactura {
   emisorNombre: string;
   emisorCif: string | null;
   emisorDireccion: string | null;
+  emisorRegistro: string | null;
 }
 
 function direccionDe(d: { direccionFiscal?: string | null; codigoPostal?: string | null; municipio?: string | null; provincia?: string | null }): string | null {
@@ -78,12 +79,30 @@ export async function partesDeLaFactura(personaId: string, organizacionId: strin
     emisorNombre: organizacion?.razonSocial ?? organizacion?.nombre ?? "",
     emisorCif: organizacion?.cif ?? null,
     emisorDireccion: organizacion ? direccionDe(organizacion) : null,
+    emisorRegistro: organizacion ? registroDe(organizacion) : null,
   };
 }
 
 // Qué le falta a una factura para poder emitirse. Se devuelven todos los
 // problemas juntos y no el primero: así se corrigen de una vez en vez de
 // descubrirlos de uno en uno.
+// "Registro Mercantil de Cantabria, tomo 412, folio 88, hoja S-9021". Si no hay
+// datos registrales no se inventa nada: se devuelve null y el pie no aparece.
+function registroDe(o: {
+  registroMercantil?: string | null;
+  registroTomo?: string | null;
+  registroFolio?: string | null;
+  registroHoja?: string | null;
+}): string | null {
+  if (!o.registroMercantil) return null;
+  const partes = [
+    o.registroTomo ? `tomo ${o.registroTomo}` : null,
+    o.registroFolio ? `folio ${o.registroFolio}` : null,
+    o.registroHoja ? `hoja ${o.registroHoja}` : null,
+  ].filter(Boolean);
+  return partes.length > 0 ? `${o.registroMercantil}, ${partes.join(", ")}` : o.registroMercantil;
+}
+
 export function problemasParaEmitir(partes: PartesFactura, domiciliado: boolean, tieneMandato: boolean): string[] {
   const faltan: string[] = [];
   if (!partes.emisorNombre) faltan.push("la razón social de la empresa");
