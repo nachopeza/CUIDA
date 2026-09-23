@@ -8,8 +8,9 @@ import { esGestorOrganizacion, puedeVerImportes, filtrarEconomia, ocultarTarifaS
 import { ausenteEse, carenciasDe } from "../services/rrhh.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
-import { asegurarSesiones } from "../services/sesiones.js";
+import { anotarSiNoSeCreo, asegurarSesiones } from "../services/sesiones.js";
 import { calcularReparto, minutosEntre } from "../services/economia.js";
+import { reglasDe } from "../services/motorTiempo.js";
 
 export const serviciosRouter = Router();
 serviciosRouter.use(autenticar);
@@ -237,6 +238,30 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
     !voluntario && precioHora != null && minutosPrevistos != null
       ? calcularReparto({ minutos: minutosPrevistos, precioHora, comisionPorcentaje, ivaPorcentaje })
       : null;
+
+  // El suelo por hora también aquí. Hasta ahora sólo lo comprobaba el
+  // catálogo de tarifas (POST /reglas/tarifas), pero el precio se puede fijar
+  // por los dos caminos y éste es el que se usa cuando no hay tarifa de
+  // catálogo: por el hueco entraba un servicio a 5 €/h que, quitada la
+  // comisión, dejaba al profesional en 4,25 €/h. Una tarifa mal puesta se
+  // convierte en nóminas mal pagadas durante meses.
+  //
+  // Un servicio voluntario no cobra ni paga, así que no tiene suelo que
+  // respetar; y si todavía no hay precio, no hay nada que comprobar.
+  if (reparto && reparto.minutos > 0) {
+    const reglas = await reglasDe(servicio.organizacionId);
+    const porHoraDelProfesional = reparto.importeProfesional / (reparto.minutos / 60);
+    const minimo = Number(reglas.salarioMinimoHora);
+    if (porHoraDelProfesional + 0.005 < minimo) {
+      const euros = (n: number) => n.toFixed(2).replace(".", ",");
+      return res.status(400).json({
+        error:
+          `Con ${euros(reparto.precioHora)} €/h y una comisión del ${reparto.comisionPorcentaje} %, al profesional le quedan ` +
+          `${euros(porHoraDelProfesional)} €/h, por debajo del mínimo configurado (${euros(minimo)} €/h). ` +
+          `Sube el precio, baja la comisión o cambia el mínimo en las reglas de la casa.`,
+      });
+    }
+  }
 
   const actualizado = await prisma.servicio.update({
     where: { id: servicio.id },
@@ -576,6 +601,10 @@ serviciosRouter.post("/:id/aceptar", requiereRol("PROFESIONAL"), async (req, res
       motivo: `Jornada ${sesiones.creadas.join(", ")} creada automáticamente desde el plan`,
       servicioId: servicio.id,
     });
+  } else {
+    // Y si no se pudo, que se sepa: un servicio confirmado sin nada en la
+    // agenda es una persona esperando a alguien que no tiene día.
+    await anotarSiNoSeCreo(servicio.id, sesiones);
   }
 
   await registrarAuditoria({
@@ -701,6 +730,8 @@ serviciosRouter.post("/:id/estado", async (req, res) => {
         motivo: `Jornada ${sesiones.creadas.join(", ")} creada automáticamente desde el plan`,
         servicioId: servicio.id,
       });
+    } else {
+      await anotarSiNoSeCreo(servicio.id, sesiones);
     }
   }
 

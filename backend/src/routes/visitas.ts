@@ -6,7 +6,7 @@ import { registrarAuditoria } from "../services/audit.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError, TRANSICIONES_SERVICIO } from "../services/estados.js";
 import { notificarGestores } from "../services/notificaciones.js";
 import { esGestorOrganizacion, ocultarTarifaSiProcede, soloLoQueCobraElProfesional } from "../services/permisos.js";
-import { asegurarSesiones } from "../services/sesiones.js";
+import { anotarSiNoSeCreo, asegurarSesiones } from "../services/sesiones.js";
 import { formatearDuracion, minutosFichados } from "../services/economia.js";
 import { generarCodigo } from "../lib/codes.js";
 import { liquidarVisita, tarifaAplicable } from "../services/visitaEconomia.js";
@@ -376,6 +376,10 @@ visitasRouter.post("/:id/revisar", requiereRol("COORDINADOR", "ORGANIZACION", "A
         motivo: `Siguiente jornada ${sesiones.creadas.join(", ")} creada automáticamente`,
         servicioId: servicioActualizado.id,
       });
+    } else {
+      // Un recurrente que deja de generar la siguiente se queda sin agenda sin
+      // que nadie lo pida: el motivo tiene que salir a la luz.
+      await anotarSiNoSeCreo(servicioActualizado.id, sesiones);
     }
   }
 

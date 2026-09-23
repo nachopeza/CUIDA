@@ -1,5 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
+import { registrarHistorial } from "./estados.js";
+import { notificarGestores } from "./notificaciones.js";
 
 // Una jornada de trabajo es la unidad que se cronometra y se factura, pero
 // nadie tiene por qué pedirla: sale del plan del servicio. Un servicio puntual
@@ -191,6 +193,34 @@ export async function asegurarSesiones(servicioId: string): Promise<ResultadoSes
 
   const codigo = await crear(dia);
   return codigo ? { creadas: [codigo] } : { creadas: [], motivo: "Ese día el profesional no puede: ya tiene algo a esa hora o está de ausencia" };
+}
+
+// Cuando la jornada NO se ha podido crear, alguien tiene que enterarse. Hasta
+// ahora el motivo se calculaba y se tiraba: el servicio se quedaba confirmado
+// y sin nada en la agenda, en silencio, y no se sabía hasta que pasaba el día
+// y nadie había ido. Queda escrito en el historial del servicio y sale como
+// aviso para coordinación.
+export async function anotarSiNoSeCreo(servicioId: string, resultado: ResultadoSesiones): Promise<void> {
+  if (resultado.creadas.length > 0 || !resultado.motivo) return;
+  // Estos dos no son un problema: significan que la agenda ya está como tiene
+  // que estar.
+  if (resultado.motivo === "Ya tiene su jornada" || resultado.motivo === "Ya tiene una jornada por delante") return;
+
+  const servicio = await prisma.servicio.findUnique({
+    where: { id: servicioId },
+    include: { solicitud: { include: { persona: true } } },
+  });
+  if (!servicio) return;
+
+  const aviso = `${servicio.codigo} (${servicio.solicitud.persona.nombre} ${servicio.solicitud.persona.apellidos}) se ha quedado sin jornada en la agenda: ${resultado.motivo.toLowerCase()}.`;
+  await registrarHistorial({
+    entidadTipo: "Servicio",
+    estadoAnterior: servicio.estado,
+    estadoNuevo: servicio.estado,
+    motivo: aviso,
+    servicioId: servicio.id,
+  });
+  await notificarGestores(servicio.organizacionId, "servicio_sin_jornada", aviso, servicio.solicitudId).catch(() => undefined);
 }
 
 export interface ResultadoSincronizacion {
