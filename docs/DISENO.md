@@ -57,22 +57,40 @@ pantalla, para que "tarjeta" quiera decir lo mismo en las veinte secciones:
 
 ## El escritorio
 
-Es la disposición de la maqueta, rellena con nuestros datos:
+Es la disposición de la maqueta, rellena con nuestros datos. Dos columnas: a
+la izquierda lo que se hace, a la derecha cómo va.
 
 - **Mi día**: el saludo, la fecha y la hora, y cuatro casillas —urgentes,
   pendientes, visitas de hoy y profesionales activos—. En cada una, el icono
   en su círculo y **el número a su lado**, en la misma línea; debajo, lo que
   cuenta en el color de la casilla, y el enlace a donde se resuelve. Las
   cuatro miden lo mismo aunque el texto ocupe dos líneas.
-- **Bandeja de trabajo**: una tabla de prioridad, tipo, persona, cuándo y una
-  acción por fila. Lo crítico lleva el botón lleno y lo demás el de contorno.
-- **Agenda de hoy**: la hora, el punto de estado, quién recibe el servicio,
-  quién va y en qué estado está la jornada.
-- **El trío de abajo**: la rosquilla de cobertura del día, qué se pide más y
-  en qué punto están los servicios.
-- **La columna de la derecha**: servicios en curso, resumen económico del mes,
-  incidencias abiertas, el recordatorio de para qué es todo esto y las
-  próximas acciones.
+- **Bandeja de trabajo**: prioridad · tipo · persona / servicio · **hora** ·
+  acción. El tipo lleva debajo qué pasa, y la persona, de qué servicio se
+  trata: el nombre solo no distingue dos servicios de la misma persona. La
+  columna de la hora dice a qué hora hay que estar —"09:00", "Mañana 17:00",
+  "Ayer 16:00"—, no cuánto lleva esperando; eso ya lo dice el orden de la
+  lista. Lo crítico lleva el botón lleno y la hora en rojo; lo demás, el botón
+  de contorno. Los anchos de columna son fijos a propósito: una descripción
+  larga no puede empujar el botón que resuelve el asunto fuera de la tarjeta.
+- **Agenda de hoy**: hora · punto de estado · quién recibe el servicio y de
+  qué es · **la dirección** · en qué estado está · quién va. En pantalla ancha
+  va en rejilla, para que las columnas de una fila caigan justo debajo de las
+  de la anterior. Arriba a la derecha, "Hoy" y dos flechas: asomarse a mañana
+  y volver, sin salir del escritorio.
+- **El trío de abajo**: la rosquilla de cobertura del día con su leyenda en un
+  recuadro, qué se hace hoy por tipo (un punto y la cifra, sin barras) y en qué
+  punto están los servicios.
+- **La columna de la derecha**: servicios en curso, el resumen económico del
+  mes en cuatro casillas con su variación, las incidencias abiertas, el
+  recordatorio de para qué es todo esto y las próximas acciones.
+
+Lo que **no** está en la maqueta tampoco está aquí: la fila de avisos, la
+carga de trabajo y la actividad reciente se fueron. No se perdió nada por el
+camino: la carga de trabajo y la actividad tienen su propia sección, y lo que
+detectaba cada aviso entró en la bandeja, que es donde se miran las tareas y
+donde cada una lleva su acción al lado. Las novedades se quedan al final de la
+columna de la derecha, que es donde se pidieron.
 
 ## La estructura
 

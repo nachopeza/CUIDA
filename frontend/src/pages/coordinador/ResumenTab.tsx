@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
-import { ActividadFeed } from "./ActividadTab.js";
-import { CargaTrabajo } from "./CargaTrabajo.js";
-import { Cronometro, horasTrabajadas } from "../../components/Cronometro.js";
+import { Cronometro } from "../../components/Cronometro.js";
 import { Novedades } from "../../components/Novedades.js";
 import { Avatar } from "../../components/Avatar.js";
 import { infoMotivo } from "../../lib/incidencias.js";
-import { IconActivity as IconActividad } from "../../components/icons.js";
-import { INFO_PRIORIDAD, calcularPendientes, hace, type Asunto } from "../../lib/pendientes.js";
-import { compararConAcordado, duracion, euros, minutosEntre, minutosFichados, conMayusculaInicial } from "../../lib/economia.js";
-import { IconAlert, IconArrowDown, IconArrowUp, IconBriefcase, IconCalendar, IconCheck, IconClipboard, IconClock, IconReceipt, IconRefresh, IconShield, IconUsers } from "../../components/icons.js";
+import { INFO_PRIORIDAD, calcularPendientes, type Asunto } from "../../lib/pendientes.js";
+import { duracion, euros, minutosEntre, conMayusculaInicial } from "../../lib/economia.js";
+import { IconAlert, IconArrowDown, IconArrowUp, IconBriefcase, IconCalendar, IconCheck, IconChevronLeft, IconChevronRight, IconClipboard, IconClock, IconPin, IconReceipt, IconRefresh, IconShield, IconUsers } from "../../components/icons.js";
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
 import { TiempoTrabajadoModal } from "../../components/TiempoTrabajadoModal.js";
 import { IncidenciaFormModal } from "./IncidenciaFormModal.js";
@@ -28,17 +25,6 @@ interface Props {
   onAbrirIncidencia: (incidenciaId: string) => void;
   onAbrirPersona: (personaId: string) => void;
   onCambiado: () => void;
-}
-
-interface Aviso {
-  clave: string;
-  singular: string;
-  plural: string;
-  detalle: string;
-  valor: number;
-  icon: (p: { className?: string }) => JSX.Element;
-  tono: "rose" | "amber";
-  onClick: () => void;
 }
 
 // Una visita de la agenda, ya emparejada con el servicio y la solicitud a la
@@ -169,6 +155,10 @@ const TINTES = {
   },
 } as const;
 
+// Los puntos de "Servicios por tipo". Se reparten por orden, no por tipo:
+// el color aquí sólo separa una fila de la siguiente.
+const COLORES_TIPO = ["bg-brand-600", "bg-rose-500", "bg-rose-300", "bg-brand-green-500", "bg-rose-200"] as const;
+
 function Casilla({
   tono,
   valor,
@@ -205,14 +195,31 @@ function Casilla({
 }
 
 // Una cifra del resumen económico, con su tinte y su flecha de tendencia.
-function Cifra({ etiqueta, valor, tono, delta }: { etiqueta: string; valor: string; tono: keyof typeof TINTES; delta?: number | null }) {
+//
+// `subirEsBueno` no es un detalle de color: que suba lo facturado es una buena
+// noticia y que suba lo pendiente de cobro es la contraria. Pintar las dos de
+// verde porque las dos suben sería mentir con un icono.
+function Cifra({
+  etiqueta,
+  valor,
+  tono,
+  delta,
+  subirEsBueno = true,
+}: {
+  etiqueta: string;
+  valor: string;
+  tono: keyof typeof TINTES;
+  delta?: number | null;
+  subirEsBueno?: boolean;
+}) {
   const t = TINTES[tono];
+  const bien = delta == null ? true : delta >= 0 === subirEsBueno;
   return (
-    <div className={`rounded-lg bg-gradient-to-br p-2.5 ${t.caja}`}>
-      <p className="truncate text-[11px] text-slate-500">{etiqueta}</p>
-      <p className={`mt-0.5 truncate text-sm font-bold tabular-nums ${t.numero}`}>{valor}</p>
+    <div className={`rounded-lg bg-gradient-to-br p-2 ${t.caja}`}>
+      <p className={`text-[10px] font-medium leading-tight ${t.numero}`}>{etiqueta}</p>
+      <p className="mt-1 truncate text-[13px] font-bold tabular-nums text-brand-900">{valor}</p>
       {delta != null && (
-        <p className={`mt-0.5 flex items-center gap-0.5 text-[11px] font-medium ${delta >= 0 ? "text-brand-green-600" : "text-amber-600"}`}>
+        <p className={`mt-0.5 flex items-center gap-0.5 text-[11px] font-medium ${bien ? "text-brand-green-600" : "text-rose-500"}`}>
           {delta >= 0 ? <IconArrowUp className="h-3 w-3" /> : <IconArrowDown className="h-3 w-3" />}
           {Math.abs(delta).toFixed(0)}%
         </p>
@@ -227,7 +234,7 @@ function Rosquilla({ porcentaje }: { porcentaje: number }) {
   const radio = 30;
   const vuelta = 2 * Math.PI * radio;
   return (
-    <div className="relative h-24 w-24 shrink-0">
+    <div className="relative h-[5.5rem] w-[5.5rem] shrink-0">
       <svg viewBox="0 0 80 80" className="h-full w-full -rotate-90" aria-hidden>
         <circle cx="40" cy="40" r={radio} fill="none" stroke="#e2e8f0" strokeWidth="9" />
         <circle
@@ -256,6 +263,21 @@ function IconCheckCuadro({ className }: { className?: string }) {
   );
 }
 
+// Cuándo pasó algo, dicho como se dice en voz alta: "Hoy · 09:00", "Ayer ·
+// 11:30" y, más atrás, la fecha corta. "hace 19 h" obliga a hacer la cuenta.
+function cuandoPaso(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const hhmm = d.toTimeString().slice(0, 5);
+  const hoy = new Date();
+  const clave = (x: Date) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
+  const desplazado = (delta: number) => clave(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + delta));
+  if (clave(d) === desplazado(0)) return `Hoy · ${hhmm}`;
+  if (clave(d) === desplazado(-1)) return `Ayer · ${hhmm}`;
+  return `${d.toLocaleDateString("es-ES", { day: "numeric", month: "short" })} · ${hhmm}`;
+}
+
 // Cómo se llama el caso de una incidencia: la persona a la que se atiende, que
 // es por quien se pregunta, no el código del ticket.
 function nombreDeIncidencia(i: Incidencia): string {
@@ -277,6 +299,11 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const [ahora, setAhora] = useState(() => Date.now());
   const [refrescando, setRefrescando] = useState(false);
   const [verificando, setVerificando] = useState<string | null>(null);
+  // Qué día enseña la agenda. Arranca en hoy —es lo que se mira el 95 % de
+  // las veces— pero las flechas dejan asomarse a mañana sin salir de aquí,
+  // que es justo lo que se hace a media mañana para ver si el día siguiente
+  // está cubierto.
+  const [diaAgenda, setDiaAgenda] = useState(() => iso(new Date()));
   const [incidenciaFichaje, setIncidenciaFichaje] = useState<FilaAgenda | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Jornadas empezadas y nunca cerradas: casi siempre un botón sin pulsar,
@@ -370,6 +397,22 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
     [todasLasVisitas, hoyISO],
   );
 
+  // La agenda de hoy manda en los contadores —lo urgente es de hoy—; esta
+  // otra es sólo la lista que se está mirando.
+  const agendaDelDia = useMemo(
+    () =>
+      todasLasVisitas
+        .filter(({ visita }) => visita.fecha.slice(0, 10) === diaAgenda)
+        .sort((a, b) => (a.visita.horaInicioProg ?? "99:99").localeCompare(b.visita.horaInicioProg ?? "99:99")),
+    [todasLasVisitas, diaAgenda],
+  );
+  const esHoy = diaAgenda === hoyISO;
+
+  function moverDia(delta: number) {
+    const [a, m, d] = diaAgenda.split("-").map(Number);
+    setDiaAgenda(iso(new Date(a, m - 1, d + delta)));
+  }
+
   const enMarcha = agendaHoy.filter(({ visita }) => visita.horaInicioReal && !visita.horaFinReal);
   // Tenía que haber empezado y nadie ha pulsado "He llegado": es la única
   // señal temprana de que una visita se ha caído.
@@ -380,152 +423,16 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
       !!visita.horaInicioProg &&
       visita.horaInicioProg < horaAhora,
   );
-  const porVerificarHoy = agendaHoy.filter(({ visita }) => visita.estado === "FINALIZADA");
 
   const visitasPorVerificar = useMemo(
     () => todasLasVisitas.filter(({ visita }) => visita.estado === "FINALIZADA"),
     [todasLasVisitas],
   );
 
-  const nuevas = useMemo(() => solicitudes.filter((s) => !s.servicio && s.estado !== "CANCELADA"), [solicitudes]);
-  const nuevasEstancadas = nuevas.filter((s) => ahora - new Date(s.createdAt).getTime() > 2 * 86400000);
 
   const cancelacionesPendientes = incidencias.filter((i) => i.tipo === "SOLICITUD_CANCELACION" && !["RESUELTA", "CERRADA"].includes(i.estado));
   const incidenciasAbiertas = incidencias.filter((i) => i.tipo !== "SOLICITUD_CANCELACION" && !["RESUELTA", "CERRADA"].includes(i.estado));
-  const serviciosSinCubrir = servicios.filter((s) => s.estado === "PENDIENTE" && !s.profesionalId);
-  const profesionalesPendientes = profesionales.filter((p) => p.estado === "PENDIENTE");
 
-  // Servicio en marcha al que no le queda ninguna visita por delante: se
-  // queda "vivo" en la lista pero en la práctica está parado, y hasta ahora
-  // nada lo detectaba.
-  const serviciosSinAgenda = useMemo(
-    () =>
-      servicios.filter(
-        (s) =>
-          ["CONFIRMADO", "EN_CURSO"].includes(s.estado) &&
-          !(s.visitas ?? []).some((v) => v.fecha.slice(0, 10) >= hoyISO && !["REVISADA"].includes(v.estado)),
-      ),
-    [servicios, hoyISO],
-  );
-
-  const facturasVencidas = useMemo(() => facturas.filter((f) => f.mes < mesActual && f.estado !== "PAGADA"), [facturas, mesActual]);
-
-  const avisos: Aviso[] = [
-    {
-      clave: "retrasadas",
-      singular: "visita de hoy sin empezar",
-      plural: "visitas de hoy sin empezar",
-      detalle: "ya ha pasado su hora y el profesional no ha llegado",
-      valor: retrasadas.length,
-      icon: IconAlert,
-      tono: "rose" as const,
-      onClick: () => onIrA("calendario"),
-    },
-    {
-      clave: "cancelaciones",
-      singular: "cancelación por corroborar",
-      plural: "cancelaciones por corroborar",
-      detalle: "la familia ha pedido cancelar y falta tu confirmación",
-      valor: cancelacionesPendientes.length,
-      icon: IconAlert,
-      tono: "rose" as const,
-      onClick: () => onIrA("incidencias"),
-    },
-    {
-      clave: "incidencias",
-      singular: "incidencia abierta",
-      plural: "incidencias abiertas",
-      detalle: "tickets sin resolver",
-      valor: incidenciasAbiertas.length,
-      icon: IconAlert,
-      tono: "rose" as const,
-      onClick: () => onIrA("incidencias"),
-    },
-    {
-      clave: "estancadas",
-      singular: "solicitud lleva más de 2 días sin aceptar",
-      plural: "solicitudes llevan más de 2 días sin aceptar",
-      detalle: "la familia sigue esperando respuesta",
-      valor: nuevasEstancadas.length,
-      icon: IconClipboard,
-      tono: "rose" as const,
-      onClick: () => onIrA("solicitudes", "nueva"),
-    },
-    {
-      clave: "sin_agenda",
-      singular: "servicio en marcha sin visitas programadas",
-      plural: "servicios en marcha sin visitas programadas",
-      detalle: "están activos pero no tienen nada por delante en la agenda",
-      valor: serviciosSinAgenda.length,
-      icon: IconCalendar,
-      tono: "amber" as const,
-      onClick: () => onIrA("solicitudes", "en_curso"),
-    },
-    {
-      clave: "sin_cubrir",
-      singular: "servicio sin cubrir",
-      plural: "servicios sin cubrir",
-      detalle: "publicados, esperando a un profesional",
-      valor: serviciosSinCubrir.length,
-      icon: IconBriefcase,
-      tono: "amber" as const,
-      onClick: () => onIrA("solicitudes", "buscando"),
-    },
-    {
-      clave: "facturas",
-      singular: "factura de un mes anterior sin cobrar",
-      plural: "facturas de meses anteriores sin cobrar",
-      detalle: "emitidas y todavía pendientes de pago",
-      valor: facturasVencidas.length,
-      icon: IconReceipt,
-      tono: "amber" as const,
-      onClick: () => onIrA("facturacion"),
-    },
-    {
-      clave: "profesionales",
-      singular: "profesional por verificar",
-      plural: "profesionales por verificar",
-      detalle: "se han dado de alta y esperan tu revisión",
-      valor: profesionalesPendientes.length,
-      icon: IconUsers,
-      tono: "amber" as const,
-      onClick: () => onIrA("profesionales"),
-    },
-    // Quien no tiene los papeles en regla no puede trabajar, y eso se
-    // descubría el día que había que asignarle a alguien.
-    {
-      clave: "sin_papeles",
-      valor: plantilla.filter((m) => m.bloqueado).length,
-      singular: "persona del equipo no puede trabajar: le falta documentación",
-      plural: "personas del equipo no pueden trabajar: les falta documentación",
-      detalle: "Sin el certificado de delitos sexuales o el DNI no se les puede asignar ningún servicio",
-      icon: IconAlert,
-      tono: "rose" as const,
-      onClick: () => onIrA("equipo"),
-    },
-    {
-      clave: "ausencias_pendientes",
-      valor: ausencias.filter((a) => a.estado === "SOLICITADA").length,
-      singular: "petición de días pendiente de responder",
-      plural: "peticiones de días pendientes de responder",
-      detalle: "Alguien del equipo espera respuesta",
-      icon: IconCalendar,
-      tono: "amber" as const,
-      onClick: () => onIrA("equipo"),
-    },
-  ].filter((a) => a.valor > 0);
-
-  // Horas realmente trabajadas: lo que se factura no son las horas
-  // programadas sino las del temporizador (sección "lo que vale es el
-  // tiempo que pasan los profesionales con los usuarios").
-  function horasDelMes(mes: string) {
-    return todasLasVisitas
-      .filter(({ visita }) => visita.fecha.slice(0, 7) === mes)
-      .reduce((acc, { visita }) => acc + horasTrabajadas(visita.horaInicioReal, visita.horaFinReal), 0);
-  }
-  const horasMes = useMemo(() => horasDelMes(mesActual), [todasLasVisitas, mesActual]);
-  const horasMesAnterior = useMemo(() => horasDelMes(mesAnterior), [todasLasVisitas, mesAnterior]);
-  const deltaHoras = horasMesAnterior > 0 ? ((horasMes - horasMesAnterior) / horasMesAnterior) * 100 : null;
 
   const facturasMes = useMemo(() => facturas.filter((f) => f.mes === mesActual), [facturas, mesActual]);
   const totalFacturadoMes = facturasMes.reduce((acc, f) => acc + Number(f.totalConIva ?? f.importeTotal), 0);
@@ -539,10 +446,19 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
     [facturas, mesAnterior],
   );
   const deltaComision = comisionMesAnterior > 0 ? ((comisionMes - comisionMesAnterior) / comisionMesAnterior) * 100 : null;
-  const aProfesionalesMes = useMemo(
-    () => facturasMes.reduce((acc, f) => acc + Number(f.importeProfesionales ?? 0), 0),
-    [facturasMes],
-  );
+
+  // Las tres cifras del mes pasado, para poder decir si esto sube o baja. Un
+  // importe sin con qué compararlo no informa de nada.
+  const mesPasado = useMemo(() => {
+    const previas = facturas.filter((f) => f.mes === mesAnterior);
+    const facturado = previas.reduce((acc, f) => acc + Number(f.totalConIva ?? f.importeTotal), 0);
+    const pendiente = previas.filter((f) => f.estado !== "PAGADA").reduce((acc, f) => acc + Number(f.totalConIva ?? f.importeTotal), 0);
+    return { facturado, pendiente, cobrado: facturado - pendiente };
+  }, [facturas, mesAnterior]);
+  const variacion = (ahoraV: number, antes: number) => (antes > 0 ? ((ahoraV - antes) / antes) * 100 : null);
+  const deltaFacturado = variacion(totalFacturadoMes, mesPasado.facturado);
+  const deltaCobrado = variacion(totalFacturadoMes - pendienteCobroMes, mesPasado.cobrado);
+  const deltaPendiente = variacion(pendienteCobroMes, mesPasado.pendiente);
 
   const profesionalesActivos = profesionales.filter((p) => p.estado === "ACTIVO").length;
   const profesionalesOcupados = useMemo(
@@ -550,27 +466,28 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
     [servicios],
   );
 
+  // Qué se hace hoy, por tipo. Cuenta las jornadas del día, no el histórico
+  // de solicitudes: es la cifra que tiene que cuadrar con "visitas hoy".
   const distribucionNecesidad = useMemo(() => {
     const conteo = new Map<string, { nombre: string; codigo: string; valor: number }>();
-    for (const s of solicitudes) {
-      const actual = conteo.get(s.necesidad.id) ?? { nombre: s.necesidad.nombre, codigo: s.necesidad.codigo, valor: 0 };
+    for (const { servicio } of agendaHoy) {
+      const n = servicio.solicitud?.necesidad;
+      if (!n) continue;
+      const actual = conteo.get(n.id) ?? { nombre: n.nombre, codigo: n.codigo, valor: 0 };
       actual.valor += 1;
-      conteo.set(s.necesidad.id, actual);
+      conteo.set(n.id, actual);
     }
     return Array.from(conteo.values())
       .sort((a, b) => b.valor - a.valor)
       .slice(0, 5);
-  }, [solicitudes]);
-  const maxDistribucion = Math.max(1, ...distribucionNecesidad.map((d) => d.valor));
-
-  const totalBandeja = nuevas.length + visitasPorVerificar.length + cancelacionesPendientes.length;
+  }, [agendaHoy]);
 
   // Todo lo que requiere una decisión, con un único criterio de prioridad.
   // Antes cada bloque del escritorio decidía por su cuenta qué era urgente y
   // no había forma de saber por dónde empezar.
   const pendientes = useMemo(
-    () => calcularPendientes({ solicitudes, servicios, incidencias, facturas, plantilla, personas }),
-    [solicitudes, servicios, incidencias, facturas, plantilla, personas],
+    () => calcularPendientes({ solicitudes, servicios, incidencias, facturas, plantilla, personas, ausencias }),
+    [solicitudes, servicios, incidencias, facturas, plantilla, personas, ausencias],
   );
   const criticos = pendientes.filter((a) => a.prioridad === "critico");
 
@@ -628,7 +545,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
       {/* Dos columnas: a la izquierda lo que se hace, a la derecha cómo va.
           Es la distribución de la maqueta y la que sigue el día: se trabaja
           en la columna ancha y se comprueba en la estrecha. */}
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_21rem]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22.5rem]">
         <div className="min-w-0 space-y-4">
           {/* ---------------------------------------------------------------
               Mi día
@@ -671,28 +588,6 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
               <Casilla tono="azul" valor={profesionalesActivos} titulo={profesionalesActivos === 1 ? "Profesional activo" : "Profesionales activos"} Icono={IconUsers} enlace="Ver listado" onClick={() => onIrA("profesionales")} />
             </div>
           </section>
-
-          {/* Lo que la aplicación ha detectado y todavía no es una tarea con
-              nombre: va en una fila de chips, no en cuatro tarjetas. */}
-          {avisos.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {avisos.map((a) => (
-                <button
-                  key={a.clave}
-                  onClick={a.onClick}
-                  title={a.detalle}
-                  className={`flex items-start gap-2 rounded-full border px-3 py-1.5 text-left text-xs transition hover:brightness-[0.97] ${
-                    a.tono === "rose" ? "border-rose-200 bg-rose-50 text-rose-800" : "border-amber-200 bg-amber-50 text-amber-800"
-                  }`}
-                >
-                  <a.icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${a.tono === "rose" ? "text-rose-500" : "text-amber-500"}`} />
-                  <span>
-                    <span className="font-semibold">{a.valor}</span> {a.valor === 1 ? a.singular : a.plural}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
 
           {/* Jornadas que siguen abiertas: se fichó la entrada y nunca la
               salida. Si se descubre al facturar, ya se ha cobrado mal. */}
@@ -760,14 +655,17 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
               <p className="px-4 pb-6 text-center text-sm text-slate-400">No queda nada esperando una decisión tuya.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[42rem] text-sm">
+                <table className="w-full min-w-[38rem] table-fixed text-sm">
                   <thead className="bg-[#f1f7fa] text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    {/* Anchos fijos: si una descripción larga empuja la
+                        columna de la acción fuera de la tarjeta, el botón que
+                        resuelve el asunto deja de verse. */}
                     <tr>
-                      <th className="px-4 py-2.5">Prioridad</th>
+                      <th className="w-28 px-4 py-2.5">Prioridad</th>
                       <th className="px-4 py-2.5">Tipo</th>
                       <th className="px-4 py-2.5">Persona / Servicio</th>
-                      <th className="px-4 py-2.5">Cuándo</th>
-                      <th className="px-4 py-2.5 text-right">Acción</th>
+                      <th className="w-24 px-4 py-2.5">Hora</th>
+                      <th className="w-36 px-4 py-2.5 text-right">Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -782,20 +680,29 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <button onClick={() => irAsunto(a)} className="text-left">
+                            <button onClick={() => irAsunto(a)} className="block w-full min-w-0 text-left">
                               <span className="block font-medium text-slate-800 hover:underline">{a.tipo}</span>
-                              <span className="block max-w-[16rem] truncate text-xs text-slate-400">{a.detalle}</span>
+                              <span className="block truncate text-xs text-slate-400">{a.detalle}</span>
                             </button>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="block text-slate-700">{a.persona}</span>
+                            {/* La persona y, debajo, de qué servicio se
+                                trata: el nombre solo no distingue dos
+                                servicios de la misma persona. */}
+                            <span className="block truncate font-medium text-slate-800">{a.persona}</span>
+                            {a.servicio && <span className="block truncate text-xs text-slate-400">{a.servicio}</span>}
                           </td>
-                          <td className="px-4 py-3 text-xs text-slate-500">{a.desde > 0 ? `hace ${hace(a.desde)}` : "—"}</td>
-                          <td className="px-4 py-3 text-right">
+                          {/* La hora a la que hay que estar, no cuánto lleva
+                              esperando: eso ya lo dice el orden de la lista.
+                              Lo crítico la lleva en rojo. */}
+                          <td className={`whitespace-nowrap px-4 py-3 text-xs tabular-nums ${a.prioridad === "critico" ? "font-semibold text-rose-600" : "text-slate-500"}`}>
+                            {a.cuando ?? "—"}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-right">
                             {/* Lo crítico lleva el botón lleno y lo demás el
                                 de contorno: en una lista de veinte, el ojo
                                 tiene que saber por cuál empezar. */}
-                            <button onClick={() => irAsunto(a)} className={a.prioridad === "critico" ? "boton-principal-sm" : "boton-secundario-sm"}>
+                            <button onClick={() => irAsunto(a)} className={`w-full justify-center ${a.prioridad === "critico" ? "boton-principal-sm" : "boton-secundario-sm"}`}>
                               {a.accion}
                             </button>
                           </td>
@@ -817,50 +724,91 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
                   <IconCalendar className="h-4 w-4" />
                 </span>
-                <h3 className="text-base font-semibold text-brand-900">Agenda de hoy</h3>
+                <h3 className="text-base font-semibold text-brand-900">
+                  {esHoy ? "Agenda de hoy" : `Agenda del ${conMayusculaInicial(new Date(diaAgenda + "T12:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" }))}`}
+                </h3>
               </div>
-              <button onClick={() => onIrA("calendario")} className="boton-secundario-sm">
-                Ver calendario
-              </button>
-            </div>
-
-            {/* Por qué mirar la agenda. Cada pestaña lleva al calendario con
-                esa vista puesta: aquí sólo cabe el día. */}
-            <div className="flex flex-wrap gap-1.5 px-4 pb-3">
-              <span className="rounded-full bg-brand-green-500 px-3.5 py-1.5 text-xs font-semibold text-white">Día</span>
-              {["Semana", "Profesional", "Persona", "Zona"].map((v) => (
+              {/* "Hoy" y las dos flechas: asomarse a mañana y volver, sin
+                  abandonar el escritorio. */}
+              <div className="flex shrink-0 items-center gap-2">
                 <button
-                  key={v}
-                  onClick={() => onIrA("calendario")}
-                  className="rounded-full px-3.5 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                  onClick={() => setDiaAgenda(hoyISO)}
+                  disabled={esHoy}
+                  className="rounded-full border border-slate-200 px-4 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
                 >
-                  {v}
+                  Hoy
                 </button>
-              ))}
+                <button
+                  onClick={() => moverDia(-1)}
+                  aria-label="Día anterior"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+                >
+                  <IconChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => moverDia(1)}
+                  aria-label="Día siguiente"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+                >
+                  <IconChevronRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
-            {agendaHoy.length === 0 ? (
-              <p className="px-4 pb-6 text-center text-sm text-slate-400">No hay ninguna visita programada para hoy.</p>
+            {/* Por qué mirar la agenda, en un mando de pestañas: "Día" es lo
+                que cabe aquí y las demás llevan al calendario con esa vista
+                puesta. */}
+            <div className="px-4 pb-3">
+              <div className="inline-flex max-w-full overflow-x-auto rounded-full bg-[#f1f7fa] p-1">
+                <span className="shrink-0 rounded-full bg-brand-green-500 px-5 py-1.5 text-xs font-semibold text-white">Día</span>
+                {["Semana", "Profesional", "Persona", "Zona"].map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => onIrA("calendario")}
+                    className="shrink-0 border-l border-slate-200 px-5 py-1.5 text-xs font-medium text-slate-500 transition first:border-l-0 hover:text-slate-700"
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {agendaDelDia.length === 0 ? (
+              <p className="px-4 pb-6 text-center text-sm text-slate-400">
+                {esHoy ? "No hay ninguna visita programada para hoy." : "Ese día no hay ninguna visita programada."}
+              </p>
             ) : (
               <ul className="divide-y divide-slate-100">
-                {agendaHoy.map(({ visita, servicio }) => {
+                {agendaDelDia.map(({ visita, servicio }) => {
                   const enCurso = !!visita.horaInicioReal && !visita.horaFinReal;
                   const retrasada = retrasadas.some((r) => r.visita.id === visita.id);
                   const solicitudId = servicio.solicitud?.id;
                   const noPresentado = retrasada && !!visita.horaInicioProg && minutosDesde(visita.horaInicioProg, ahora) > MARGEN_NO_PRESENTADO;
                   const minutos = minutosEntre(visita.horaInicioProg, visita.horaFinProg);
+                  const direccion = servicio.solicitud?.persona.direccion;
+                  const quien = visita.profesional ?? servicio.profesional;
                   return (
-                    <li key={visita.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+                    <li
+                      key={visita.id}
+                      className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 lg:grid lg:grid-cols-[2.75rem_1.25rem_minmax(10rem,1fr)_8rem_minmax(6rem,auto)_10.5rem] lg:gap-x-3"
+                    >
                       <span className={`w-11 shrink-0 text-xs font-semibold tabular-nums ${retrasada ? "text-rose-600" : "text-slate-500"}`}>
                         {visita.horaInicioProg ?? "--:--"}
                       </span>
-                      <span
-                        className={`h-2 w-2 shrink-0 rounded-full ${
-                          enCurso ? "bg-brand-green-500" : retrasada ? "bg-rose-500" : visita.estado === "REVISADA" ? "bg-slate-300" : "bg-brand-300"
-                        }`}
-                        aria-hidden
-                      />
-                      <button onClick={() => solicitudId && onAbrirSolicitud(solicitudId)} disabled={!solicitudId} className="min-w-0 flex-1 text-left">
+                      {/* El punto de estado y, detrás, el carril del día: la
+                          raya que separa la hora de lo que pasa a esa hora,
+                          como en una escaleta. */}
+                      <span className="flex shrink-0 items-center gap-3">
+                        <span
+                          className={`h-2 w-2 shrink-0 rounded-full ${
+                            enCurso ? "bg-brand-green-500" : retrasada ? "bg-rose-500" : visita.estado === "REVISADA" ? "bg-slate-300" : "bg-brand-300"
+                          }`}
+                          aria-hidden
+                        />
+                        <span className="hidden h-9 w-px shrink-0 bg-slate-100 sm:block" aria-hidden />
+                      </span>
+
+                      <button onClick={() => solicitudId && onAbrirSolicitud(solicitudId)} disabled={!solicitudId} className="min-w-[8rem] flex-1 text-left">
                         <p className="truncate text-sm font-medium text-slate-800 hover:underline">{nombrePersona(servicio)}</p>
                         <p className="flex items-center gap-1.5 truncate text-xs text-slate-400">
                           <IconoNecesidad codigo={servicio.solicitud?.necesidad.codigo} className="h-3.5 w-3.5 shrink-0" />
@@ -869,21 +817,14 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                         </p>
                       </button>
 
-                      {/* Quién va. En la maqueta es la cara; aquí, la cara si
-                          la hay y las iniciales si no. */}
-                      {visita.profesional && (
-                        <span className="hidden shrink-0 items-center gap-2 sm:flex">
-                          <Avatar foto={visita.profesional.foto} nombre={visita.profesional.nombre} apellidos={visita.profesional.apellidos} className="h-8 w-8" />
-                          <span className="leading-tight">
-                            <span className="block text-xs font-medium text-slate-700">
-                              {visita.profesional.nombre} {visita.profesional.apellidos}
-                            </span>
-                            <span className="block text-[11px] text-slate-400">Profesional</span>
-                          </span>
-                        </span>
-                      )}
+                      {/* Dónde hay que ir. Sin la dirección, la agenda dice a
+                          qué hora pero no adónde, y es la mitad del dato. */}
+                      <span className="hidden min-w-0 items-center gap-1.5 text-xs text-slate-400 lg:flex">
+                        <IconPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        <span className="truncate">{direccion || "Sin dirección"}</span>
+                      </span>
 
-                      <div className="flex shrink-0 items-center gap-1.5">
+                      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                         {enCurso ? (
                           <Cronometro inicio={visita.horaInicioReal} fin={visita.horaFinReal} />
                         ) : visita.estado === "FINALIZADA" ? (
@@ -916,9 +857,35 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                         ) : retrasada ? (
                           <span className="pastilla bg-amber-100 text-amber-700">Sin empezar</span>
                         ) : (
-                          <span className="pastilla bg-slate-100 text-slate-500">Programada</span>
+                          <span className="pastilla bg-brand-50 text-brand-700">Programada</span>
                         )}
                       </div>
+
+                      {/* Quién va. Si todavía no va nadie, se dice: un hueco
+                          en blanco se lee como "ya está resuelto". */}
+                      <span className="hidden min-w-0 shrink-0 items-center gap-2 sm:flex">
+                        {quien ? (
+                          <>
+                            <Avatar foto={quien.foto} nombre={quien.nombre} apellidos={quien.apellidos} className="h-8 w-8" />
+                            <span className="min-w-0 leading-tight">
+                              <span className="block truncate text-xs font-medium text-slate-700">
+                                {quien.nombre} {quien.apellidos}
+                              </span>
+                              <span className="block text-[11px] text-slate-400">Profesional</span>
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400" aria-hidden>
+                              <IconUsers className="h-4 w-4" />
+                            </span>
+                            <span className="leading-tight">
+                              <span className="block text-xs font-medium text-slate-500">Pendiente</span>
+                              <span className="block text-[11px] text-slate-400">Asignación</span>
+                            </span>
+                          </>
+                        )}
+                      </span>
                     </li>
                   );
                 })}
@@ -934,52 +901,55 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
               <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-brand-900">
                 <IconShield className="h-4 w-4 text-slate-400" /> Cobertura de hoy
               </h3>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <Rosquilla porcentaje={coberturaHoy.porcentaje} />
-                <div className="min-w-0 text-sm">
-                  <p className="font-semibold text-slate-800">
-                    {coberturaHoy.cubiertos} / {coberturaHoy.total} servicios
-                  </p>
-                  <p className="text-xs text-slate-500">cubiertos</p>
-                  <ul className="mt-2 space-y-1 text-xs">
-                    <li className="flex items-center gap-1.5 text-slate-500">
-                      <span className="h-1.5 w-1.5 rounded-full bg-brand-green-500" aria-hidden /> Cubiertos
-                      <span className="ml-auto font-semibold tabular-nums text-slate-700">{coberturaHoy.cubiertos}</span>
-                    </li>
-                    <li className="flex items-center gap-1.5 text-slate-500">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden /> Sin confirmar
-                      <span className="ml-auto font-semibold tabular-nums text-slate-700">{coberturaHoy.sinConfirmar}</span>
-                    </li>
-                    <li className="flex items-center gap-1.5 text-slate-500">
-                      <span className="h-1.5 w-1.5 rounded-full bg-rose-400" aria-hidden /> Sin cubrir
-                      <span className="ml-auto font-semibold tabular-nums text-slate-700">{coberturaHoy.sinCubrir}</span>
-                    </li>
-                  </ul>
-                </div>
+                <p className="min-w-0 text-sm leading-snug text-slate-500">
+                  <span className="font-semibold text-slate-800">
+                    {coberturaHoy.cubiertos} / {coberturaHoy.total}
+                  </span>{" "}
+                  servicios
+                  <br />
+                  cubiertos
+                </p>
               </div>
-              <button onClick={() => onIrA("cobertura")} className="mt-3 text-xs font-medium text-brand-green-600 transition hover:text-brand-green-700">
+              {/* El desglose, en su recuadro: la rosquilla dice cuánto y esto
+                  dice de qué. */}
+              <ul className="mt-3 space-y-1.5 rounded-lg border border-slate-100 p-2.5 text-xs">
+                <li className="flex items-center gap-1.5 text-slate-500">
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-green-500" aria-hidden /> Cubiertos
+                  <span className="ml-auto font-semibold tabular-nums text-slate-700">{coberturaHoy.cubiertos}</span>
+                </li>
+                <li className="flex items-center gap-1.5 text-slate-500">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden /> Pendientes
+                  <span className="ml-auto font-semibold tabular-nums text-slate-700">{coberturaHoy.sinConfirmar}</span>
+                </li>
+                <li className="flex items-center gap-1.5 text-slate-500">
+                  <span className="h-1.5 w-1.5 rounded-full bg-rose-400" aria-hidden /> Sin cubrir
+                  <span className="ml-auto font-semibold tabular-nums text-slate-700">{coberturaHoy.sinCubrir}</span>
+                </li>
+              </ul>
+              <button onClick={() => onIrA("cobertura")} className="mt-3 block w-full text-right text-xs font-medium text-brand-green-600 transition hover:text-brand-green-700">
                 Ver detalle →
               </button>
             </section>
 
             <section className="tarjeta p-4">
               <h3 className="mb-3 text-sm font-semibold text-brand-900">
-                Servicios por tipo <span className="font-normal text-slate-400">(todos)</span>
+                Servicios por tipo <span className="font-normal text-slate-400">(hoy)</span>
               </h3>
               {distribucionNecesidad.length === 0 ? (
-                <p className="py-4 text-center text-xs text-slate-400">Todavía no hay solicitudes.</p>
+                <p className="py-4 text-center text-xs text-slate-400">Hoy no hay ninguna visita programada.</p>
               ) : (
-                <ul className="space-y-2">
-                  {distribucionNecesidad.map((d) => (
+                <ul className="space-y-2.5">
+                  {distribucionNecesidad.map((d, i) => (
                     <li key={d.codigo}>
-                      <button onClick={() => onIrA("solicitudes")} className="flex w-full items-center gap-2 text-left text-xs">
-                        <IconoNecesidad codigo={d.codigo} className="h-3.5 w-3.5 shrink-0 text-brand-green-500" />
+                      <button onClick={() => onIrA("calendario")} className="flex w-full items-center gap-2.5 text-left text-xs">
+                        {/* Un punto por tipo. La barra sobraba: al lado de la
+                            cifra no añadía nada que la cifra no dijera. */}
+                        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${COLORES_TIPO[i % COLORES_TIPO.length]}`} aria-hidden />
                         <span className="min-w-0 flex-1 truncate text-slate-600">{d.nombre}</span>
                         <span className="shrink-0 font-semibold tabular-nums text-slate-800">{d.valor}</span>
                       </button>
-                      <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-slate-100">
-                        <span className="block h-full rounded-full bg-brand-green-400" style={{ width: `${(d.valor / maxDistribucion) * 100}%` }} />
-                      </span>
                     </li>
                   ))}
                 </ul>
@@ -987,7 +957,9 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
             </section>
 
             <section className="tarjeta p-4">
-              <h3 className="mb-3 text-sm font-semibold text-brand-900">Estado de servicios</h3>
+              <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-brand-900">
+                <IconClipboard className="h-4 w-4 text-slate-400" /> Estado de servicios
+              </h3>
               <ul className="space-y-2 text-xs">
                 {estadoServicios.map((e) => (
                   <li key={e.clave}>
@@ -999,25 +971,12 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                   </li>
                 ))}
               </ul>
-              <button onClick={() => onIrA("solicitudes")} className="mt-3 text-xs font-medium text-brand-green-600 transition hover:text-brand-green-700">
+              <button onClick={() => onIrA("solicitudes")} className="mt-3 block w-full text-right text-xs font-medium text-brand-green-600 transition hover:text-brand-green-700">
                 Ver todos →
               </button>
             </section>
           </div>
 
-          <CargaTrabajo solicitudes={solicitudes} />
-
-          <section className="tarjeta p-4">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-brand-900">
-                <IconActividad className="h-4 w-4 text-slate-400" /> Actividad reciente
-              </h3>
-              <button onClick={() => onIrA("actividad")} className="shrink-0 text-xs font-medium text-brand-green-600 transition hover:text-brand-green-700">
-                Ver todo →
-              </button>
-            </div>
-            <ActividadFeed limit={6} sinTitulo />
-          </section>
         </div>
 
         {/* -------------------------------------------------------------------
@@ -1071,36 +1030,26 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
             <div className="mb-3 flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <h3 className="flex items-center gap-1.5 text-sm font-semibold text-brand-900">
-                  <IconReceipt className="h-4 w-4 shrink-0 text-slate-400" /> Resumen económico
+                  <IconReceipt className="h-4 w-4 shrink-0 text-slate-400" /> Resumen económico{" "}
+                  <span className="font-normal text-slate-400">(este mes)</span>
                 </h3>
-                <p className="ml-[22px] text-[11px] text-slate-400">este mes</p>
               </div>
               <button onClick={() => onIrA("facturacion")} className="shrink-0 text-xs font-medium text-brand-green-600 transition hover:text-brand-green-700">
                 Ver detalle →
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Cifra etiqueta="Facturado" valor={euros(totalFacturadoMes)} tono="azul" />
-              <Cifra etiqueta="Cobrado" valor={euros(totalFacturadoMes - pendienteCobroMes)} tono="verde" />
-              <Cifra etiqueta="Pendiente" valor={euros(pendienteCobroMes)} tono={pendienteCobroMes > 0 ? "rose" : "azul"} />
+            <div className="grid grid-cols-4 gap-1.5">
+              <Cifra etiqueta="Facturado" valor={euros(totalFacturadoMes)} tono="azul" delta={deltaFacturado} />
+              <Cifra etiqueta="Cobrado" valor={euros(totalFacturadoMes - pendienteCobroMes)} tono="azul" delta={deltaCobrado} />
+              <Cifra
+                etiqueta="Pendiente"
+                valor={euros(pendienteCobroMes)}
+                tono="amber"
+                delta={deltaPendiente}
+                subirEsBueno={false}
+              />
               <Cifra etiqueta="Comisión CUIDA" valor={euros(comisionMes)} tono="azul" delta={deltaComision} />
             </div>
-            <dl className="mt-3 space-y-1.5 border-t border-slate-100 pt-2.5 text-xs">
-              <div className="flex items-center justify-between">
-                <dt className="text-slate-500">Horas prestadas</dt>
-                <dd className="font-semibold tabular-nums text-slate-800">{duracion(Math.round(horasMes * 60))}</dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-slate-500">A pagar a profesionales</dt>
-                <dd className="font-semibold tabular-nums text-slate-800">{euros(aProfesionalesMes)}</dd>
-              </div>
-              {facturasVencidas.length > 0 && (
-                <div className="flex items-center justify-between border-t border-slate-100 pt-1.5">
-                  <dt className="text-slate-500">Atrasadas</dt>
-                  <dd className="font-semibold tabular-nums text-rose-600">{facturasVencidas.length}</dd>
-                </div>
-              )}
-            </dl>
           </section>
 
           <section className="tarjeta overflow-hidden">
@@ -1125,9 +1074,17 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                   <li key={i.id} className="flex items-start gap-2.5 px-4 py-2.5">
                     <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${i.prioridad === "ALTA" ? "bg-rose-500" : i.prioridad === "MEDIA" ? "bg-amber-400" : "bg-slate-300"}`} aria-hidden />
                     <button onClick={() => onAbrirIncidencia(i.id)} className="min-w-0 flex-1 text-left leading-tight">
-                      <span className="block truncate text-sm font-medium text-slate-800 hover:underline">{infoMotivo(i.motivo).etiqueta}</span>
+                      {/* El título en el color de su prioridad: en una lista
+                          de cuatro, es lo que dice cuál se mira primero. */}
+                      <span
+                        className={`block truncate text-sm font-medium hover:underline ${
+                          i.prioridad === "ALTA" ? "text-rose-600" : i.prioridad === "MEDIA" ? "text-amber-600" : "text-slate-700"
+                        }`}
+                      >
+                        {infoMotivo(i.motivo).etiqueta}
+                      </span>
                       <span className="block truncate text-xs text-slate-500">{nombreDeIncidencia(i)}</span>
-                      <span className="block text-[11px] text-slate-400">{i.createdAt ? `hace ${hace(Math.round((ahora - new Date(i.createdAt).getTime()) / 60000))}` : ""}</span>
+                      <span className="block text-[11px] tabular-nums text-slate-400">{cuandoPaso(i.createdAt)}</span>
                     </button>
                     <span
                       className={`pastilla shrink-0 ${
@@ -1181,9 +1138,13 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                       <IconCheckCuadro className="mt-0.5 h-4 w-4 shrink-0 text-brand-green-400" aria-hidden />
                       <span className="min-w-0 leading-tight">
                         <span className="block truncate text-xs font-medium text-slate-700">
-                          {a.accion} <span className="font-normal text-slate-400">— {a.persona}</span>
+                          {a.accion}{" "}
+                          <span className="font-normal text-slate-400">
+                            — {a.persona}
+                            {a.servicio ? ` (${a.servicio})` : ""}
+                          </span>
                         </span>
-                        <span className="block truncate text-[11px] text-slate-400">{a.detalle}</span>
+                        <span className="block truncate text-[11px] text-slate-400">{a.cuando ?? a.detalle}</span>
                       </span>
                     </button>
                   </li>

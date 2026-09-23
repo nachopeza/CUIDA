@@ -1,4 +1,4 @@
-import type { Factura, FichaProfesional, Incidencia, Persona, Servicio, Solicitud, Visita } from "./types.js";
+import type { Ausencia, Factura, FichaProfesional, Incidencia, Persona, Servicio, Solicitud, Visita } from "./types.js";
 
 type PersonaConCarencias = Persona;
 import { duracion, minutosFichados } from "./economia.js";
@@ -20,8 +20,15 @@ export interface Asunto {
   // cubrir"…
   tipo: string;
   persona: string;
+  // El servicio del que se trata, para leerlo debajo del nombre: "Herminia
+  // Ruiz / Acompañamiento". El nombre solo no distingue dos servicios de la
+  // misma persona.
+  servicio?: string;
   // Qué pasa, en una línea.
   detalle: string;
+  // La hora a la que es la cita, como se lee en un reloj. No es lo mismo que
+  // `desde`: `desde` ordena, `cuando` sitúa.
+  cuando?: string;
   // Desde cuándo espera. Ordena y explica por qué algo sube de prioridad.
   desde: number;
   accion: string;
@@ -37,7 +44,7 @@ export interface Asunto {
 }
 
 export const INFO_PRIORIDAD: Record<Prioridad, { etiqueta: string; orden: number; punto: string; texto: string; fondo: string }> = {
-  critico: { etiqueta: "Crítico", orden: 0, punto: "bg-rose-500", texto: "text-rose-700", fondo: "bg-rose-50" },
+  critico: { etiqueta: "Crítica", orden: 0, punto: "bg-rose-500", texto: "text-rose-700", fondo: "bg-rose-50" },
   atencion: { etiqueta: "Atención", orden: 1, punto: "bg-amber-500", texto: "text-amber-700", fondo: "bg-amber-50" },
   informativa: { etiqueta: "Informativa", orden: 2, punto: "bg-slate-400", texto: "text-slate-600", fondo: "bg-slate-50" },
 };
@@ -50,6 +57,55 @@ const MARGEN_NO_PRESENTADO = 30;
 // lo lee de las reglas de la casa; aquí basta un umbral prudente para que el
 // aviso aparezca también en la lista, sin pedir otra llamada.
 const HORAS_JORNADA_ABIERTA = 4;
+
+function diaClave(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Cómo se nombra un día a media conversación: "Hoy", "Ayer", "Mañana" y, más
+// allá, la fecha corta. Nadie dice "el 22 de septiembre" cuando quiere decir
+// "ayer".
+function nombreDelDia(dia: string): string | null {
+  const hoy = new Date();
+  const desplazado = (delta: number) => diaClave(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + delta));
+  if (dia === desplazado(0)) return "Hoy";
+  if (dia === desplazado(-1)) return "Ayer";
+  if (dia === desplazado(1)) return "Mañana";
+  return null;
+}
+
+function fechaCorta(dia: string): string {
+  const [a, m, j] = dia.split("-").map(Number);
+  return new Date(a, m - 1, j).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+}
+
+// La hora de la cita, tal como se lee en un reloj: "09:00" si es de hoy, y
+// con el día delante si no ("Ayer 16:00", "Mañana 17:00"). Es lo que va en la
+// columna "Hora" de la bandeja: no cuánto lleva esperando —eso lo ordena
+// `desde`— sino a qué hora hay que estar.
+//
+// `hora` llega aparte cuando el dato es una fecha suelta con su "HH:MM" al
+// lado, como en las visitas; si no viene, la hora se saca de la marca de
+// tiempo.
+function reloj(fecha: string | null | undefined, hora?: string | null): string | undefined {
+  if (!fecha) return undefined;
+  const d = new Date(fecha);
+  if (Number.isNaN(d.getTime())) return undefined;
+  const hhmm = hora ?? d.toTimeString().slice(0, 5);
+  const dia = hora ? fecha.slice(0, 10) : diaClave(d);
+  const nombre = nombreDelDia(dia);
+  if (nombre === "Hoy") return hhmm;
+  return `${nombre ?? fechaCorta(dia)} ${hhmm}`;
+}
+
+// Cuando lo que hay es un día y no una hora —un vencimiento, por ejemplo—, el
+// día solo. Poner "00:00" sería inventarse una hora que nadie ha fijado.
+function soloDia(fecha: string | null | undefined): string | undefined {
+  if (!fecha) return undefined;
+  const dia = fecha.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return undefined;
+  return nombreDelDia(dia) ?? fechaCorta(dia);
+}
 
 function nombreDe(s: Solicitud | undefined): string {
   return s ? `${s.persona.nombre} ${s.persona.apellidos}` : "—";
@@ -70,8 +126,9 @@ export function calcularPendientes(datos: {
   facturas: Factura[];
   plantilla: FichaProfesional[];
   personas?: PersonaConCarencias[];
+  ausencias?: Ausencia[];
 }): Asunto[] {
-  const { solicitudes, servicios, incidencias, facturas, plantilla, personas = [] } = datos;
+  const { solicitudes, servicios, incidencias, facturas, plantilla, personas = [], ausencias = [] } = datos;
   const asuntos: Asunto[] = [];
   const hoy = new Date().toISOString().slice(0, 10);
   const porServicio = new Map(solicitudes.filter((s) => s.servicio).map((s) => [s.servicio!.id, s]));
@@ -79,6 +136,13 @@ export function calcularPendientes(datos: {
   for (const servicio of servicios) {
     const solicitud = porServicio.get(servicio.id);
     const persona = nombreDe(solicitud);
+    const queServicio = solicitud?.necesidad.nombre;
+    // La primera jornada por delante. Cuando lo que falla es el servicio
+    // entero —nadie asignado, nadie que confirme—, la hora que importa no es
+    // la de ahora sino la del día en que alguien tiene que presentarse.
+    const proxima = (servicio.visitas ?? [])
+      .filter((v) => v.fecha.slice(0, 10) >= hoy && !["REVISADA", "FINALIZADA", "CANCELADA"].includes(v.estado))
+      .sort((a, b) => `${a.fecha}${a.horaInicioProg ?? ""}`.localeCompare(`${b.fecha}${b.horaInicioProg ?? ""}`))[0];
 
     for (const visita of servicio.visitas ?? []) {
       const esDeHoy = visita.fecha.slice(0, 10) === hoy;
@@ -92,6 +156,8 @@ export function calcularPendientes(datos: {
             prioridad: "critico",
             tipo: "Visita no iniciada",
             persona,
+            servicio: queServicio,
+            cuando: reloj(visita.fecha, visita.horaInicioProg),
             detalle: `Debía empezar a las ${visita.horaInicioProg} · ${retraso} min de retraso`,
             desde: retraso,
             accion: "Resolver ahora",
@@ -109,6 +175,8 @@ export function calcularPendientes(datos: {
           prioridad: "atencion",
           tipo: "Pendiente de verificar",
           persona,
+          servicio: queServicio,
+          cuando: reloj(visita.fecha, visita.horaFinProg ?? visita.horaInicioProg),
           detalle:
             fichados == null
               ? "Cerrada sin fichaje"
@@ -135,6 +203,8 @@ export function calcularPendientes(datos: {
             prioridad: "critico",
             tipo: "Jornada sin cerrar",
             persona,
+            servicio: queServicio,
+            cuando: reloj(visita.fecha, visita.horaInicioProg),
             detalle: `${visita.codigo} · fichó la entrada y nunca la salida`,
             desde: abierta,
             accion: "Cerrar o llamar",
@@ -152,6 +222,8 @@ export function calcularPendientes(datos: {
           prioridad: "atencion",
           tipo: "Tiempo sin decidir",
           persona,
+          servicio: queServicio,
+          cuando: reloj(visita.fecha, visita.horaFinProg ?? visita.horaInicioProg),
           detalle: `${visita.codigo} · ${visita.desviacionMinutos ?? 0} min por encima de lo acordado, sin aprobar`,
           desde: Math.floor((Date.now() - new Date(visita.fecha).getTime()) / 60000),
           accion: "Decidir",
@@ -167,6 +239,8 @@ export function calcularPendientes(datos: {
         prioridad: "atencion",
         tipo: "Servicio sin cubrir",
         persona,
+        servicio: queServicio,
+        cuando: proxima ? reloj(proxima.fecha, proxima.horaInicioProg) : undefined,
         detalle: `${solicitud?.necesidad.nombre ?? servicio.codigo} · sin profesional asignado`,
         desde: Math.floor((Date.now() - new Date(servicio.createdAt ?? Date.now()).getTime()) / 60000),
         accion: "Asignar",
@@ -182,6 +256,8 @@ export function calcularPendientes(datos: {
         prioridad: "atencion",
         tipo: "Sin confirmar",
         persona,
+        servicio: queServicio,
+        cuando: proxima ? reloj(proxima.fecha, proxima.horaInicioProg) : undefined,
         detalle: `${servicio.profesional ? `${servicio.profesional.nombre} ${servicio.profesional.apellidos}` : "El profesional"} todavía no ha aceptado`,
         desde: Math.floor((Date.now() - new Date(servicio.updatedAt ?? servicio.createdAt ?? Date.now()).getTime()) / 60000),
         accion: "Recordar",
@@ -201,6 +277,7 @@ export function calcularPendientes(datos: {
           prioridad: "atencion",
           tipo: "Sin próximas visitas",
           persona,
+          servicio: queServicio,
           detalle: `${solicitud?.necesidad.nombre ?? servicio.codigo} · en marcha y sin nada programado`,
           desde: 0,
           accion: "Programar",
@@ -220,6 +297,8 @@ export function calcularPendientes(datos: {
       prioridad: "atencion",
       tipo: "Solicitud por revisar",
       persona: nombreDe(solicitud),
+      servicio: solicitud.necesidad.nombre,
+      cuando: reloj(solicitud.createdAt),
       detalle: `${solicitud.necesidad.nombre} · ${solicitud.descripcionLibre?.slice(0, 80) ?? "sin detalle"}`,
       desde: solicitud.createdAt ? Math.floor((Date.now() - new Date(solicitud.createdAt).getTime()) / 60000) : 0,
       accion: "Revisar",
@@ -238,6 +317,8 @@ export function calcularPendientes(datos: {
       prioridad: esCancelacion || incidencia.prioridad === "ALTA" ? "critico" : "atencion",
       tipo: esCancelacion ? "Cancelación pedida" : "Incidencia abierta",
       persona: caso ? `${caso.persona.nombre} ${caso.persona.apellidos}` : incidencia.codigo,
+      servicio: caso?.necesidad.nombre,
+      cuando: reloj(incidencia.createdAt),
       detalle: incidencia.descripcion,
       desde: incidencia.createdAt ? Math.floor((Date.now() - new Date(incidencia.createdAt).getTime()) / 60000) : 0,
       accion: esCancelacion ? "Corroborar" : "Revisar",
@@ -245,17 +326,27 @@ export function calcularPendientes(datos: {
     });
   }
 
-  // Nadie puede entrar en casa de una persona sin los papeles en regla.
+  // Nadie puede entrar en casa de una persona sin los papeles en regla. Y
+  // quien acaba de apuntarse espera a que alguien mire su ficha: hasta que no
+  // se revisa no puede trabajar, y ese "esperando" no tenía dónde verse.
+  //
+  // Una fila por persona, no dos: a quien está pendiente de alta, lo que le
+  // falta es justo lo que hay que mirar para darla de alta.
   for (const miembro of plantilla) {
-    if (!miembro.bloqueado) continue;
+    const pendienteDeAlta = miembro.estado === "PENDIENTE";
+    if (!miembro.bloqueado && !pendienteDeAlta) continue;
+    const queFalta = miembro.carencias.map((c) => c.etiqueta).join(", ");
     asuntos.push({
       id: `papeles-${miembro.id}`,
-      prioridad: "critico",
-      tipo: "No puede trabajar",
+      prioridad: pendienteDeAlta ? "atencion" : "critico",
+      tipo: pendienteDeAlta ? "Alta por verificar" : "No puede trabajar",
       persona: `${miembro.nombre} ${miembro.apellidos}`,
-      detalle: miembro.carencias.map((c) => c.etiqueta).join(", "),
+      servicio: pendienteDeAlta ? "Alta de profesional" : "Documentación del expediente",
+      detalle: pendienteDeAlta
+        ? `${miembro.codigo} · espera tu revisión${queFalta ? ` · le falta: ${queFalta.toLowerCase()}` : ""}`
+        : queFalta,
       desde: 0,
-      accion: "Ver expediente",
+      accion: pendienteDeAlta ? "Revisar alta" : "Ver expediente",
       destino: { tipo: "tab", tab: "personal", foco: miembro.id },
     });
   }
@@ -274,6 +365,7 @@ export function calcularPendientes(datos: {
       prioridad: sinPreguntar.length > 0 ? "critico" : "atencion",
       tipo: "Protección de datos",
       persona: `${persona.nombre} ${persona.apellidos}`,
+      servicio: "Información y consentimientos",
       detalle:
         sinPreguntar.length > 0
           ? `Sin informar ni autorizar: ${sinPreguntar.map((c) => c.etiqueta.toLowerCase()).join(", ")}`
@@ -281,6 +373,25 @@ export function calcularPendientes(datos: {
       desde: 0,
       accion: "Abrir ficha",
       destino: { tipo: "persona", id: persona.id },
+    });
+  }
+
+  // Una persona del equipo ha pedido días y nadie le ha contestado. Quien lo
+  // pide está haciendo planes: la respuesta tiene fecha de caducidad.
+  for (const ausencia of ausencias) {
+    if (ausencia.estado !== "SOLICITADA") continue;
+    const quien = ausencia.profesional;
+    asuntos.push({
+      id: `ausencia-${ausencia.id}`,
+      prioridad: "atencion",
+      tipo: "Días por responder",
+      persona: quien ? `${quien.nombre} ${quien.apellidos}` : "Alguien del equipo",
+      servicio: "Vacaciones y permisos",
+      cuando: soloDia(ausencia.desde),
+      detalle: `Pide del ${soloDia(ausencia.desde) ?? ausencia.desde.slice(0, 10)} al ${soloDia(ausencia.hasta) ?? ausencia.hasta.slice(0, 10)}${ausencia.motivo ? ` · ${ausencia.motivo}` : ""}`,
+      desde: Math.floor((Date.now() - new Date(ausencia.createdAt).getTime()) / 60000),
+      accion: "Responder",
+      destino: { tipo: "tab", tab: "equipo", foco: ausencia.id },
     });
   }
 
@@ -293,6 +404,8 @@ export function calcularPendientes(datos: {
       prioridad: "atencion",
       tipo: factura.estado === "IMPAGADA" ? "Recibo devuelto" : "Cobro vencido",
       persona: factura.titularNombre ?? `${factura.persona.nombre} ${factura.persona.apellidos}`,
+      servicio: `Factura ${factura.codigo}`,
+      cuando: soloDia(factura.fechaVencimiento),
       detalle: `${factura.codigo} · ${Number(factura.totalConIva).toFixed(2)} €${factura.motivoImpago ? ` · ${factura.motivoImpago}` : ""}`,
       desde: factura.fechaVencimiento ? Math.floor((Date.now() - new Date(factura.fechaVencimiento).getTime()) / 60000) : 0,
       accion: "Gestionar cobro",
