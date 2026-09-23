@@ -7,8 +7,9 @@ import { Cronometro, horasTrabajadas } from "../../components/Cronometro.js";
 import { Novedades } from "../../components/Novedades.js";
 import { INFO_PRIORIDAD, calcularPendientes, hace, type Asunto } from "../../lib/pendientes.js";
 import { compararConAcordado, duracion, euros, minutosFichados, conMayusculaInicial } from "../../lib/economia.js";
-import { IconAlert, IconArrowDown, IconArrowUp, IconBriefcase, IconCalendar, IconCheck, IconClipboard, IconReceipt, IconRefresh, IconUsers } from "../../components/icons.js";
+import { IconAlert, IconArrowDown, IconArrowUp, IconBriefcase, IconCalendar, IconCheck, IconClipboard, IconClock, IconReceipt, IconRefresh, IconUsers } from "../../components/icons.js";
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
+import { TiempoTrabajadoModal } from "../../components/TiempoTrabajadoModal.js";
 import { IncidenciaFormModal } from "./IncidenciaFormModal.js";
 import type { Factura, Incidencia, Profesional, Servicio, Solicitud, Visita, Ausencia, FichaProfesional } from "../../lib/types.js";
 
@@ -80,6 +81,20 @@ function minutosDesde(hora: string, ahora: number): number {
   return Math.round((d.getTime() - previsto.getTime()) / 60000);
 }
 
+// Una jornada abierta desde hace horas: el profesional se fue sin pulsar
+// "finalizar". El backend decide desde cuántas horas cuenta, según las reglas
+// de la casa.
+interface JornadaAbierta {
+  id: string;
+  codigo: string;
+  fecha: string;
+  horaInicioReal: string | null;
+  minutosAbierta: number | null;
+  persona: { nombre: string; apellidos: string } | null;
+  profesional: { id: string; nombre: string; apellidos: string; telefono: string | null } | null;
+  solicitudId: string;
+}
+
 // Margen antes de dar una jornada por no presentada. Media hora perdona el
 // atasco y el portero que no abre; más allá, alguien tiene que llamar.
 const MARGEN_NO_PRESENTADO = 30;
@@ -107,20 +122,27 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const [verificando, setVerificando] = useState<string | null>(null);
   const [incidenciaFichaje, setIncidenciaFichaje] = useState<FilaAgenda | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Jornadas empezadas y nunca cerradas: casi siempre un botón sin pulsar,
+  // no nueve horas de trabajo. Salen aquí para que alguien llame, en vez de
+  // descubrirse al facturar el mes.
+  const [abiertas, setAbiertas] = useState<JornadaAbierta[]>([]);
+  const [cerrando, setCerrando] = useState<JornadaAbierta | null>(null);
 
   const cargarPropios = useCallback(async () => {
-    const [facs, pros, me, eq, aus] = await Promise.all([
+    const [facs, pros, me, eq, aus, abis] = await Promise.all([
       api.get<Factura[]>("/facturas", token),
       api.get<Profesional[]>("/profesionales", token),
       api.get<{ nombre: string | null }>("/cuenta/me", token),
       api.get<FichaProfesional[]>("/personal", token).catch(() => []),
       api.get<Ausencia[]>("/personal/ausencias", token).catch(() => []),
+      api.get<JornadaAbierta[]>("/visitas/abiertas", token).catch(() => []),
     ]);
     setFacturas(facs);
     setProfesionales(pros);
     setNombre(me.nombre);
     setPlantilla(eq);
     setAusencias(aus);
+    setAbiertas(abis);
   }, [token]);
 
   useEffect(() => {
@@ -553,6 +575,50 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
             )}
           </section>
 
+          {/* Jornadas que siguen abiertas. Nadie trabaja nueve horas seguidas
+              sin avisar: casi siempre es el botón de "finalizar" sin pulsar.
+              Si se descubre al facturar, ya se ha cobrado mal. */}
+          {abiertas.length > 0 && (
+            <section className="rounded-lg border border-orange-200 bg-orange-50 p-3">
+              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-orange-800">
+                <IconClock className="h-4 w-4" aria-hidden />
+                {abiertas.length === 1 ? "Una jornada sigue abierta" : `${abiertas.length} jornadas siguen abiertas`}
+              </h3>
+              <p className="mt-0.5 text-xs text-orange-700">
+                Se fichó la entrada y nunca la salida. Llama antes de cerrarla a mano: lo que se cierre desde aquí queda marcado
+                como cierre de coordinación, no como fichaje.
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {abiertas.map((a) => (
+                  <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white px-2.5 py-1.5 text-xs">
+                    <span className="min-w-0">
+                      <span className="font-medium text-slate-700">
+                        {a.persona ? `${a.persona.nombre} ${a.persona.apellidos}` : a.codigo}
+                      </span>
+                      {a.profesional && <span className="text-slate-500"> · {a.profesional.nombre} {a.profesional.apellidos}</span>}
+                      <span className="block text-[11px] text-orange-700">
+                        Abierta desde hace {Math.floor((a.minutosAbierta ?? 0) / 60)} h {(a.minutosAbierta ?? 0) % 60} min
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      {a.profesional?.telefono && (
+                        <a href={`tel:${a.profesional.telefono}`} className="rounded-md border border-slate-300 px-2 py-0.5 hover:bg-slate-50">
+                          Llamar
+                        </a>
+                      )}
+                      <button
+                        onClick={() => setCerrando(a)}
+                        className="rounded-md bg-orange-600 px-2 py-0.5 font-medium text-white hover:bg-orange-700"
+                      >
+                        Cerrar a mano
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           {/* Pendiente de ti. Una tabla de prioridad, asunto, persona y una
               acción por fila: es la pregunta "¿qué tengo que hacer?" y su
               respuesta, sin que haya que deducirla de cuatro bloques sueltos.
@@ -748,6 +814,29 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
         </div>
         <ActividadFeed limit={6} sinTitulo />
       </section>
+
+      {/* Cerrar a mano lo que el profesional no cerró. No se sobrescribe su
+          fichaje: la hora que se ponga aquí queda registrada como corrección
+          de coordinación, con quién la hizo y por qué. */}
+      {cerrando && (
+        <TiempoTrabajadoModal
+          titulo={`Cerrar ${cerrando.codigo} a mano`}
+          explicacion={`${cerrando.persona ? `${cerrando.persona.nombre} ${cerrando.persona.apellidos}` : cerrando.codigo}. La entrada se fichó a las ${cerrando.horaInicioReal ? new Date(cerrando.horaInicioReal).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) : "—"} y nadie cerró la salida. Confirma a qué hora terminó de verdad: quedará como cierre de coordinación, no como fichaje del profesional.`}
+          etiquetaConfirmar="Cerrar la jornada"
+          horaInicioProg={cerrando.horaInicioReal ? new Date(cerrando.horaInicioReal).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) : null}
+          conObservacion
+          onConfirmar={async ({ horaFin, observacion }) => {
+            await api.post(
+              `/visitas/${cerrando.id}/cerrar-manual`,
+              { horaFin, motivo: observacion || "El profesional no fichó la salida" },
+              token,
+            );
+            await cargarPropios();
+            onCambiado?.();
+          }}
+          onClose={() => setCerrando(null)}
+        />
+      )}
     </div>
   );
 }

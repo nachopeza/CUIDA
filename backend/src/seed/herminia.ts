@@ -1,5 +1,6 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
+import { liquidarVisita } from "../services/visitaEconomia.js";
 import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
 import { registrarHistorial } from "../services/estados.js";
@@ -96,6 +97,9 @@ async function limpiarOrganizacion(organizacionId: string) {
   await prisma.remesa.deleteMany({ where: { organizacionId } });
   await prisma.mandatoSepa.deleteMany({ where: { datosFacturacion: { personaId: { in: personaIds } } } });
   await prisma.datosFacturacion.deleteMany({ where: { personaId: { in: personaIds } } });
+  await prisma.correccionFichaje.deleteMany({ where: { visitaId: { in: visitaIds } } });
+  await prisma.tarifa.deleteMany({ where: { organizacionId } });
+  await prisma.reglasNegocio.deleteMany({ where: { organizacionId } });
   await prisma.servicioInteres.deleteMany({ where: { servicioId: { in: servicioIds } } });
   await prisma.visita.deleteMany({ where: { id: { in: visitaIds } } });
   await prisma.plan.deleteMany({ where: { solicitudId: { in: solicitudIds } } });
@@ -1219,6 +1223,76 @@ async function main() {
   });
 
   console.log("\nSeed completado. Cadena PERSONA → NECESIDAD → SOLICITUD → SERVICIO → VISITA → ACTUACIÓN → SEGUIMIENTO creada.");
+  // -------------------------------------------------------------------------
+  // Motor de tiempo: reglas de la casa y tarifas con vigencia
+  //
+  // CUIDA Cantabria cobra lo acordado (no los cuatro minutos de más o de menos
+  // del fichaje) y hace que coordinación apruebe el tiempo extra antes de
+  // facturarlo. Es la combinación que menos sorpresas da en la factura.
+  // -------------------------------------------------------------------------
+  await prisma.reglasNegocio.create({
+    data: {
+      organizacionId: organizacion.id,
+      baseCobro: "PROGRAMADO",
+      baseLiquidacion: "PROGRAMADO",
+      redondeoMinutos: 15,
+      redondeoModo: "CERCANO",
+      minimoMinutos: 60,
+      toleranciaRetrasoMinutos: 10,
+      toleranciaExcesoMinutos: 10,
+      aprobarTiempoExtra: true,
+      horasVisitaAbierta: 4,
+      cancelacionAvisoHoras: 24,
+      cancelacionTardiaCobro: 50,
+      cancelacionTardiaPago: 50,
+      noPresentadoCobro: 100,
+      noPresentadoPago: 100,
+    },
+  });
+
+  // La tarifa vive aparte del servicio y tiene fechas: subirla en octubre no
+  // puede reescribir lo que se prestó en septiembre.
+  const tarifaGeneral = await prisma.tarifa.create({
+    data: {
+      organizacionId: organizacion.id,
+      nombre: "General 2026",
+      precioHoraCliente: 17,
+      precioHoraProfesional: 12,
+      vigenteDesde: new Date("2026-01-01"),
+    },
+  });
+  await prisma.tarifa.create({
+    data: {
+      organizacionId: organizacion.id,
+      nombre: "Acompañamiento 2026",
+      necesidadId: necesidadAcompanamiento.id,
+      precioHoraCliente: 19,
+      precioHoraProfesional: 13.5,
+      vigenteDesde: new Date("2026-01-01"),
+    },
+  });
+  // Tarifa vieja, ya cerrada: sirve para ver que el histórico no se toca.
+  await prisma.tarifa.create({
+    data: {
+      organizacionId: organizacion.id,
+      nombre: "General 2025",
+      precioHoraCliente: 15.5,
+      precioHoraProfesional: 11,
+      vigenteDesde: new Date("2025-01-01"),
+      vigenteHasta: new Date("2025-12-31"),
+      activa: false,
+    },
+  });
+
+  // Las jornadas ya fichadas pasan por el motor para que tengan sus cuatro
+  // tiempos, su tarifa congelada y sus tres importes desde el primer arranque.
+  const yaFichadas = await prisma.visita.findMany({
+    where: { servicio: { organizacionId: organizacion.id }, horaFinReal: { not: null } },
+    select: { id: true },
+  });
+  for (const v of yaFichadas) await liquidarVisita(v.id);
+  console.log(`\nMotor de tiempo: reglas de la casa, 3 tarifas (vigente: ${tarifaGeneral.nombre}) y ${yaFichadas.length} jornadas con su desglose calculado.`);
+
   console.log(`Organización: ${organizacion.codigo} · Persona: ${herminia.codigo} · Solicitud: ${solicitud.codigo} · Servicio: ${servicio.codigo} · Visita: ${visita.codigo}`);
   console.log("\nSolicitudes adicionales de ejemplo (todos los estados del panel):");
   console.log(`  ${solicitud.codigo}  Por verificar (EN_CURSO, visita finalizada sin revisar)`);

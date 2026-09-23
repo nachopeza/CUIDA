@@ -51,11 +51,13 @@ import { SolicitudFichaModal } from "../components/SolicitudFichaModal.js";
 import { IncidenciaFichaModal } from "./coordinador/IncidenciaFichaModal.js";
 import { IncidenciasTab } from "./coordinador/IncidenciasTab.js";
 import { EquipoTab } from "./coordinador/EquipoTab.js";
+import { ReglasTab } from "./coordinador/ReglasTab.js";
 import { PersonalTab } from "./coordinador/PersonalTab.js";
 import { CoberturaTab } from "./coordinador/CoberturaTab.js";
 import type { EmpresaColaboradora, Incidencia, Necesidad, Persona, Profesional, Servicio, Solicitud } from "../lib/types.js";
 
 type Tab =
+  | "reglas"
   | "escritorio"
   | "solicitudes"
   | "verificacion"
@@ -112,6 +114,7 @@ const AREAS: AreaNav[] = [
       { key: "equipo", label: "Equipo", icon: IconUsersGroup },
       { key: "empresas", label: "Empresas colaboradoras", icon: IconBuilding },
       { key: "servicios", label: "Catálogo de servicios", icon: IconTag },
+      { key: "reglas", label: "Reglas de negocio", icon: IconSettings },
       { key: "actividad", label: "Actividad", icon: IconActivity },
     ],
   },
@@ -696,6 +699,7 @@ export function CoordinadorPage() {
           <CoberturaTab solicitudes={solicitudes} servicios={servicios} onAbrirSolicitud={(id) => setFichaAbierta(id)} />
         )}
         {tab === "equipo" && <EquipoTab />}
+        {tab === "reglas" && <ReglasTab />}
         {tab === "empresas" && <EmpresasTab />}
         {tab === "calendario" && <CalendarioTab onAbrirSolicitud={(id) => setFichaAbierta(id)} />}
         {tab === "facturacion" && <FacturacionTab />}

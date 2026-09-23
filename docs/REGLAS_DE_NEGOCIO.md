@@ -1,0 +1,125 @@
+# Reglas de negocio de tiempo y facturación
+
+CUIDA no vende "servicios de ayuda a domicilio": vende **tiempo de atención
+coordinado, registrado, verificado y convertido en una operación económica
+trazable**. Todo el dinero del sistema sale de una cifra de minutos, así que
+las reglas que convierten minutos en euros son la pieza más delicada del
+producto — y la que hay que decidir explícitamente, no sobre la marcha.
+
+Este documento recoge las cuarenta decisiones, la respuesta que CUIDA trae por
+defecto y dónde se cambia. Las que llevan **(configurable)** se editan en
+*Administración › Reglas de negocio* y no requieren tocar código.
+
+---
+
+## Los cuatro tiempos
+
+Una jornada tiene cuatro cifras distintas, y confundirlas es lo que rompe
+estos sistemas en cuanto aparece un caso real:
+
+| Tiempo | Qué es | Ejemplo |
+|---|---|---|
+| **Acordado** (programado) | lo que se pactó en el plan | 09:00 → 12:00 = 3 h |
+| **Fichado** (real) | lo que marcaron entrada y salida | 09:04 → 11:58 = 2 h 54 min |
+| **Se cobra** (facturable) | lo que entra en la factura de la familia | 3 h |
+| **Se paga** (liquidable) | lo que entra en la liquidación del profesional | 3 h |
+
+> El tiempo registrado y el tiempo económicamente liquidable no tienen por qué
+> ser idénticos. Lo decide la regla, no el fichaje.
+
+La unidad económica de CUIDA es **el tiempo facturable y liquidable de una
+visita**, no el servicio. El servicio es el contrato; la visita es la
+ejecución; el tiempo es lo que genera dinero.
+
+---
+
+## Tiempo
+
+| # | Pregunta | Respuesta de CUIDA |
+|---|---|---|
+| 1 | ¿Se cobra tiempo acordado o real? | **Acordado** (configurable: acordado / real / el menor / el mayor) |
+| 2 | ¿Se paga al profesional acordado o real? | **Acordado** (configurable, independiente del anterior) |
+| 3 | ¿Cuál es el mínimo de tiempo? | **Sin mínimo** de fábrica; la demo usa 1 h (configurable) |
+| 4 | ¿Se redondean los minutos? | **No** de fábrica; la demo redondea (configurable) |
+| 5 | ¿A qué intervalo? | Configurable en minutos, con modo arriba / abajo / al más cercano |
+| 6 | ¿Qué ocurre con los retrasos? | Se **registran** siempre y se muestran en el desglose; no alteran el importe por sí solos |
+| 7 | ¿Y con las salidas anticipadas? | Igual: quedan como desviación negativa; con base "acordado" no reducen el cobro |
+| 8 | ¿Y con el tiempo adicional? | No se cobra solo: pasa a **pendiente de aprobación** si supera la tolerancia |
+| 9 | ¿Necesita aprobación? | **Sí** (configurable). Aprobarlo pasa esa jornada a tiempo real; rechazarlo la deja en lo acordado |
+| 10 | ¿Se permiten pausas? | No modeladas todavía: una pausa larga se resuelve como dos jornadas o como corrección de fichaje |
+
+## Fichaje
+
+| # | Pregunta | Respuesta de CUIDA |
+|---|---|---|
+| 11 | ¿Quién puede iniciar? | El profesional asignado a esa jornada |
+| 12 | ¿Quién puede finalizar? | El mismo profesional, confirmando las horas |
+| 13 | ¿Puede hacerlo coordinación? | Sí, como **cierre manual**, y queda marcado como tal — nunca se presenta como un fichaje |
+| 14 | ¿Se permite corregir? | Sí, coordinación, con motivo obligatorio |
+| 15 | ¿Cómo se registra la corrección? | En `CorreccionFichaje`: valor anterior, valor nuevo, quién y cuándo. **El original nunca se borra** |
+| 16 | ¿Qué pasa si se olvida fichar la salida? | El escritorio avisa de las jornadas abiertas pasadas N horas (configurable), con llamar o cerrar a mano |
+| 17 | ¿Se puede fichar fuera de la ubicación prevista? | Sí: no hay restricción por ubicación |
+| 18 | ¿Se registra ubicación? | **No.** Es dato personal del trabajador y no hace falta para facturar; añadirlo exigiría base legal e información previa |
+
+## Cancelaciones
+
+| # | Pregunta | Respuesta de CUIDA |
+|---|---|---|
+| 19 | ¿Cuándo es gratuita? | Con **24 h** de preaviso (configurable) |
+| 20 | ¿Cuándo genera coste? | Por debajo de ese preaviso |
+| 21 | ¿Se paga al profesional? | El **50 %** de lo acordado (configurable): había reservado el hueco |
+| 22 | ¿Se cobra a la persona? | El **50 %** de lo acordado (configurable) |
+| 23 | ¿Cómo se registra? | Estado `CANCELADA` de la jornada, con motivo, y el desglose explica el porcentaje aplicado |
+
+## Incidencias
+
+| # | Caso | Cómo lo trata CUIDA |
+|---|---|---|
+| 24 | No presentado | Estado propio `NO_PRESENTADO` + incidencia automática. Cobro y pago al **100 %** de lo acordado (configurable): el profesional se desplazó |
+| 25 | Llegada tarde | Retraso calculado y guardado; visible en el desglose |
+| 26 | Salida anticipada | Desviación negativa; visible en el desglose |
+| 27 | Tiempo adicional | Aprobación explícita con motivo (petición de la familia, necesidad del servicio, incidencia, error de fichaje, otro) |
+| 28 | Error de fichaje | Corrección auditada, con el valor original conservado |
+| 29 | Servicio incompleto | Incidencia sobre la jornada; coordinación decide al verificar |
+| 30 | Sustitución | Reemplazo de profesional; las jornadas ya hechas conservan su profesional para que la liquidación de cada uno siga siendo correcta |
+
+## Dinero
+
+| # | Pregunta | Respuesta de CUIDA |
+|---|---|---|
+| 31 | ¿Precio al cliente? | De la **tarifa vigente** ese día; si no hay tarifa, del precio acordado en el servicio |
+| 32 | ¿Tarifa del profesional? | De la misma tarifa vigente; si no hay, del precio del servicio menos la comisión |
+| 33 | ¿Comisión de CUIDA? | La diferencia entre ambas. Es **ingreso de gestión, no beneficio**: de ahí salen impuestos, seguros, pasarela y administración |
+| 34 | ¿IVA? | Del catálogo de servicios (4 % o 10 %), congelado en el servicio al fijar la tarifa |
+| 35 | ¿Cuándo se considera cobrado? | Cuando la factura se marca como cobrada o llega el adeudo SEPA de la remesa |
+| 36 | ¿Cuándo es liquidable? | Cuando la jornada está **verificada** y sin ajuste pendiente |
+| 37 | ¿Cuándo se paga al profesional? | En la liquidación mensual, con IRPF si es autónomo y sin él si es laboral |
+| 38 | ¿Reembolsos? | Factura rectificativa que compensa; la original nunca se edita |
+| 39 | ¿Ajustes? | Mismo camino: rectificativa, nunca reescritura |
+| 40 | ¿Impagos? | La factura queda pendiente y el adeudo devuelto se gestiona sobre la remesa |
+
+---
+
+## Lo que el sistema tiene que poder responder
+
+Es la prueba de calidad del desarrollo. Con los datos de la demo:
+
+- **"¿Por qué paga 42,50 €?"** → 2 h 30 min facturables × 17,00 €/h
+- **"¿Por qué cobra 30,00 €?"** → 2 h 30 min liquidables × 12,00 €/h
+- **"¿Qué se lleva CUIDA?"** → 12,50 €, la diferencia
+- **"¿Por qué 2 h 30 min, si fichó 3 h 15 min?"** → porque se cobra el tiempo
+  acordado y los 45 min de más están pendientes de aprobación
+
+Las cuatro respuestas están en la misma pantalla: *ficha de la solicitud →
+jornada → **Desglose***.
+
+## Dos reglas técnicas que no se negocian
+
+1. **Un fichaje no se sobrescribe.** Corregir es añadir una corrección, no
+   cambiar el dato.
+2. **Una tarifa no se edita.** Se cierra y se crea la siguiente, y cada
+   jornada guarda la instantánea de la que se le aplicó. Subir el precio en
+   octubre no puede reescribir lo prestado en septiembre.
+
+Cambiar una regla **no recalcula el pasado**: solo afecta a las jornadas que
+se cierren a partir de ese momento.

@@ -42,24 +42,24 @@ model Organizacion {
 
   // Quién emite las facturas. Sin esto la factura era un número en pantalla
   // sin identidad: no se puede entregar a nadie.
-  razonSocial     String?
-  cif             String?
-  direccionFiscal String?
-  codigoPostal    String?
-  municipio       String?
-  provincia       String?
-  telefono        String?
-  emailFacturacion String?
+  razonSocial           String?
+  cif                   String?
+  direccionFiscal       String?
+  codigoPostal          String?
+  municipio             String?
+  provincia             String?
+  telefono              String?
+  emailFacturacion      String?
   // Serie de facturación y contador. La numeración debe ser correlativa y sin
   // huecos dentro de cada serie y ejercicio.
-  serieFactura    String  @default("A")
+  serieFactura          String  @default("A")
   // Acreedor SEPA: el IBAN donde entra el dinero y el identificador que el
   // banco asigna a la empresa para poder girar recibos.
-  ibanCobro       String?
+  ibanCobro             String?
   identificadorAcreedor String?
 
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   usuarios              Usuario[]
   personas              Persona[]
@@ -71,6 +71,8 @@ model Organizacion {
   remesas               Remesa[]
   liquidaciones         Liquidacion[]
   auditLogs             AuditLog[]
+  reglasNegocio         ReglasNegocio?
+  tarifas               Tarifa[]
 
   @@map("organizaciones")
 }
@@ -121,13 +123,16 @@ model Usuario {
   profesionalId String?      @unique
   profesional   Profesional? @relation(fields: [profesionalId], references: [id])
 
-  familiarDe           FamiliarRelacion[] @relation("UsuarioFamiliar")
-  solicitudesCreadas   Solicitud[]        @relation("SolicitudCreadaPor")
-  incidenciasAsignadas Incidencia[]       @relation("IncidenciaResponsable")
-  incidenciasCreadas   Incidencia[]       @relation("IncidenciaCreadaPor")
+  familiarDe           FamiliarRelacion[]  @relation("UsuarioFamiliar")
+  solicitudesCreadas   Solicitud[]         @relation("SolicitudCreadaPor")
+  incidenciasAsignadas Incidencia[]        @relation("IncidenciaResponsable")
+  incidenciasCreadas   Incidencia[]        @relation("IncidenciaCreadaPor")
   notificaciones       Notificacion[]
   mensajes             Mensaje[]
   auditLogs            AuditLog[]
+  correccionesFichaje  CorreccionFichaje[]
+  visitasCerradas      Visita[]            @relation("VisitaCerradaPor")
+  ajustesDecididos     Visita[]            @relation("VisitaAjusteDecididoPor")
 
   @@map("usuarios")
 }
@@ -166,12 +171,12 @@ model Persona {
   organizacionId String
   organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
 
-  usuario     Usuario?           @relation("PersonaUsuario")
-  familiares  FamiliarRelacion[]
-  solicitudes Solicitud[]
-  documentos  Documento[]
-  facturas    Factura[]
-  mensajes    Mensaje[]
+  usuario          Usuario?           @relation("PersonaUsuario")
+  familiares       FamiliarRelacion[]
+  solicitudes      Solicitud[]
+  documentos       Documento[]
+  facturas         Factura[]
+  mensajes         Mensaje[]
   datosFacturacion DatosFacturacion?
 
   @@map("personas")
@@ -182,9 +187,9 @@ model Persona {
 // factura suele ir a nombre de la hija, con su NIF y su cuenta. Meterlo en
 // Persona habría obligado a falsear los datos de la persona atendida.
 model DatosFacturacion {
-  id        String   @id @default(cuid())
-  personaId String   @unique
-  persona   Persona  @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  personaId String  @unique
+  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
 
   // Titular de la factura: nombre o razón social, y su NIF/CIF.
   titular         String
@@ -195,12 +200,12 @@ model DatosFacturacion {
   provincia       String?
   email           String? // a dónde se envía la factura
 
-  formaPago FormaPago @default(DOMICILIACION)
+  formaPago       FormaPago @default(DOMICILIACION)
   // Día del mes en que se gira el recibo. Las empresas del sector suelen
   // cobrar todas el mismo día para poder mandar una sola remesa.
-  diaCobro  Int       @default(5)
+  diaCobro        Int       @default(5)
   // Días desde la emisión hasta el vencimiento cuando no se domicilia.
-  diasVencimiento Int @default(30)
+  diasVencimiento Int       @default(30)
 
   notas     String?
   createdAt DateTime @default(now())
@@ -220,16 +225,16 @@ model MandatoSepa {
   datosFacturacionId String
   datosFacturacion   DatosFacturacion @relation(fields: [datosFacturacionId], references: [id], onDelete: Cascade)
 
-  titular     String
-  iban        String
-  bic         String?
-  fechaFirma  DateTime
-  estado      EstadoMandato @default(ACTIVO)
+  titular          String
+  iban             String
+  bic              String?
+  fechaFirma       DateTime
+  estado           EstadoMandato @default(ACTIVO)
   // Un mandato es "primero" hasta que se cobra la primera vez; después es
   // recurrente. El banco lo necesita para tratar el adeudo.
-  primerCobroHecho Boolean @default(false)
-  revocadoAt  DateTime?
-  createdAt   DateTime  @default(now())
+  primerCobroHecho Boolean       @default(false)
+  revocadoAt       DateTime?
+  createdAt        DateTime      @default(now())
 
   facturas Factura[]
 
@@ -290,59 +295,59 @@ enum EstadoProfesional {
 }
 
 model Profesional {
-  id           String            @id @default(cuid())
-  codigo       String            @unique // PRO-00031
-  nombre       String
-  apellidos    String
-  telefono     String?
+  id             String                  @id @default(cuid())
+  codigo         String                  @unique // PRO-00031
+  nombre         String
+  apellidos      String
+  telefono       String?
   // Zona de trabajo. Era texto libre y cada quien escribía una cosa
   // ("Centro", "centro", "Santander centro"), así que no se podía filtrar ni
   // agrupar. Ahora son dos códigos de una lista cerrada.
-  comunidad    String?
-  municipio    String?
+  comunidad      String?
+  municipio      String?
   // Se conserva el texto anterior para no perder lo que ya había escrito y
   // para poder afinar ("barrio de la Inmobiliaria", "zona rural").
-  zona         String?
+  zona           String?
   // Cómo trabaja. De aquí sale todo lo económico: a un autónomo se le retiene
   // IRPF y él emite su factura; a un empleado se le resume la jornada para la
   // nómina, que hace la gestoría fuera de aquí.
-  tipoRelacion    TipoRelacionProfesional @default(AUTONOMO)
-  irpfPorcentaje  Decimal?                @db.Decimal(5, 2)
+  tipoRelacion   TipoRelacionProfesional @default(AUTONOMO)
+  irpfPorcentaje Decimal?                @db.Decimal(5, 2)
   // Datos de contrato. Con relación mercantil (autónoma) no hay alta ni baja
   // laboral, pero sí fecha desde la que colabora.
-  tipoContrato    TipoContrato?
-  fechaAlta       DateTime?
-  fechaBaja       DateTime?
-  categoria       String?
+  tipoContrato   TipoContrato?
+  fechaAlta      DateTime?
+  fechaBaja      DateTime?
+  categoria      String?
   // Horas semanales de contrato, sólo para los laborales: sirve para ver si
   // se están cubriendo o se están pasando.
-  horasSemanales  Int?
+  horasSemanales Int?
 
   // Lo que hace falta saber para mandarle según qué servicio: si puede
   // conducir, si tiene coche y qué ha estudiado.
-  carneConducir   CarneConducir @default(NO)
-  vehiculoPropio  Boolean       @default(false)
-  titulacion      Titulacion?
+  carneConducir  CarneConducir     @default(NO)
+  vehiculoPropio Boolean           @default(false)
+  titulacion     Titulacion?
   // Datos personales y de cobro (sección "los perfiles de profesionales se
   // deben poder editar e incluir información número de cuenta, Bizum, carné,
   // datos personales..."). Información sensible: solo la ve el propio
   // profesional y los gestores de la organización, nunca la persona atendida.
-  dni          String?
-  numeroCuenta String?
-  bizum        String?
+  dni            String?
+  numeroCuenta   String?
+  bizum          String?
   // Perfil profundo (sección "el perfil de Carmen debe ser más profundo...
   // biografía, tipo CV, para que los familiares también acepten y vean las
   // cualidades de Carmen"): visible para coordinación y para la familia al
   // valorar quién atiende a la persona, nunca solo un nombre en una lista.
-  foto         String?
-  biografia    String?
+  foto           String?
+  biografia      String?
   // Disponibilidad semanal (sección "incluir disponibilidad"): JSON con días
   // de la semana y franja horaria — texto libre en BD, estructurado solo en
   // el frontend, para no tener que migrar otra vez si cambia la forma.
   disponibilidad String?
-  estado       EstadoProfesional @default(PENDIENTE)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  estado         EstadoProfesional @default(PENDIENTE)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   organizacionId String
   organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
@@ -352,17 +357,15 @@ model Profesional {
   empresaColaboradoraId String?
   empresaColaboradora   EmpresaColaboradora? @relation(fields: [empresaColaboradoraId], references: [id])
 
-  usuario    Usuario?
-  servicios  Servicio[]
-  mensajes   Mensaje[]
-  interesEn  ServicioInteres[]
-  documentos Documento[]
-  visitas    Visita[]
-  liquidaciones Liquidacion[]
-  ausencias          Ausencia[]
-  registrosJornada   RegistroJornada[]
-
-
+  usuario          Usuario?
+  servicios        Servicio[]
+  mensajes         Mensaje[]
+  interesEn        ServicioInteres[]
+  documentos       Documento[]
+  visitas          Visita[]
+  liquidaciones    Liquidacion[]
+  ausencias        Ausencia[]
+  registrosJornada RegistroJornada[]
 
   @@map("profesionales")
 }
@@ -416,6 +419,7 @@ model NecesidadCatalogo {
   activo        Boolean  @default(true)
 
   solicitudes Solicitud[]
+  tarifas     Tarifa[]
 
   @@map("necesidades_catalogo")
 }
@@ -543,11 +547,11 @@ model Servicio {
   // CUIDA cobra por tiempo, así que el precio se fija por hora y el importe
   // sale de las horas acordadas: 2 h a 13 €/h son 26 €. Antes tarifaImporte
   // era un total a ojo y no se podía comprobar contra lo fichado.
-  precioHora Decimal? @db.Decimal(10, 2)
+  precioHora         Decimal? @db.Decimal(10, 2)
   // Duración acordada de una jornada, en minutos. Sale del plan (de la hora
   // de inicio a la de fin) pero se congela aquí: es contra esto contra lo
   // que se compara lo fichado al verificar.
-  minutosPrevistos Int?
+  minutosPrevistos   Int?
   // % de CUIDA para este servicio. Se copia del de la organización al fijar
   // la tarifa y queda congelado, para que cambiar el % general no reescriba
   // servicios ya acordados.
@@ -713,31 +717,31 @@ enum EstadoLiquidacion {
 // agrupa los servicios PAGADO de una persona en un mes natural, calcula el
 // total cobrado, la comisión retenida y el neto a liquidar a profesionales.
 model Factura {
-  id                   String        @id @default(cuid())
-  codigo               String        @unique // FAC-000012
+  id     String @id @default(cuid())
+  codigo String @unique // FAC-000012
 
   // Identidad fiscal del documento. El código interno sirve para buscar; lo
   // que identifica la factura ante Hacienda y ante el cliente es serie +
   // número dentro del ejercicio, correlativo y sin huecos.
-  serie                String        @default("A")
-  numero               Int           @default(0)
-  ejercicio            Int           @default(2026)
-  tipo                 TipoFactura   @default(ORDINARIA)
-  fechaEmision         DateTime?
-  fechaVencimiento     DateTime?
-  fechaCobro           DateTime?
-  formaPago            FormaPago     @default(DOMICILIACION)
+  serie            String      @default("A")
+  numero           Int         @default(0)
+  ejercicio        Int         @default(2026)
+  tipo             TipoFactura @default(ORDINARIA)
+  fechaEmision     DateTime?
+  fechaVencimiento DateTime?
+  fechaCobro       DateTime?
+  formaPago        FormaPago   @default(DOMICILIACION)
 
   // Datos del cliente CONGELADOS en el momento de emitir. Si mañana la hija
   // cambia de dirección, la factura que ya se entregó no puede cambiar con
   // ella: dejaría de coincidir con la copia del cliente y con lo declarado.
-  titularNombre     String?
-  titularNif        String?
-  titularDireccion  String?
+  titularNombre    String?
+  titularNif       String?
+  titularDireccion String?
   // Lo mismo con quien emite.
-  emisorNombre      String?
-  emisorCif         String?
-  emisorDireccion   String?
+  emisorNombre     String?
+  emisorCif        String?
+  emisorDireccion  String?
 
   // Una rectificativa apunta a la que corrige y no la modifica.
   facturaRectificadaId String?
@@ -790,15 +794,15 @@ model LineaFactura {
   facturaId String
   factura   Factura @relation(fields: [facturaId], references: [id], onDelete: Cascade)
 
-  orden       Int     @default(0)
-  concepto    String
+  orden          Int     @default(0)
+  concepto       String
   // Se factura tiempo: la cantidad son horas y el precio, el de la hora.
-  minutos     Int?
-  cantidad    Decimal @default(1) @db.Decimal(10, 2)
+  minutos        Int?
+  cantidad       Decimal @default(1) @db.Decimal(10, 2)
   precioUnitario Decimal @db.Decimal(10, 2)
-  importe     Decimal @db.Decimal(10, 2)
-  ivaPorcentaje Decimal @default(0) @db.Decimal(5, 2)
-  ivaImporte  Decimal @default(0) @db.Decimal(10, 2)
+  importe        Decimal @db.Decimal(10, 2)
+  ivaPorcentaje  Decimal @default(0) @db.Decimal(5, 2)
+  ivaImporte     Decimal @default(0) @db.Decimal(10, 2)
 
   visitaId String?
 
@@ -808,15 +812,15 @@ model LineaFactura {
 // Un envío de recibos domiciliados al banco: agrupa las facturas de un mes
 // que se cobran por domiciliación y produce el fichero que se sube.
 model Remesa {
-  id        String       @id @default(cuid())
-  codigo    String       @unique // REM-000003
-  mes       String // "2026-09"
+  id         String       @id @default(cuid())
+  codigo     String       @unique // REM-000003
+  mes        String // "2026-09"
   fechaCargo DateTime
-  estado    EstadoRemesa @default(BORRADOR)
+  estado     EstadoRemesa @default(BORRADOR)
   // El fichero SEPA generado, guardado tal cual se entregó al banco.
   ficheroXml String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
 
   organizacionId String
   organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
@@ -856,6 +860,13 @@ enum EstadoVisita {
   FINALIZADA
   INCIDENCIA
   REVISADA
+  // La jornada no se hizo. Son dos cosas distintas y con consecuencia
+  // económica distinta: en una cancelación nadie se desplazó; en un no
+  // presentado el profesional fue y la persona no estaba.
+  CANCELADA
+  NO_PRESENTADO
+  // Verificada y ya incluida en una liquidación al profesional.
+  LIQUIDADA
 }
 
 model Visita {
@@ -888,11 +899,53 @@ model Visita {
   facturaId String?
   factura   Factura? @relation(fields: [facturaId], references: [id])
 
-  tareas          Tarea[]
-  actuaciones     Actuacion[]
-  incidencias     Incidencia[]
-  documentos      Documento[]
-  estadoHistorial EstadoHistorial[]
+  // --- Motor de tiempo -----------------------------------------------------
+  // Los cuatro tiempos de una visita, separados a propósito. Antes solo se
+  // guardaban las horas y cada pantalla volvía a calcular lo suyo, así que la
+  // misma jornada podía valer 3 h en un sitio y 2 h 54 min en otro.
+  minutosProgramados Int? // lo acordado: de horaInicioProg a horaFinProg
+  minutosReales      Int? // lo fichado: de horaInicioReal a horaFinReal
+  minutosFacturables Int? // lo que se cobra a la familia, según la regla
+  minutosLiquidables Int? // lo que cobra el profesional, según la regla
+
+  // Cómo se llegó a las dos últimas cifras, en una frase que se puede enseñar
+  // tal cual cuando alguien pregunta "¿por qué 3 horas?".
+  explicacionTiempo String?
+
+  // --- Instantánea de la tarifa aplicada -----------------------------------
+  // Congelada al cerrar la visita. Cambiar la tarifa después no reescribe lo
+  // ya prestado: la visita de septiembre sigue a su precio de septiembre.
+  tarifaId              String?
+  precioHoraCliente     Decimal? @db.Decimal(10, 2)
+  precioHoraProfesional Decimal? @db.Decimal(10, 2)
+
+  importeCliente     Decimal? @db.Decimal(10, 2)
+  importeProfesional Decimal? @db.Decimal(10, 2)
+  importeCuida       Decimal? @db.Decimal(10, 2)
+
+  // --- Desviación y aprobación ---------------------------------------------
+  // El tiempo de más no se cobra solo: se detecta, se razona y se aprueba.
+  retrasoMinutos      Int?
+  desviacionMinutos   Int? // real - programado; negativo si salió antes
+  ajusteEstado        EstadoAjuste      @default(SIN_AJUSTE)
+  ajusteMotivo        MotivoDesviacion?
+  ajusteNota          String?
+  ajusteDecididoAt    DateTime?
+  ajusteDecididoPorId String?
+  ajusteDecididoPor   Usuario?          @relation("VisitaAjusteDecididoPor", fields: [ajusteDecididoPorId], references: [id])
+
+  // Cerrada por coordinación porque el profesional olvidó fichar la salida.
+  // Que sea un cierre manual tiene que verse: no es un fichaje.
+  cierreManual        Boolean  @default(false)
+  cerradoPorUsuarioId String?
+  cerradoPor          Usuario? @relation("VisitaCerradaPor", fields: [cerradoPorUsuarioId], references: [id])
+
+  tareas              Tarea[]
+  actuaciones         Actuacion[]
+  incidencias         Incidencia[]
+  documentos          Documento[]
+  estadoHistorial     EstadoHistorial[]
+  correccionesFichaje CorreccionFichaje[]
 
   @@map("visitas")
 }
@@ -956,13 +1009,13 @@ enum MotivoIncidencia {
 }
 
 model Incidencia {
-  id     String         @id @default(cuid())
-  codigo String         @unique // INC-000045
-  tipo   TipoIncidencia @default(GENERAL)
+  id          String              @id @default(cuid())
+  codigo      String              @unique // INC-000045
+  tipo        TipoIncidencia      @default(GENERAL)
   // Motivo: de qué va la incidencia, en una palabra. Es lo que permite
   // agrupar y filtrar ("¿cuántas caídas llevamos este mes?"); la descripción
   // cuenta el caso concreto y no se puede agrupar por ella.
-  motivo      MotivoIncidencia @default(OTRO)
+  motivo      MotivoIncidencia    @default(OTRO)
   descripcion String
   prioridad   PrioridadIncidencia @default(MEDIA)
   estado      EstadoIncidencia    @default(NUEVA)
@@ -994,16 +1047,16 @@ model Incidencia {
 // ---------------------------------------------------------------------------
 
 model Documento {
-  id        String   @id @default(cuid())
-  nombre    String
-  url       String
+  id             String        @id @default(cuid())
+  nombre         String
+  url            String
   // Tipo, vigencia y notas. Un documento sin tipo ni caducidad no se puede
   // reclamar a tiempo: se descubre que faltaba el día que hace falta.
-  tipo            TipoDocumento @default(OTRO)
-  fechaEmision    DateTime?
-  fechaCaducidad  DateTime?
-  notas           String?
-  createdAt DateTime @default(now())
+  tipo           TipoDocumento @default(OTRO)
+  fechaEmision   DateTime?
+  fechaCaducidad DateTime?
+  notas          String?
+  createdAt      DateTime      @default(now())
 
   personaId String?
   persona   Persona? @relation(fields: [personaId], references: [id])
@@ -1097,20 +1150,20 @@ model Liquidacion {
 
   // La relación laboral queda congelada en la liquidación: si mañana pasa de
   // autónoma a contratada, lo ya liquidado siguió sus reglas.
-  tipoRelacion TipoRelacionProfesional
-  minutos      Int     @default(0)
-  bruto        Decimal @default(0) @db.Decimal(10, 2)
+  tipoRelacion   TipoRelacionProfesional
+  minutos        Int                     @default(0)
+  bruto          Decimal                 @default(0) @db.Decimal(10, 2)
   // Retención de IRPF: sólo tiene sentido en los autónomos.
-  irpfPorcentaje Decimal @default(0) @db.Decimal(5, 2)
-  irpfImporte    Decimal @default(0) @db.Decimal(10, 2)
-  neto           Decimal @default(0) @db.Decimal(10, 2)
+  irpfPorcentaje Decimal                 @default(0) @db.Decimal(5, 2)
+  irpfImporte    Decimal                 @default(0) @db.Decimal(10, 2)
+  neto           Decimal                 @default(0) @db.Decimal(10, 2)
 
-  estado     EstadoLiquidacion @default(BORRADOR)
-  fechaPago  DateTime?
+  estado         EstadoLiquidacion @default(BORRADOR)
+  fechaPago      DateTime?
   referenciaPago String?
-  notas      String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  notas          String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   lineas LineaLiquidacion[]
 
@@ -1127,7 +1180,7 @@ model LineaLiquidacion {
   fecha    DateTime
   concepto String
   minutos  Int
-  importe  Decimal @db.Decimal(10, 2)
+  importe  Decimal  @db.Decimal(10, 2)
 
   @@map("lineas_liquidacion")
 }
@@ -1136,7 +1189,7 @@ model LineaLiquidacion {
 // administrativa: es lo que impide que coordinación le asigne una jornada ese
 // día y descubra el problema cuando nadie aparece en casa de la persona.
 model Ausencia {
-  id     String @id @default(cuid())
+  id     String         @id @default(cuid())
   tipo   TipoAusencia
   estado EstadoAusencia @default(SOLICITADA)
 
@@ -1147,12 +1200,12 @@ model Ausencia {
   desde DateTime
   hasta DateTime
 
-  motivo     String?
-  respuesta  String? // por qué se aprueba o se rechaza
+  motivo               String?
+  respuesta            String? // por qué se aprueba o se rechaza
   resueltaPorUsuarioId String?
-  resueltaAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  resueltaAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@map("ausencias")
 }
@@ -1175,20 +1228,159 @@ model RegistroJornada {
 
   organizacionId String
 
-  minutosTrabajados Int @default(0)
+  minutosTrabajados Int  @default(0)
   // Horas de contrato del mes, para poder ver exceso o defecto. Nulo cuando
   // no hay contrato laboral.
   minutosContrato   Int?
-  diasTrabajados    Int @default(0)
+  diasTrabajados    Int  @default(0)
 
   // El detalle día a día, congelado en el momento de cerrar el mes.
   detalle String // JSON: [{ fecha, entrada, salida, minutos, servicio }]
 
-  cerradoAt      DateTime  @default(now())
-  conformeAt     DateTime?
-  conformeNota   String?
-  createdAt      DateTime  @default(now())
+  cerradoAt    DateTime  @default(now())
+  conformeAt   DateTime?
+  conformeNota String?
+  createdAt    DateTime  @default(now())
 
   @@unique([profesionalId, mes])
   @@map("registros_jornada")
+}
+
+// ---------------------------------------------------------------------------
+// Motor de tiempo y economía trazable
+//
+// CUIDA cobra por tiempo, así que el tiempo es la unidad económica y no puede
+// ser un único número ambiguo. Un servicio puede estar programado de 09:00 a
+// 12:00, ficharse de 09:04 a 11:58 y facturarse como 3 h: son tres cifras
+// distintas y las tres tienen que poder verse, porque responden a preguntas
+// distintas ("¿qué acordamos?", "¿qué pasó?", "¿qué se cobra?").
+//
+// Lo que decide la conversión de una en otra es una regla de negocio, no el
+// código: cada organización cobra y paga a su manera.
+// ---------------------------------------------------------------------------
+
+// De dónde sale el tiempo que se convierte en dinero.
+enum BaseTiempo {
+  PROGRAMADO // lo acordado en el plan, pase lo que pase en el fichaje
+  REAL // lo efectivamente fichado
+  MENOR // el menor de los dos (prudente para el cliente)
+  MAYOR // el mayor de los dos (prudente para el profesional)
+}
+
+enum ModoRedondeo {
+  NINGUNO
+  ARRIBA
+  ABAJO
+  CERCANO
+}
+
+// Por qué hay más (o menos) tiempo del acordado. Obligatorio al pedir que se
+// apruebe una desviación: sin motivo no se puede decidir.
+enum MotivoDesviacion {
+  PETICION_CLIENTE
+  NECESIDAD_DEL_SERVICIO
+  INCIDENCIA
+  ERROR_DE_FICHAJE
+  OTRO
+}
+
+enum EstadoAjuste {
+  SIN_AJUSTE
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+// Las reglas que convierten tiempo en dinero. Una por organización, editables
+// desde Administración: son decisiones comerciales, no constantes del código.
+model ReglasNegocio {
+  id             String       @id @default(cuid())
+  organizacionId String       @unique
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  // Tiempo → dinero. Por defecto se cobra y se paga lo acordado: es lo que la
+  // familia espera en la factura y lo que el profesional espera en su nómina,
+  // y evita que cuatro minutos de más o de menos muevan el importe.
+  baseCobro       BaseTiempo @default(PROGRAMADO)
+  baseLiquidacion BaseTiempo @default(PROGRAMADO)
+
+  // Redondeo del tiempo resultante. 0 minutos = no se redondea.
+  redondeoMinutos Int          @default(0)
+  redondeoModo    ModoRedondeo @default(NINGUNO)
+  // Nadie factura una visita de siete minutos: por debajo de esto se cobra el
+  // mínimo. 0 = sin mínimo.
+  minimoMinutos   Int          @default(0)
+
+  // Cuánto se puede desviar el fichaje de lo acordado antes de que deje de ser
+  // ruido y pase a ser algo que alguien tiene que mirar.
+  toleranciaRetrasoMinutos Int     @default(10)
+  toleranciaExcesoMinutos  Int     @default(10)
+  // El tiempo de más no se cobra solo: se propone y coordinación decide.
+  aprobarTiempoExtra       Boolean @default(true)
+
+  // Una visita iniciada y nunca cerrada suele ser un olvido, no una jornada de
+  // nueve horas. A partir de estas horas el escritorio la señala.
+  horasVisitaAbierta Int @default(4)
+
+  // Cancelaciones: con preaviso no cuesta nada; sin él, el profesional ya había
+  // reservado el hueco y la regla dice cuánto se cobra y cuánto se le paga.
+  cancelacionAvisoHoras  Int     @default(24)
+  cancelacionTardiaCobro Decimal @default(50) @db.Decimal(5, 2)
+  cancelacionTardiaPago  Decimal @default(50) @db.Decimal(5, 2)
+
+  // No presentado: el profesional fue y la persona no estaba. El servicio no se
+  // hizo, pero el desplazamiento y el hueco sí existieron.
+  noPresentadoCobro Decimal @default(100) @db.Decimal(5, 2)
+  noPresentadoPago  Decimal @default(100) @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("reglas_negocio")
+}
+
+// El precio no se guarda suelto en cada servicio: se guarda una tarifa con
+// vigencia, y la visita se queda con una instantánea de la que se le aplicó.
+// Así subir el precio en octubre no reescribe lo facturado en septiembre.
+model Tarifa {
+  id             String       @id @default(cuid())
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
+
+  nombre      String
+  // Opcional: una tarifa puede ser general o específica de un tipo de servicio.
+  necesidadId String?
+  necesidad   NecesidadCatalogo? @relation(fields: [necesidadId], references: [id])
+
+  precioHoraCliente     Decimal @db.Decimal(10, 2)
+  precioHoraProfesional Decimal @db.Decimal(10, 2)
+
+  vigenteDesde DateTime
+  vigenteHasta DateTime?
+  activa       Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tarifas")
+}
+
+// Un fichaje no se sobrescribe. Si coordinación corrige una hora, el dato
+// original sigue ahí y queda quién lo cambió, a qué y por qué.
+model CorreccionFichaje {
+  id       String @id @default(cuid())
+  visitaId String
+  visita   Visita @relation(fields: [visitaId], references: [id], onDelete: Cascade)
+
+  campo         String // "horaInicioReal" | "horaFinReal"
+  valorAnterior DateTime?
+  valorNuevo    DateTime?
+  motivo        String
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("correcciones_fichaje")
 }

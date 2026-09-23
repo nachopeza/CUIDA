@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth.js";
 import { api } from "../lib/api.js";
+import { DesgloseVisitaModal } from "./DesgloseVisitaModal.js";
 import { Modal } from "./Modal.js";
 import {
   IconAlert,
@@ -143,6 +144,8 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   // Qué ha pasado con la agenda al guardar: las jornadas se crean y se
   // mueven solas, y sin decirlo parece que el cambio no ha hecho nada.
   const [avisoPlan, setAvisoPlan] = useState<string | null>(null);
+  // Qué jornada tiene abierto el desglose "¿por qué este importe?".
+  const [desgloseDe, setDesgloseDe] = useState<string | null>(null);
   const [tarifa, setTarifa] = useState({
     empresaColaboradoraId: "",
     precioHora: "",
@@ -1141,6 +1144,17 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                             {/* El tiempo real es lo que se factura, no el previsto. */}
                             <Cronometro inicio={v.horaInicioReal} fin={v.horaFinReal} />
                             <EstadoBadge estado={v.estado} />
+                            {/* La cuenta de esta jornada, entera: los cuatro
+                                tiempos, la regla y la tarifa que se le
+                                aplicaron. Un importe sin explicación no se
+                                puede defender delante de la familia. */}
+                            <button
+                              onClick={() => setDesgloseDe(v.id)}
+                              className="rounded-md border border-slate-300 px-2 py-0.5 hover:bg-slate-100"
+                              title="Ver de dónde sale el importe de esta jornada"
+                            >
+                              Desglose
+                            </button>
                             {v.estado === "FINALIZADA" && (
                               <button onClick={() => revisarVisita(v)} className="rounded-md border border-slate-300 px-2 py-0.5 hover:bg-slate-100">
                                 Verificar
@@ -1448,6 +1462,10 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
           }}
           onClose={() => setPidiendoTiempo(null)}
         />
+      )}
+
+      {desgloseDe && (
+        <DesgloseVisitaModal visitaId={desgloseDe} onClose={() => setDesgloseDe(null)} onCambio={recargar} />
       )}
     </Modal>
   );

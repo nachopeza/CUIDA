@@ -28,6 +28,11 @@ const COLORES: Record<string, string> = {
   CERRADO: "bg-slate-300 text-slate-800",
   CERRADA: "bg-slate-300 text-slate-800",
   CANCELADA: "bg-rose-100 text-rose-700",
+  // La jornada no se prestó, pero no es lo mismo avisar que no abrir la
+  // puerta: el no presentado tiene su propia consecuencia económica.
+  NO_PRESENTADO: "bg-rose-100 text-rose-700",
+  // Verificada y ya pagada al profesional en una liquidación.
+  LIQUIDADA: "bg-slate-300 text-slate-800",
   CANCELADO: "bg-rose-100 text-rose-700",
   PAGADO: "bg-brand-green-100 text-brand-green-700",
   PROGRAMADA: "bg-slate-200 text-slate-700",
