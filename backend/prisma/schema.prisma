@@ -74,6 +74,7 @@ model Organizacion {
   reglasNegocio         ReglasNegocio?
   tarifas               Tarifa[]
   archivos              Archivo[]
+  politicaConservacion  PoliticaConservacion?
 
   @@map("organizaciones")
 }
@@ -1438,4 +1439,72 @@ model Archivo {
   @@index([organizacionId])
   @@index([hash])
   @@map("archivos")
+}
+
+// ---------------------------------------------------------------------------
+// Conservación de datos
+//
+// El RGPD exige guardar los datos personales "durante el tiempo necesario", y
+// eso tiene dos filos: guardar de menos incumple la obligación de conservar
+// —el registro de jornada, la factura—, y guardar de más incumple el
+// principio de limitación del plazo. Las dos cosas son infracción.
+//
+// Los plazos de abajo son los que se citan habitualmente en España y cada uno
+// lleva escrita la norma de la que sale. No son asesoría jurídica: son un
+// punto de partida que la asesoría de cada organización confirma o cambia
+// desde Administración, sin tocar el código.
+// ---------------------------------------------------------------------------
+model PoliticaConservacion {
+  id             String       @id @default(cuid())
+  organizacionId String       @unique
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  // Registro de jornada. Art. 34.9 del Estatuto de los Trabajadores: cuatro
+  // años a disposición de la Inspección de Trabajo.
+  mesesRegistroJornada Int @default(48)
+
+  // Documentación laboral (contratos, altas, titulaciones). Cuatro años, por
+  // el plazo de prescripción de las infracciones del art. 21 de la LISOS y
+  // por las obligaciones de conservación frente a la Seguridad Social.
+  mesesDocumentacionLaboral Int @default(48)
+
+  // Facturación y contabilidad. Seis años por el art. 30 del Código de
+  // Comercio, que es más largo que los cuatro de prescripción tributaria del
+  // art. 66 de la Ley General Tributaria: manda el más largo.
+  mesesFacturacion Int @default(72)
+
+  // Mandato SEPA: mientras esté vigente y un tiempo después del último
+  // adeudo, para poder atender una devolución. Catorce meses es el plazo de
+  // reclamación por adeudo no autorizado del cuaderno SEPA.
+  mesesMandatoSepa Int @default(14)
+
+  // Datos asistenciales de la persona tras el último servicio. Cinco años por
+  // el plazo general de prescripción de acciones personales del art. 1964 del
+  // Código Civil.
+  mesesDatosAsistenciales Int @default(60)
+
+  // Certificado de delitos sexuales tras la baja del profesional. No hay plazo
+  // fijado: el principio de minimización pide guardarlo lo justo para poder
+  // acreditar que se comprobó. Un año es prudente y corto.
+  mesesCertificadoPenales Int @default(12)
+
+  // Registro de accesos y auditoría. Dos años, alineado con lo que pide el
+  // Esquema Nacional de Seguridad para trazas de acceso.
+  mesesAuditoria Int @default(24)
+
+  // Mensajes entre la familia y el profesional. No hay obligación de
+  // conservarlos; un año cubre una reclamación razonable.
+  mesesMensajes Int @default(12)
+
+  // Quién responde de protección de datos, para poder ponerlo en la
+  // información que se entrega y en la respuesta a un derecho de acceso.
+  responsableNombre String?
+  responsableEmail  String?
+  delegadoNombre    String?
+  delegadoEmail     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("politicas_conservacion")
 }

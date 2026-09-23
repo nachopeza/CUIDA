@@ -45,6 +45,28 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [personaId]);
 
+
+  const [descargando, setDescargando] = useState(false);
+
+  // Se descarga como JSON con un bloque por finalidad y su base jurídica. No
+  // es un volcado de la base de datos: es lo que se le entrega a la persona.
+  async function descargarExpediente() {
+    if (!persona) return;
+    setDescargando(true);
+    try {
+      const expediente = await api.get<unknown>(`/proteccion-datos/personas/${persona.id}/expediente`, token);
+      const blob = new Blob([JSON.stringify(expediente, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `cuida-datos-${persona.codigo}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } finally {
+      setDescargando(false);
+    }
+  }
+
   function abrirEditar() {
     if (!persona) return;
     setForm(Object.fromEntries(PERFIL_CAMPOS.map((c) => [c, persona[c] ?? ""])));
@@ -100,11 +122,24 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
         <div>
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Datos</p>
-            {!editando && (
-              <button onClick={abrirEditar} className="text-xs font-medium text-slate-500 underline decoration-dotted hover:text-slate-700">
-                Editar
+            <span className="flex items-center gap-3">
+              {/* Derecho de acceso (arts. 15 y 20 del RGPD): hay un mes para
+                  responder, así que esto no puede ser una consulta que alguien
+                  improvise a mano el día que llega la petición. */}
+              <button
+                onClick={descargarExpediente}
+                disabled={descargando}
+                className="text-xs font-medium text-slate-500 underline decoration-dotted hover:text-slate-700 disabled:opacity-50"
+                title="Copia de todos sus datos personales, para entregársela si la pide"
+              >
+                {descargando ? "Preparando…" : "Copia de sus datos (RGPD)"}
               </button>
-            )}
+              {!editando && (
+                <button onClick={abrirEditar} className="text-xs font-medium text-slate-500 underline decoration-dotted hover:text-slate-700">
+                  Editar
+                </button>
+              )}
+            </span>
           </div>
           {!editando ? (
             <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm text-slate-600 sm:grid-cols-2">
