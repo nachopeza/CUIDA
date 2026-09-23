@@ -98,19 +98,21 @@ function Botones({ items, activo, onIr, badges }: { items: ItemNav[] } & Pick<Pr
             aria-current={seleccionado ? "page" : undefined}
             className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm transition ${
               seleccionado
-                ? // El elegido: la pastilla verde de la marca, con un poco de
-                  // brillo para que se despegue del fondo oscuro.
-                  "bg-brand-green-500 font-semibold text-white shadow-[0_6px_16px_-8px_rgba(90,184,147,0.9)]"
-                : "font-medium text-white/70 hover:bg-white/10 hover:text-white"
+                ? // El elegido: la pastilla verde de la maqueta, en degradado
+                  // y con un poco de brillo para que se despegue del fondo.
+                  "bg-gradient-to-r from-[#23a084] to-[#188a72] font-semibold text-white shadow-[0_8px_20px_-10px_rgba(32,155,127,0.95)]"
+                : "font-medium text-white/75 hover:bg-white/[0.07] hover:text-white"
             }`}
           >
-            <span className="flex min-w-0 items-center gap-2.5">
-              <n.icon className="h-4 w-4 shrink-0" />
+            <span className="flex min-w-0 items-center gap-3">
+              <n.icon className="h-[18px] w-[18px] shrink-0" />
               <span className="truncate">{n.label}</span>
             </span>
+            {/* La cantidad, en círculo y del mismo tamaño siempre: en la
+                maqueta son discos, no etiquetas que crecen con el número. */}
             {badge && badge.valor > 0 && (
               <span
-                className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-4 ${
+                className={`flex h-6 min-w-[24px] shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold leading-none ${
                   seleccionado
                     ? "bg-white/25 text-white"
                     : badge.tono === "rose"
@@ -157,9 +159,11 @@ function Area({ area, activo, onIr, badges }: { area: AreaNav } & Pick<Props, "a
     }
   }
 
-  const rotulo = "px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/40";
+  const rotulo = "px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45";
   return (
-    <div>
+    // La raya entre grupos: en la maqueta separa un bloque del siguiente sin
+    // necesidad de dejar medio dedo de aire.
+    <div className="border-t border-white/[0.07] pt-4 first:border-0 first:pt-0">
       {area.titulo &&
         (area.plegable ? (
           <button onClick={alternar} className={`mb-1 flex w-full items-center justify-between py-1 ${rotulo} transition hover:text-white/70`}>
@@ -183,7 +187,7 @@ function Area({ area, activo, onIr, badges }: { area: AreaNav } & Pick<Props, "a
 function Lista({ items, areas, activo, onIr, badges }: Pick<Props, "items" | "areas" | "activo" | "onIr" | "badges">) {
   if (areas && areas.length > 0) {
     return (
-      <nav className="space-y-5">
+      <nav className="space-y-4">
         {areas.map((area) => (
           <Area key={area.titulo} area={area} activo={activo} onIr={onIr} badges={badges} />
         ))}

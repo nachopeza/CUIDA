@@ -136,14 +136,37 @@ function IconSol({ className }: { className?: string }) {
   );
 }
 
-// La casilla de la cabecera: el icono en su círculo, el número grande, lo que
-// cuenta y el enlace a donde se resuelve. Los cuatro tintes son los de la
-// maqueta y siempre el mismo tinte para el mismo tipo de cifra.
+// La casilla de la cabecera, tal como está en la maqueta: el icono en su
+// círculo y el número A SU LADO, en la misma línea; debajo, lo que cuenta —en
+// el color de la casilla, no en gris— y el enlace a donde se resuelve.
+//
+// Los cuatro tintes están muestreados de la propia imagen, y el fondo es un
+// degradado de la esquina de arriba al blanco, no un color plano.
 const TINTES = {
-  rose: { caja: "bg-rose-50/70 border-rose-100", icono: "bg-rose-100 text-rose-500", numero: "text-rose-600" },
-  amber: { caja: "bg-amber-50/70 border-amber-100", icono: "bg-amber-100 text-amber-600", numero: "text-amber-600" },
-  verde: { caja: "bg-brand-green-50 border-brand-green-100", icono: "bg-brand-green-100 text-brand-green-600", numero: "text-brand-green-700" },
-  azul: { caja: "bg-brand-50 border-brand-100", icono: "bg-brand-100 text-brand-600", numero: "text-brand-800" },
+  rose: {
+    caja: "from-[#fff1f1] to-white",
+    icono: "bg-[#ffdfe1] text-[#d4415a]",
+    numero: "text-[#ac2633]",
+    etiqueta: "text-[#86181b]",
+  },
+  amber: {
+    caja: "from-[#fff6e6] to-white",
+    icono: "bg-[#ffeed2] text-[#e1820e]",
+    numero: "text-[#e1820e]",
+    etiqueta: "text-[#653b15]",
+  },
+  verde: {
+    caja: "from-[#eafaf4] to-white",
+    icono: "bg-[#dbf3eb] text-[#0b5f55]",
+    numero: "text-[#0b5f55]",
+    etiqueta: "text-[#0b3338]",
+  },
+  azul: {
+    caja: "from-[#e9f4fd] to-white",
+    icono: "bg-[#dceefc] text-[#0c5770]",
+    numero: "text-[#0c5770]",
+    etiqueta: "text-[#002033]",
+  },
 } as const;
 
 function Casilla({
@@ -163,13 +186,20 @@ function Casilla({
 }) {
   const t = TINTES[tono];
   return (
-    <button onClick={onClick} className={`rounded-tarjeta border p-3 text-left transition hover:brightness-[0.98] sm:p-3.5 ${t.caja}`}>
-      <span className={`flex h-8 w-8 items-center justify-center rounded-full sm:h-9 sm:w-9 ${t.icono}`}>
-        <Icono className="h-4 w-4" />
+    <button
+      onClick={onClick}
+      className={`flex h-full flex-col rounded-tarjeta bg-gradient-to-br p-4 text-left transition hover:brightness-[0.98] ${t.caja}`}
+    >
+      <span className="flex items-center gap-3">
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${t.icono}`}>
+          <Icono className="h-5 w-5" />
+        </span>
+        <span className={`text-[2rem] font-bold leading-none tabular-nums ${t.numero}`}>{valor}</span>
       </span>
-      <p className={`mt-2 text-2xl font-semibold leading-none tabular-nums sm:mt-2.5 sm:text-3xl ${t.numero}`}>{valor}</p>
-      <p className="mt-1 text-xs font-medium leading-snug text-slate-600 sm:mt-1.5">{titulo}</p>
-      <p className="mt-1 text-[11px] font-medium text-slate-400">{enlace} →</p>
+      <span className={`mt-3 text-sm font-semibold leading-snug ${t.etiqueta}`}>{titulo}</span>
+      {/* El enlace no va en el color de la casilla: es el mismo gris azulado
+          en las cuatro, para que no compita con la cifra. */}
+      <span className="mt-auto pt-2 text-xs font-medium text-[#396377]">{enlace} →</span>
     </button>
   );
 }
@@ -178,9 +208,9 @@ function Casilla({
 function Cifra({ etiqueta, valor, tono, delta }: { etiqueta: string; valor: string; tono: keyof typeof TINTES; delta?: number | null }) {
   const t = TINTES[tono];
   return (
-    <div className={`rounded-lg border p-2.5 ${t.caja}`}>
+    <div className={`rounded-lg bg-gradient-to-br p-2.5 ${t.caja}`}>
       <p className="truncate text-[11px] text-slate-500">{etiqueta}</p>
-      <p className="mt-0.5 truncate text-sm font-semibold tabular-nums text-slate-800">{valor}</p>
+      <p className={`mt-0.5 truncate text-sm font-bold tabular-nums ${t.numero}`}>{valor}</p>
       {delta != null && (
         <p className={`mt-0.5 flex items-center gap-0.5 text-[11px] font-medium ${delta >= 0 ? "text-brand-green-600" : "text-amber-600"}`}>
           {delta >= 0 ? <IconArrowUp className="h-3 w-3" /> : <IconArrowDown className="h-3 w-3" />}
@@ -651,11 +681,11 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                   key={a.clave}
                   onClick={a.onClick}
                   title={a.detalle}
-                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition hover:brightness-[0.97] ${
+                  className={`flex items-start gap-2 rounded-full border px-3 py-1.5 text-left text-xs transition hover:brightness-[0.97] ${
                     a.tono === "rose" ? "border-rose-200 bg-rose-50 text-rose-800" : "border-amber-200 bg-amber-50 text-amber-800"
                   }`}
                 >
-                  <a.icon className={`h-3.5 w-3.5 shrink-0 ${a.tono === "rose" ? "text-rose-500" : "text-amber-500"}`} />
+                  <a.icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${a.tono === "rose" ? "text-rose-500" : "text-amber-500"}`} />
                   <span>
                     <span className="font-semibold">{a.valor}</span> {a.valor === 1 ? a.singular : a.plural}
                   </span>
@@ -731,7 +761,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[42rem] text-sm">
-                  <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <thead className="bg-[#f1f7fa] text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                     <tr>
                       <th className="px-4 py-2.5">Prioridad</th>
                       <th className="px-4 py-2.5">Tipo</th>

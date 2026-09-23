@@ -20,8 +20,22 @@ Cada escala se construye alrededor de ese valor exacto, que queda siempre en
 el peldaño que se usa de verdad: así se puede aclarar u oscurecer sin perder
 el color de la maqueta. El logo de CUIDA se mantiene tal cual.
 
-Los tintes de aviso —rosa, ámbar— son los de Tailwind sin tocar: son
-convenciones que la gente ya sabe leer y reinventarlas no aporta nada.
+Las cuatro casillas de la cabecera también van con sus valores exactos, uno
+por tinte: el fondo (un degradado de la esquina al blanco), el círculo del
+icono, el número y la etiqueta. El enlace de abajo es el mismo gris azulado
+(`#396377`) en las cuatro, para que no compita con la cifra.
+
+## La tipografía
+
+**Inter**, servida desde la propia aplicación (`@fontsource/inter`), no desde
+Google. Estaba declarada en Tailwind pero no se cargaba, así que cada sistema
+ponía la suya y el mismo dato se veía de una forma en un Mac y de otra en un
+Windows. Va alojada aquí a propósito: pedirle la tipografía a Google significa
+mandarle la IP de cada visitante, y en una aplicación que trata datos de salud
+eso es una cesión que nadie ha autorizado.
+
+Los iconos son los de la casa, de trazo simple de 2 px con remates redondos:
+el mismo grosor que los de la maqueta.
 
 ## Las piezas
 
@@ -46,8 +60,10 @@ pantalla, para que "tarjeta" quiera decir lo mismo en las veinte secciones:
 Es la disposición de la maqueta, rellena con nuestros datos:
 
 - **Mi día**: el saludo, la fecha y la hora, y cuatro casillas —urgentes,
-  pendientes, visitas de hoy y profesionales activos— cada una con su tinte,
-  su icono en un círculo y el enlace a donde se resuelve.
+  pendientes, visitas de hoy y profesionales activos—. En cada una, el icono
+  en su círculo y **el número a su lado**, en la misma línea; debajo, lo que
+  cuenta en el color de la casilla, y el enlace a donde se resuelve. Las
+  cuatro miden lo mismo aunque el texto ocupe dos líneas.
 - **Bandeja de trabajo**: una tabla de prioridad, tipo, persona, cuándo y una
   acción por fila. Lo crítico lleva el botón lleno y lo demás el de contorno.
 - **Agenda de hoy**: la hora, el punto de estado, quién recibe el servicio,
@@ -64,7 +80,9 @@ Es la disposición de la maqueta, rellena con nuestros datos:
   centro y a la derecha los avisos y quién eres. Se queda arriba porque el
   buscador y la campana se usan desde cualquier sitio.
 - **Barra lateral oscura**, pegada al borde, con las entradas agrupadas por
-  áreas y su cifra al lado. Abajo, el lema de la casa.
+  áreas y separadas por una raya fina. La cifra de cada entrada va en un
+  **disco del mismo tamaño siempre**, no en una etiqueta que crece con el
+  número. Abajo, las dos hojas y el lema de la casa.
 - **Contenido** sobre el lienzo, con las tarjetas encima.
 
 El buscador lo pinta cada panel —es quien sabe qué hay que buscar— pero

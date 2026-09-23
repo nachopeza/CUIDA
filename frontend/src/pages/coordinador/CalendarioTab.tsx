@@ -313,7 +313,7 @@ export function CalendarioTab({ onAbrirSolicitud }: { onAbrirSolicitud: (solicit
       {vista === "escaleta" && (
         <div className="overflow-x-auto tarjeta">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-slate-500">
+            <thead className="bg-[#f1f7fa] text-[11px] font-semibold uppercase tracking-wider text-slate-400">
               <tr>
                 <th className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left font-semibold">Profesional</th>
                 {diasDelRango.map((d) => (

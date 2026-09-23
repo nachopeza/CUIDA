@@ -58,7 +58,7 @@ export default {
         elevada: "0 2px 4px rgba(10, 47, 59, 0.06), 0 16px 40px -16px rgba(10, 47, 59, 0.26)",
       },
       fontFamily: {
-        sans: ['"Inter var"', "Inter", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
+        sans: ["Inter", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
       },
     },
   },
