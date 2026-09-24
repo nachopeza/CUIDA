@@ -57,7 +57,7 @@ export function Layout({ children }: { children: ReactNode }) {
             arriba porque el buscador y la campana se usan desde cualquier
             sitio sin tener que subir la página. */}
         <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur">
-          <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center gap-3 px-3 sm:px-5">
+          <div className="relative mx-auto flex h-16 w-full max-w-[1600px] items-center gap-3 px-3 sm:px-5">
             {/* La hamburguesa, lo primero y sólo en móvil: es donde la mano
                 la busca, y así no se va con el desplazamiento. */}
             {usuario && abrirMenuMovil && (
@@ -70,10 +70,7 @@ export function Layout({ children }: { children: ReactNode }) {
               </button>
             )}
 
-            {/* Exactamente el ancho de la barra lateral (15rem), para que lo
-                que venga después —el buscador— empiece justo donde empieza la
-                columna de contenido y no flotando en mitad de la cabecera. */}
-            <div className="flex shrink-0 items-center gap-3 md:w-[15.55rem]">
+            <div className="flex shrink-0 items-center gap-3">
               {/* El logo lleva al inicio, como en cualquier sitio. Si nadie ha
                   registrado un inicio (la pantalla de entrar, por ejemplo), se
                   queda como una imagen y no finge ser un botón. */}
@@ -88,26 +85,29 @@ export function Layout({ children }: { children: ReactNode }) {
               ) : (
                 <img src={logoCuida} alt="CUIDA" className="block h-8 w-auto sm:h-9" />
               )}
-              {/* El rótulo del área ("Centro de coordinación") vivía aquí y
-                  decía tres veces lo mismo: ya lo dice la chapa de la cuenta
-                  —"Coordinadora"— y el título de cada pantalla. Al fijar este
-                  bloque al ancho de la barra para alinear el buscador ya no
-                  cabía entero, y un rótulo cortado es peor que ninguno. */}
+              {/* El rótulo del área se ha mudado a lo alto de la barra
+                  lateral: aquí ocupaba justo el trozo por donde empieza la
+                  columna de contenido, y había que elegir entre tenerlo o
+                  tener el buscador alineado. Allí caben los dos. */}
             </div>
 
             {/* La ranura del buscador. Cada panel mete aquí el suyo desde su
                 propio árbol (ver lib/ranuras.ts): en la cabecera es donde se
                 busca, pero quien sabe qué hay que buscar es cada panel.
-                Ocupa exactamente la columna ancha del contenido: empieza donde
-                empieza ésta y termina donde empieza la columna estrecha. */}
-            <div id={RANURA_BUSCADOR} className="hidden w-full min-w-0 flex-1 md:block" />
+                Va colocado sobre la columna de contenido —15rem de barra
+                lateral más 1.25rem de margen, o sea 16.25rem— en vez de ir en
+                el flujo de la cabecera: así empieza donde empiezan las
+                tarjetas sin depender de lo que mida el rótulo de al lado, que
+                es lo que antes obligaba a elegir entre una cosa y la otra.
+                El ancho se queda en 32rem, y se encoge si no cabe para no
+                meterse debajo de la campana. */}
+            <div
+              id={RANURA_BUSCADOR}
+              className="absolute left-[16.25rem] top-1/2 hidden w-[min(32rem,calc(100%-16.25rem-16rem))] -translate-y-1/2 md:block"
+            />
 
-            {/* La campana y la cuenta ocupan la columna estrecha: 22.5rem más
-                el hueco de 1rem de la rejilla, menos los 0.75rem que separan
-                los bloques de esta cabecera. Así el buscador corta justo donde
-                corta el bloque ancho, medido y no a ojo. */}
             {usuario && (
-              <div className="ml-auto flex shrink-0 items-center justify-end gap-1 sm:gap-2 xl:w-[22.75rem]">
+              <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
                 <NotificationBell />
                 <div className="relative" ref={menuRef}>
                   <button

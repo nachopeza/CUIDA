@@ -79,6 +79,8 @@ interface Props {
   // Lo que se crea desde aquí. Va en el menú y no perdido en la cabecera de
   // cada pantalla: crear una solicitud es lo que más se hace en el día.
   acciones?: ReactNode;
+  // De qué va esta parte de la casa, encima del menú.
+  rotulo?: { titulo: string; lema: string } | null;
   // Las cuatro entradas que van en la barra inferior del móvil. La quinta,
   // "Menú", la pone la propia barra y abre el cajón.
   pestanasMovil?: ItemNav[];
@@ -237,7 +239,7 @@ function Firma() {
 // Una sola navegación para los tres paneles. En pantalla ancha es la columna
 // oscura pegada al borde; en móvil es un cajón que entra desde la izquierda
 // más una barra de pestañas fija abajo con lo que se usa a diario.
-export function Navegacion({ items, areas, activo, onIr, badges, cabecera, acciones, pestanasMovil, abierto, onAbrir, onCerrar }: Props) {
+export function Navegacion({ items, areas, activo, onIr, badges, cabecera, acciones, rotulo, pestanasMovil, abierto, onAbrir, onCerrar }: Props) {
   // Mientras el cajón está abierto la página de detrás no se mueve: en móvil
   // es lo que distingue un panel de una sección más que se ha desplegado.
   useEffect(() => {
@@ -272,6 +274,17 @@ export function Navegacion({ items, areas, activo, onIr, badges, cabecera, accio
     <>
       <aside className={`hidden shrink-0 md:block md:w-[15rem] ${fondoOscuro}`}>
         <div className="sticky top-16 flex min-h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] flex-col overflow-y-auto barra-fina px-3 py-5">
+          {/* De qué va esta parte de la casa. Vivía en la cabecera, al lado del
+              logo, pero ahí ocupaba justo el trozo por donde empieza la
+              columna de contenido: o cabía el rótulo o el buscador quedaba
+              alineado, no las dos cosas. Aquí sigue estando a la vista, encima
+              del menú, y la cabecera queda para el logo y la búsqueda. */}
+          {rotulo && (
+            <div className="mb-4 px-2">
+              <p className="text-sm font-semibold leading-tight text-white">{rotulo.titulo}</p>
+              <p className="mt-0.5 text-xs leading-snug text-white/45">{rotulo.lema}</p>
+            </div>
+          )}
           {acciones && <div className="mb-5">{acciones}</div>}
           <Lista items={items} areas={areas} activo={activo} onIr={onIr} badges={badges} />
           <Firma />

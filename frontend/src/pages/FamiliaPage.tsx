@@ -183,6 +183,7 @@ export function FamiliaPage() {
     <Panel
       nav={
         <Navegacion
+        rotulo={{ titulo: "Seguimiento familiar", lema: "Cómo va el cuidado de los tuyos." }}
           items={NAV}
           activo={tab}
           onIr={(k) => {

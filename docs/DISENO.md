@@ -189,12 +189,17 @@ una sombra, no como un color. La entrada elegida sigue siendo verde —es el
 color de la casa— pero la sombra pasa a ser un apoyo de 2 px en vez de un halo
 verde de 20 px que sobre la barra oscura parecía suciedad.
 
-El bloque del logo mide exactamente el ancho de la barra lateral, para que el
-buscador empiece **justo donde empieza la columna de contenido** en vez de
-flotar en mitad de la cabecera. Eso obligó a quitar el rótulo del área
-("Centro de coordinación"), que ya no cabía entero: decía por tercera vez algo
-que ya dicen la chapa de la cuenta y el título de cada pantalla, y un rótulo
-cortado es peor que ninguno.
+El buscador empieza **justo donde empiezan las tarjetas** (16.25rem: las 15rem
+de la barra lateral más 1.25rem de margen) y mide 32rem, encogiéndose si no
+cabe. Va colocado sobre esa posición en vez de ir en el flujo de la cabecera,
+porque en el flujo dependía de lo que midiera lo que tuviera al lado.
+
+Y lo que tenía al lado era el rótulo del área ("Centro de coordinación"), que
+ocupaba de 260 a 436 px: exactamente el trozo por donde empieza la columna. En
+una sola fila **o cabía el rótulo o el buscador quedaba alineado**, no las dos
+cosas. Así que el rótulo se ha mudado a lo alto de la barra lateral, donde
+sigue estando a la vista —y en blanco sobre azul se lee mejor que antes— y la
+cabecera queda para el logo, la búsqueda y quién eres.
 
 El **logo lleva al inicio**, como en cualquier sitio. Cada panel registra cuál
 es su inicio —el escritorio de coordinación, el "hoy" del profesional—, porque

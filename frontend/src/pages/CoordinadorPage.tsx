@@ -540,6 +540,7 @@ export function CoordinadorPage() {
     <Panel
       nav={
       <Navegacion
+        rotulo={{ titulo: "Centro de coordinación", lema: "Personas que importan. Servicios que funcionan." }}
         areas={AREAS}
         activo={tab}
         onIr={irA}
