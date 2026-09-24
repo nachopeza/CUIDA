@@ -82,7 +82,10 @@ export function Layout({ children }: { children: ReactNode }) {
               </button>
             )}
 
-            <div className="flex shrink-0 items-center gap-3">
+            {/* Exactamente el ancho de la barra lateral (15rem), para que lo
+                que venga después —el buscador— empiece justo donde empieza la
+                columna de contenido y no flotando en mitad de la cabecera. */}
+            <div className="flex shrink-0 items-center gap-3 md:w-[15.55rem]">
               <img src={logoCuida} alt="CUIDA" className="block h-8 w-auto sm:h-9" />
               {area && (
                 <>
@@ -98,7 +101,7 @@ export function Layout({ children }: { children: ReactNode }) {
             {/* La ranura del buscador. Cada panel mete aquí el suyo desde su
                 propio árbol (ver lib/ranuras.ts): en la cabecera es donde se
                 busca, pero quien sabe qué hay que buscar es cada panel. */}
-            <div id={RANURA_BUSCADOR} className="mx-auto hidden w-full max-w-lg px-4 md:block" />
+            <div id={RANURA_BUSCADOR} className="hidden w-full max-w-xl md:block" />
 
             {usuario && (
               <div className="ml-auto flex items-center gap-1 sm:gap-2">

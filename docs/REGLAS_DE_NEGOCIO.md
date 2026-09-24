@@ -203,6 +203,35 @@ no es un fallo de la aplicación: es un problema de plantilla, y hay que poder
 leerlo como tal.
 
 
+### La jornada que no arrancó
+
+Una jornada que debía empezar hace dos horas y sigue en "programada" sale como
+crítica en la bandeja. Hasta ahora eso llevaba a la ficha de la solicitud, y
+allí no había **nada** con lo que resolverla: cambiar el estado a mano no ficha
+ninguna hora, así que la jornada se quedaba sin horas, sin poder cobrarse ni
+pagarse, y volvía a salir en la bandeja al día siguiente.
+
+Lo que hace falta no es un desplegable de estados: es la pregunta que se hace
+por teléfono —*"¿qué ha pasado?"*— con las cinco respuestas posibles **y lo que
+cuesta cada una**, porque no cuestan lo mismo y esa es justamente la decisión.
+
+| Qué pasó | Qué hace la aplicación |
+|---|---|
+| **Sí fue, se olvidó de fichar** | Coordinación ficha por ella. La jornada queda hecha: se cobra y se paga con normalidad |
+| **Va de camino** | No cambia nada; queda anotado por qué llega tarde |
+| **No fue nadie** | Ni se cobra ni se paga, e incidencia de prioridad alta |
+| **Fue, pero la persona no estaba** | El porcentaje de la casa: la familia paga parte y la profesional cobra parte |
+| **Se canceló** | El porcentaje de cancelación según el aviso |
+
+Se resuelve **desde la propia bandeja**, sin navegar a ninguna parte: era el
+caso en que ir a otra pantalla no servía de nada porque allí no había ninguna
+acción que arreglase el problema.
+
+Cuando coordinación ficha por alguien, queda escrito que **lo fichó
+coordinación y no quien estuvo allí**: no es lo mismo, y el registro de jornada
+del art. 34.9 ET tiene que poder decirlo. Se guarda como corrección, con el
+motivo, y resuelve la incidencia que hubiera abierta sobre esa jornada.
+
 ### El tiempo que no cuadra
 
 Una jornada puede no cuadrar de dos maneras, y no se resuelven igual.

@@ -102,7 +102,9 @@ function Botones({ items, activo, onIr, badges }: { items: ItemNav[] } & Pick<Pr
               seleccionado
                 ? // El elegido: la pastilla verde de la maqueta, en degradado
                   // y con un poco de brillo para que se despegue del fondo.
-                  "bg-gradient-to-r from-[#23a084] to-[#188a72] font-semibold text-white shadow-[0_8px_20px_-10px_rgba(32,155,127,0.95)]"
+                  // Un azul más claro que el fondo, sin sombra de color: la
+                  // sombra verde sobre barra azul se veía como un halo sucio.
+                  "bg-[#2a5b8f] font-semibold text-white shadow-[0_6px_16px_-10px_rgba(0,0,0,0.9)]"
                 : "font-medium text-white/75 hover:bg-white/[0.07] hover:text-white"
             }`}
           >
@@ -261,7 +263,9 @@ export function Navegacion({ items, areas, activo, onIr, badges, cabecera, accio
 
   // El teal de la maqueta, tomado de la propia imagen: arriba un punto más
   // claro y casi plano hacia abajo.
-  const fondoOscuro = "bg-gradient-to-b from-[#123441] via-[#0b323e] to-[#0a2f3b]";
+  // Azul marino, no el teal casi negro de antes. Es la barra que se ve en
+  // todas las pantallas: tiene que leerse como un color, no como una sombra.
+  const fondoOscuro = "bg-gradient-to-b from-[#16304f] via-[#122944] to-[#0f223a]";
 
   return (
     <>

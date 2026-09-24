@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ResolverJornadaModal } from "../../components/ResolverJornadaModal.js";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Cronometro } from "../../components/Cronometro.js";
@@ -530,8 +531,14 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   // corta de "y luego esto".
   const proximasAcciones = pendientes.slice(6, 11);
 
+  const [jornada, setJornada] = useState<Extract<Asunto["destino"], { tipo: "jornada" }> | null>(null);
+
   function irAsunto(a: Asunto) {
-    if (a.destino.tipo === "solicitud") onAbrirSolicitud(a.destino.id);
+    // Una jornada atascada se resuelve aquí mismo, sin salir de la bandeja:
+    // es el caso en que navegar a otra pantalla no servía de nada porque allí
+    // no había ninguna acción que arreglase el problema.
+    if (a.destino.tipo === "jornada") setJornada(a.destino);
+    else if (a.destino.tipo === "solicitud") onAbrirSolicitud(a.destino.id);
     else if (a.destino.tipo === "incidencia") onAbrirIncidencia(a.destino.id);
     else if (a.destino.tipo === "persona") onAbrirPersona(a.destino.id);
     else onIrA(a.destino.tab, undefined, a.destino.foco);
@@ -1204,6 +1211,20 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
             onCambiado?.();
           }}
           onClose={() => setCerrando(null)}
+        />
+      )}
+
+      {/* Resolver la jornada atascada sin salir de aquí. */}
+      {jornada && (
+        <ResolverJornadaModal
+          visitaId={jornada.visitaId}
+          codigo={jornada.codigo}
+          persona={pendientes.find((a) => a.destino.tipo === "jornada" && a.destino.visitaId === jornada.visitaId)?.persona ?? "la persona"}
+          profesional={jornada.profesional}
+          horaInicioProg={jornada.horaInicioProg}
+          horaFinProg={jornada.horaFinProg}
+          onClose={() => setJornada(null)}
+          onResuelta={onCambiado}
         />
       )}
     </div>

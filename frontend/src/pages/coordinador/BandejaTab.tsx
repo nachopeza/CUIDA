@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ResolverJornadaModal } from "../../components/ResolverJornadaModal.js";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../../lib/auth.js";
 import { exportarCSV } from "../../lib/csv.js";
@@ -88,8 +89,14 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
     return c;
   }, [todos]);
 
+  const [jornada, setJornada] = useState<Extract<Asunto["destino"], { tipo: "jornada" }> | null>(null);
+
   function abrir(a: Asunto) {
-    if (a.destino.tipo === "solicitud") onAbrirSolicitud(a.destino.id);
+    // Una jornada atascada se resuelve aquí mismo, sin salir de la bandeja:
+    // es el caso en que navegar a otra pantalla no servía de nada porque allí
+    // no había ninguna acción que arreglase el problema.
+    if (a.destino.tipo === "jornada") setJornada(a.destino);
+    else if (a.destino.tipo === "solicitud") onAbrirSolicitud(a.destino.id);
     else if (a.destino.tipo === "incidencia") onAbrirIncidencia(a.destino.id);
     else if (a.destino.tipo === "persona") onAbrirPersona(a.destino.id);
     else onIrA(a.destino.tab, undefined, a.destino.foco);
@@ -268,6 +275,20 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
         <p className="text-xs text-slate-400">
           {visibles.length} de {todos.length} asuntos.
         </p>
+      )}
+
+      {/* Resolver la jornada atascada sin salir de aquí. */}
+      {jornada && (
+        <ResolverJornadaModal
+          visitaId={jornada.visitaId}
+          codigo={jornada.codigo}
+          persona={todos.find((a) => a.destino.tipo === "jornada" && a.destino.visitaId === jornada.visitaId)?.persona ?? "la persona"}
+          profesional={jornada.profesional}
+          horaInicioProg={jornada.horaInicioProg}
+          horaFinProg={jornada.horaFinProg}
+          onClose={() => setJornada(null)}
+          onResuelta={() => void cargar()}
+        />
       )}
     </div>
   );

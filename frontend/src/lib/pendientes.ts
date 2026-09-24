@@ -37,6 +37,11 @@ export interface Asunto {
   // una pestaña con un listado de veinte filas no resuelve nada si la fila que
   // se venía a resolver hay que buscarla a ojo.
   destino:
+    // Una jornada atascada no se resuelve navegando a ninguna parte: se
+    // resuelve ahí mismo, con las cinco salidas posibles y lo que cuesta cada
+    // una. Antes esto llevaba a la ficha de la solicitud, donde no había nada
+    // con lo que resolverla.
+    | { tipo: "jornada"; visitaId: string; codigo: string; profesional?: string | null; horaInicioProg?: string | null; horaFinProg?: string | null }
     | { tipo: "solicitud"; id: string }
     | { tipo: "incidencia"; id: string }
     | { tipo: "persona"; id: string }
@@ -161,7 +166,14 @@ export function calcularPendientes(datos: {
             detalle: `Debía empezar a las ${visita.horaInicioProg} · ${retraso} min de retraso`,
             desde: retraso,
             accion: "Resolver ahora",
-            destino: solicitud ? { tipo: "solicitud", id: solicitud.id } : { tipo: "tab", tab: "calendario" },
+            destino: {
+              tipo: "jornada",
+              visitaId: visita.id,
+              codigo: visita.codigo,
+              profesional: visita.profesional ? `${visita.profesional.nombre} ${visita.profesional.apellidos}` : null,
+              horaInicioProg: visita.horaInicioProg,
+              horaFinProg: visita.horaFinProg,
+            },
           });
         }
       }
@@ -208,7 +220,14 @@ export function calcularPendientes(datos: {
             detalle: `${visita.codigo} · fichó la entrada y nunca la salida`,
             desde: abierta,
             accion: "Cerrar o llamar",
-            destino: { tipo: "tab", tab: "escritorio" },
+            destino: {
+              tipo: "jornada",
+              visitaId: visita.id,
+              codigo: visita.codigo,
+              profesional: visita.profesional ? `${visita.profesional.nombre} ${visita.profesional.apellidos}` : null,
+              horaInicioProg: visita.horaInicioProg,
+              horaFinProg: visita.horaFinProg,
+            },
           });
         }
       }

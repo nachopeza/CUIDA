@@ -725,6 +725,108 @@ visitasRouter.post("/:id/ajuste", requiereRol("COORDINADOR", "ORGANIZACION", "AD
 });
 
 // ---------------------------------------------------------------------------
+// Fichar por alguien que no fichó
+//
+// El caso más común de la operativa real: la profesional fue, hizo su trabajo
+// y se olvidó de darle al botón. La jornada se queda en "no iniciada", salta
+// como crítica en la bandeja, y desde coordinación no había forma de
+// arreglarlo: cambiar el estado a mano no ficha nada, así que la jornada
+// seguía sin horas y sin poder cobrarse ni pagarse.
+//
+// Laura llama, lo aclara en treinta segundos, y ficha ella. Queda escrito que
+// lo fichó coordinación y por qué: no es lo mismo que lo fiche quien estuvo
+// allí, y el registro de jornada tiene que poder decirlo.
+// ---------------------------------------------------------------------------
+const ficharPorSchema = z.object({
+  horaInicio: z.string().regex(HORA, "La hora de entrada va en formato 09:00"),
+  horaFin: z.string().regex(HORA, "La hora de salida va en formato 12:00"),
+  motivo: z.string().min(3, "Di por qué lo fichas tú: queda junto al fichaje"),
+});
+
+visitasRouter.post("/:id/fichar-por", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const visita = await prisma.visita.findUnique({
+    where: { id: req.params.id },
+    include: { servicio: { include: { solicitud: { include: { persona: true } } } } },
+  });
+  if (!visita) return res.status(404).json({ error: "No encontrada" });
+  if (visita.servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+
+  const parsed = ficharPorSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  if (!["PROGRAMADA", "CONFIRMADA", "EN_CURSO"].includes(visita.estado)) {
+    return res.status(409).json({
+      error: `${visita.codigo} está en ${visita.estado.toLowerCase().replace(/_/g, " ")}: ya no se puede fichar sobre ella. Corrige el fichaje si las horas no son buenas.`,
+    });
+  }
+
+  const { inicio, fin, horas } = marcasDeTiempo(visita.fecha, parsed.data.horaInicio, parsed.data.horaFin);
+  const problema = revisarTiempo(parsed.data.horaInicio, parsed.data.horaFin, horas);
+  if (problema) return res.status(400).json({ error: problema });
+
+  await prisma.visita.update({
+    where: { id: visita.id },
+    data: {
+      estado: "FINALIZADA",
+      horaInicioReal: inicio,
+      horaFinReal: fin,
+      cierreManual: true,
+      cerradoPorUsuarioId: req.usuario!.sub,
+    },
+  });
+
+  // Queda como corrección, no como fichaje normal: así el registro de jornada
+  // distingue lo que fichó quien estuvo allí de lo que puso coordinación.
+  await prisma.correccionFichaje.createMany({
+    data: [
+      { visitaId: visita.id, campo: "horaInicioReal", valorAnterior: null, valorNuevo: inicio, motivo: `Fichado por coordinación · ${parsed.data.motivo}`, usuarioId: req.usuario!.sub },
+      { visitaId: visita.id, campo: "horaFinReal", valorAnterior: null, valorNuevo: fin, motivo: `Fichado por coordinación · ${parsed.data.motivo}`, usuarioId: req.usuario!.sub },
+    ],
+  });
+
+  const liquidada = await liquidarVisita(visita.id);
+
+  await registrarHistorial({
+    entidadTipo: "Visita",
+    estadoAnterior: visita.estado,
+    estadoNuevo: "FINALIZADA",
+    motivo: `Fichada por coordinación: ${parsed.data.horaInicio}-${parsed.data.horaFin} · ${parsed.data.motivo}`,
+    visitaId: visita.id,
+  });
+
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: visita.servicio.organizacionId,
+    accion: "fichar_por_profesional",
+    entidadTipo: "Visita",
+    entidadId: visita.id,
+    detalle: `${parsed.data.horaInicio}-${parsed.data.horaFin} · ${parsed.data.motivo}`,
+  });
+
+  // Si la jornada había abierto incidencia por no haber empezado, queda
+  // resuelta: el motivo por el que se abrió ya no existe.
+  const abiertas = await prisma.incidencia.findMany({
+    where: { visitaId: visita.id, estado: { notIn: ["RESUELTA", "CERRADA"] }, motivo: { in: ["HORAS", "OTRO"] } },
+  });
+  for (const i of abiertas) {
+    await prisma.incidencia.update({ where: { id: i.id }, data: { estado: "RESUELTA" } });
+    await registrarHistorial({
+      entidadTipo: "Incidencia",
+      estadoAnterior: i.estado,
+      estadoNuevo: "RESUELTA",
+      motivo: `Coordinación fichó la jornada: ${parsed.data.horaInicio}-${parsed.data.horaFin}`,
+      incidenciaId: i.id,
+    });
+  }
+
+  res.json({
+    ...liquidada?.visita,
+    tiempos: liquidada?.tiempos ?? null,
+    incidenciasResueltas: abiertas.map((i) => i.codigo),
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Jornadas abiertas: el olvido de fichar la salida
 //
 // Nadie trabaja nueve horas seguidas sin avisar: una visita iniciada hace
