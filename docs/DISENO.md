@@ -97,11 +97,52 @@ columna de la derecha, que es donde se pidieron.
 - **Cabecera fija**: el logo, de qué va esta parte y su lema, el buscador en el
   centro y a la derecha los avisos y quién eres. Se queda arriba porque el
   buscador y la campana se usan desde cualquier sitio.
-- **Barra lateral oscura**, pegada al borde, con las entradas agrupadas por
-  áreas y separadas por una raya fina. La cifra de cada entrada va en un
-  **disco del mismo tamaño siempre**, no en una etiqueta que crece con el
-  número. Abajo, las dos hojas y el lema de la casa.
+- **Barra lateral oscura**, pegada al borde, con el menú de la maqueta entero:
+
+  | Área | Entradas |
+  |---|---|
+  | — | Inicio |
+  | Operación | Solicitudes · Servicios · Visitas · Calendario |
+  | Personas | Personas · Familiares / Contactos |
+  | Profesionales | Profesionales · Disponibilidad · Cobertura |
+  | Seguimiento | Incidencias · Verificaciones · Historial |
+  | Finanzas | Cobros · Pagos · Facturación · Liquidaciones |
+  | Análisis | Indicadores · Servicios · Profesionales · Ingresos |
+  | Administración | Usuarios · Permisos · Configuración |
+
+  La cifra de cada entrada va en un **disco del mismo tamaño siempre**, no en
+  una etiqueta que crece con el número, y dice cuántas cosas esperan ahí
+  dentro, no cuántas filas tiene la tabla: un número que no cambia nunca deja
+  de leerse a la semana. Tres tonos y sólo tres: **rojo** cuando alguien se
+  queda sin servicio, **ámbar** cuando algo va tarde, **verde** cuando es sólo
+  cuántos hay. Abajo, las dos hojas y el lema de la casa.
+- **La barra es sólo menú.** Los botones de crear estaban ahí y se han ido a
+  la cabecera de la pantalla donde se crea: "Nueva solicitud" pertenece a
+  Solicitudes igual que "Nuevo usuario" pertenece a Personas.
 - **Contenido** sobre el lienzo, con las tarjetas encima.
+
+### Veintidós entradas, no veintinueve
+
+Lo que antes eran entradas sueltas se ha replegado dentro de las de la
+maqueta. No se ha quitado nada: se ha dejado de pedir que alguien recuerde
+dónde vive cada cosa.
+
+- **Configuración** es ahora una sola entrada con seis secciones dentro, en el
+  orden de montar la casa: Mi empresa, Catálogo de servicios, Reglas de
+  negocio, Empresas colaboradoras, Equipo interno y Protección de datos.
+- **Dos pares de entradas comparten pantalla**, porque son la misma tabla
+  mirada desde dos preguntas: Visitas enseña todas las jornadas y
+  Verificaciones sólo las que esperan el visto bueno; Facturación y
+  Liquidaciones enseñan las listas enteras, y Cobros y Pagos, sólo lo que
+  queda pendiente.
+- **Solicitudes y Servicios** son la misma cadena partida por donde cambia el
+  trabajo: antes de que haya alguien confirmado se gestiona una petición; a
+  partir de ahí se vigila un servicio en marcha.
+- **Análisis** son cuatro entradas sobre los mismos datos, cada una con lo que
+  contesta a su pregunta, para que cada pantalla conteste una y no cinco.
+- **La bandeja de trabajo y el expediente de un profesional** no están en el
+  menú a propósito: a la bandeja se llega desde el escritorio y al expediente,
+  desde la fila que nombra a esa persona.
 
 El buscador lo pinta cada panel —es quien sabe qué hay que buscar— pero
 aparece en la cabecera: eso lo resuelve una **ranura** (`src/lib/ranuras.ts`),

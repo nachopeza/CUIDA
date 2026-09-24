@@ -472,6 +472,12 @@ export interface FamiliarRelacion {
   puedeVerHistorial: boolean;
   puedeVerImportes: boolean;
   usuario?: CuentaResumen;
+  // Los tres siguientes sólo vienen cuando el vínculo se pide suelto (el
+  // listado de Familiares y contactos); dentro de la ficha de una persona
+  // sobran, porque la persona ya la sabes.
+  createdAt?: string;
+  revocadoAt?: string | null;
+  persona?: { id: string; nombre: string; apellidos: string; telefono: string | null };
 }
 
 export interface PersonaConFamiliares extends Persona {

@@ -103,6 +103,10 @@ interface Props {
   onFocoConsumido?: () => void;
   onAbrirSolicitud: (id: string) => void;
   onCambiado: () => void;
+  // Con qué vista se entra. "Visitas" y "Verificaciones" son la misma tabla
+  // mirada desde dos sitios distintos del menú: todas las jornadas frente a
+  // las que esperan el visto bueno.
+  pestanaInicial?: "pendientes" | "verificadas" | "todas";
 }
 
 // Verificación: el paso en el que coordinación comprueba que lo fichado
@@ -110,13 +114,19 @@ interface Props {
 // tocan desde aquí —las pone quien trabaja, al empezar y al cerrar—: si algo
 // no cuadra, se abre una incidencia y se habla. Verificar cierra la jornada y
 // la manda a la vez a pagar a la profesional y a facturar a la familia.
-export function VerificacionTab({ solicitudes, servicios, focoVisitaId, onFocoConsumido, onAbrirSolicitud, onCambiado }: Props) {
+export function VerificacionTab({ solicitudes, servicios, focoVisitaId, onFocoConsumido, onAbrirSolicitud, onCambiado, pestanaInicial }: Props) {
   const { token } = useAuth();
   const [busqueda, setBusqueda] = useState("");
   const [soloDescuadres, setSoloDescuadres] = useState(false);
   // Pendientes por defecto: es lo que hay que resolver. Las otras dos vistas
   // son para consultar.
-  const [pestana, setPestana] = useState<"pendientes" | "verificadas" | "todas">("pendientes");
+  const [pestana, setPestana] = useState<"pendientes" | "verificadas" | "todas">(pestanaInicial ?? "pendientes");
+  // Al cambiar de entrada del menú sin salir del componente hay que volver a
+  // la vista que pide la entrada nueva; si no, "Visitas" seguiría enseñando
+  // lo que se dejó abierto en "Verificaciones".
+  useEffect(() => {
+    if (pestanaInicial) setPestana(pestanaInicial);
+  }, [pestanaInicial]);
   const [persona, setPersona] = useState("");
   const [profesional, setProfesional] = useState("");
   const [tarea, setTarea] = useState("");

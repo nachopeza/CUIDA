@@ -177,6 +177,25 @@ personasRouter.get("/", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), asy
   res.json(conCarencias);
 });
 
+// Todos los familiares y contactos de la casa, de una vez. Hasta ahora cada
+// vínculo sólo se veía abriendo la ficha de su persona: para responder a
+// "¿quién puede pedir servicios?" o "¿a quién llamamos si pasa algo?" había
+// que abrir las cuarenta fichas una por una.
+//
+// Va antes de "/:id" a propósito: si no, Express leería "familiares" como el
+// id de una persona.
+personasRouter.get("/familiares", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const relaciones = await prisma.familiarRelacion.findMany({
+    where: { persona: { organizacionId: req.usuario!.organizacionId ?? undefined } },
+    include: {
+      persona: { select: { id: true, nombre: true, apellidos: true, telefono: true } },
+      usuario: { select: { id: true, nombre: true, email: true, telefono: true, activo: true } },
+    },
+    orderBy: [{ revocadoAt: "asc" }, { createdAt: "desc" }],
+  });
+  res.json(relaciones);
+});
+
 personasRouter.get("/:id", async (req, res) => {
   const permitido = await puedeAccederPersona(req.usuario!, req.params.id);
   if (!permitido) return res.status(403).json({ error: "Sin permiso para ver esta persona" });

@@ -61,7 +61,9 @@ export interface AreaNav {
 
 export interface BadgeNav {
   valor: number;
-  tono: "rose" | "amber";
+  // Rojo: alguien se queda sin servicio. Ámbar: va tarde. Verde: es sólo
+  // cuántos hay. Tres tonos, ni uno más, y siempre queriendo decir lo mismo.
+  tono: "rose" | "amber" | "verde";
 }
 
 interface Props {
@@ -96,7 +98,7 @@ function Botones({ items, activo, onIr, badges }: { items: ItemNav[] } & Pick<Pr
             key={n.key}
             onClick={() => onIr(n.key)}
             aria-current={seleccionado ? "page" : undefined}
-            className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm transition ${
+            className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-[7px] text-[13.5px] transition ${
               seleccionado
                 ? // El elegido: la pastilla verde de la maqueta, en degradado
                   // y con un poco de brillo para que se despegue del fondo.
@@ -104,20 +106,22 @@ function Botones({ items, activo, onIr, badges }: { items: ItemNav[] } & Pick<Pr
                 : "font-medium text-white/75 hover:bg-white/[0.07] hover:text-white"
             }`}
           >
-            <span className="flex min-w-0 items-center gap-3">
-              <n.icon className="h-[18px] w-[18px] shrink-0" />
+            <span className="flex min-w-0 items-center gap-2.5">
+              <n.icon className="h-[17px] w-[17px] shrink-0" />
               <span className="truncate">{n.label}</span>
             </span>
             {/* La cantidad, en círculo y del mismo tamaño siempre: en la
                 maqueta son discos, no etiquetas que crecen con el número. */}
             {badge && badge.valor > 0 && (
               <span
-                className={`flex h-6 min-w-[24px] shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold leading-none ${
+                className={`flex h-[22px] min-w-[22px] shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold leading-none ${
                   seleccionado
                     ? "bg-white/25 text-white"
                     : badge.tono === "rose"
                       ? "bg-rose-400 text-white"
-                      : "bg-brand-green-300 text-brand-900"
+                      : badge.tono === "amber"
+                        ? "bg-amber-300 text-amber-950"
+                        : "bg-brand-green-300 text-brand-900"
                 }`}
               >
                 {badge.valor}
@@ -163,7 +167,7 @@ function Area({ area, activo, onIr, badges }: { area: AreaNav } & Pick<Props, "a
   return (
     // La raya entre grupos: en la maqueta separa un bloque del siguiente sin
     // necesidad de dejar medio dedo de aire.
-    <div className="border-t border-white/[0.07] pt-4 first:border-0 first:pt-0">
+    <div className="border-t border-white/[0.07] pt-3 first:border-0 first:pt-0">
       {area.titulo &&
         (area.plegable ? (
           <button onClick={alternar} className={`mb-1 flex w-full items-center justify-between py-1 ${rotulo} transition hover:text-white/70`}>
@@ -173,10 +177,10 @@ function Area({ area, activo, onIr, badges }: { area: AreaNav } & Pick<Props, "a
         ) : (
           // El título del área no es pulsable a propósito: es un rótulo
           // que ordena, no un sitio al que ir.
-          <p className={`mb-1.5 ${rotulo}`}>{area.titulo}</p>
+          <p className={`mb-1 ${rotulo}`}>{area.titulo}</p>
         ))}
       {abierta && (
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           <Botones items={area.items} activo={activo} onIr={onIr} badges={badges} />
         </div>
       )}
@@ -187,7 +191,7 @@ function Area({ area, activo, onIr, badges }: { area: AreaNav } & Pick<Props, "a
 function Lista({ items, areas, activo, onIr, badges }: Pick<Props, "items" | "areas" | "activo" | "onIr" | "badges">) {
   if (areas && areas.length > 0) {
     return (
-      <nav className="space-y-4">
+      <nav className="space-y-3">
         {areas.map((area) => (
           <Area key={area.titulo} area={area} activo={activo} onIr={onIr} badges={badges} />
         ))}
@@ -261,7 +265,7 @@ export function Navegacion({ items, areas, activo, onIr, badges, cabecera, accio
 
   return (
     <>
-      <aside className={`hidden shrink-0 md:block md:w-56 ${fondoOscuro}`}>
+      <aside className={`hidden shrink-0 md:block md:w-[15rem] ${fondoOscuro}`}>
         <div className="sticky top-16 flex min-h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] flex-col overflow-y-auto barra-fina px-3 py-5">
           {acciones && <div className="mb-5">{acciones}</div>}
           <Lista items={items} areas={areas} activo={activo} onIr={onIr} badges={badges} />

@@ -126,7 +126,24 @@ function Aviso({ n, texto, tono }: { n: number; texto: string; tono: "rojo" | "n
   );
 }
 
-export function AnalisisTab() {
+// Las cuatro entradas de Análisis de la maqueta. Los datos son los mismos
+// —una sola llamada, un solo periodo—; lo que cambia es qué se enseña, para
+// que cada entrada conteste una pregunta y no cinco:
+//
+//   Indicadores  → cómo va la casa: horas, mes a mes y desviaciones.
+//   Servicios    → qué se pide más y cuánto vale.
+//   Profesionales→ quién trabaja cuánto y cuánto cobra.
+//   Ingresos     → el dinero: cobrado, pagado y lo que queda para CUIDA.
+export type SeccionAnalisis = "indicadores" | "servicios" | "profesionales" | "ingresos";
+
+const AYUDA: Record<SeccionAnalisis, string> = {
+  indicadores: "Las horas del periodo, cómo evoluciona mes a mes y dónde lo trabajado se separa de lo acordado.",
+  servicios: "Qué tipo de servicio se pide más, cuántas jornadas lleva y cuánto factura.",
+  profesionales: "Cuánto trabaja cada profesional, cuánto se le liquida y con qué puntualidad llega.",
+  ingresos: "Lo cobrado a las familias, lo pagado a los profesionales y lo que queda para CUIDA.",
+};
+
+export function AnalisisTab({ seccion = "indicadores" }: { seccion?: SeccionAnalisis } = {}) {
   const { token } = useAuth();
   const [d, setD] = useState<Analisis | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -162,10 +179,9 @@ export function AnalisisTab() {
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-800">Análisis</h2>
-          <p className="mt-0.5 max-w-2xl text-sm text-slate-500">
-            Las mismas cifras que la factura y la liquidación, sumadas. Cualquier número de aquí se puede seguir hasta una jornada
-            concreta y su desglose.
+          <p className="max-w-2xl text-sm text-slate-500">
+            {AYUDA[seccion]} Son las mismas cifras que la factura y la liquidación, sumadas: cualquier número de aquí se puede
+            seguir hasta una jornada concreta y su desglose.
           </p>
         </div>
         {/* Los dos selectores de mes y el CSV se envuelven en móvil: sin
@@ -212,7 +228,7 @@ export function AnalisisTab() {
       ) : (
         <>
           {/* --- El dinero del periodo --------------------------------- */}
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className={`grid gap-3 sm:grid-cols-3 ${seccion === "indicadores" || seccion === "ingresos" ? "" : "hidden"}`}>
             <Cifra etiqueta="Cobrado a las familias" valor={euros(d.total.importeCliente)} nota={`${d.total.jornadas} jornadas`} tono="cobro" />
             <Cifra etiqueta="Pagado a profesionales" valor={euros(d.total.importeProfesional)} nota={duracion(d.total.minutosLiquidables)} tono="pago" />
             <Cifra
@@ -228,7 +244,7 @@ export function AnalisisTab() {
           </div>
 
           {/* --- Los cuatro tiempos ------------------------------------ */}
-          <section className="tarjeta p-4">
+          <section className={`tarjeta p-4 ${seccion === "indicadores" ? "" : "hidden"}`}>
             <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
               <IconClock className="h-4 w-4 text-slate-400" aria-hidden /> Horas del periodo
             </h3>
@@ -252,7 +268,7 @@ export function AnalisisTab() {
           </section>
 
           {/* --- Mes a mes -------------------------------------------- */}
-          <section className="tarjeta p-4">
+          <section className={`tarjeta p-4 ${seccion === "indicadores" || seccion === "ingresos" ? "" : "hidden"}`}>
             <h3 className="text-sm font-semibold text-slate-700">Mes a mes</h3>
             <p className="mt-0.5 text-xs text-slate-500">Horas facturadas y el reparto del dinero de cada mes.</p>
             <div className="mt-3 overflow-x-auto">
@@ -294,7 +310,7 @@ export function AnalisisTab() {
           </section>
 
           {/* --- Donde se separa lo acordado de lo trabajado ----------- */}
-          <section className="tarjeta p-4">
+          <section className={`tarjeta p-4 ${seccion === "indicadores" ? "" : "hidden"}`}>
             <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
               <IconAlert className="h-4 w-4 text-slate-400" aria-hidden /> Desviaciones
             </h3>
@@ -319,9 +335,11 @@ export function AnalisisTab() {
             )}
           </section>
 
-          {/* --- Rankings --------------------------------------------- */}
+          {/* --- Rankings. Cada uno contesta a una entrada del menú, así
+                 que sólo sale donde le toca; "Por persona" acompaña a los
+                 ingresos, porque es de quién viene el dinero. ------------- */}
           <div className="grid gap-4 lg:grid-cols-3">
-            <section className="tarjeta p-4">
+            <section className={`tarjeta p-4 ${seccion === "ingresos" ? "" : "hidden"}`}>
               <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
                 <IconEuro className="h-4 w-4 text-slate-400" aria-hidden /> Por persona
               </h3>
@@ -339,7 +357,7 @@ export function AnalisisTab() {
               </ul>
             </section>
 
-            <section className="tarjeta p-4">
+            <section className={`tarjeta p-4 ${seccion === "profesionales" ? "lg:col-span-3" : "hidden"}`}>
               <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
                 <IconUsers className="h-4 w-4 text-slate-400" aria-hidden /> Por profesional
               </h3>
@@ -361,7 +379,7 @@ export function AnalisisTab() {
               </ul>
             </section>
 
-            <section className="tarjeta p-4">
+            <section className={`tarjeta p-4 ${seccion === "servicios" ? "lg:col-span-3" : "hidden"}`}>
               <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
                 <IconPencil className="h-4 w-4 text-slate-400" aria-hidden /> Por tipo de servicio
               </h3>

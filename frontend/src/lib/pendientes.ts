@@ -391,7 +391,7 @@ export function calcularPendientes(datos: {
       detalle: `Pide del ${soloDia(ausencia.desde) ?? ausencia.desde.slice(0, 10)} al ${soloDia(ausencia.hasta) ?? ausencia.hasta.slice(0, 10)}${ausencia.motivo ? ` · ${ausencia.motivo}` : ""}`,
       desde: Math.floor((Date.now() - new Date(ausencia.createdAt).getTime()) / 60000),
       accion: "Responder",
-      destino: { tipo: "tab", tab: "equipo", foco: ausencia.id },
+      destino: { tipo: "tab", tab: "disponibilidad", foco: ausencia.id },
     });
   }
 
