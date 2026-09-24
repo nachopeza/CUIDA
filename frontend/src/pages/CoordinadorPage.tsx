@@ -904,7 +904,14 @@ export function CoordinadorPage() {
             personas={personas}
             necesidades={necesidades}
             onClose={() => setNuevaSolicitud(false)}
-            onCreated={cargar}
+            onCreated={async (id) => {
+              await cargar();
+              // Y se abre su ficha: el alta deja la solicitud sin horas ni
+              // precio a propósito —eso se decide mirando la agenda—, así que
+              // lo siguiente siempre es abrirla. Hacerlo a mano obligaba a
+              // buscar en el listado la fila que se acababa de crear.
+              if (id) setFichaAbierta(id);
+            }}
           />
         )}
 

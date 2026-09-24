@@ -26,7 +26,7 @@ import { IncidenciaFichaModal } from "../pages/coordinador/IncidenciaFichaModal.
 import { parsearDisponibilidad } from "../lib/disponibilidad.js";
 import { etiquetaTitulacion, zonaDe } from "../lib/territorio.js";
 import { resumenDisponibilidad } from "./DisponibilidadPicker.js";
-import type { EmpresaColaboradora, Necesidad, Profesional, Solicitud, Visita } from "../lib/types.js";
+import type { EmpresaColaboradora, FichaProfesional, Necesidad, Profesional, Solicitud, TarifaVigente, Visita } from "../lib/types.js";
 
 // Espejo de TRANSICIONES_SERVICIO del backend (backend/src/services/estados.ts):
 // un desplegable solo debe ofrecer estados a los que realmente se pueda pasar
@@ -52,6 +52,15 @@ const ESTADOS_BLOQUEADOS_CON_INCIDENCIA = ["FINALIZADO", "VALIDADO", "CERRADO"];
 const PUNTO_PRIORIDAD: Record<string, string> = { ALTA: "bg-rose-500", MEDIA: "bg-amber-400", BAJA: "bg-slate-300" };
 
 const SERVICIO_CANCELABLE = ["PENDIENTE", "ASIGNADO", "CONFIRMADO", "EN_CURSO"];
+// Qué hora quiere decir cada franja. Es la horquilla habitual de la casa, y
+// sirve de punto de partida: lo que vale es lo que quede en Hora inicio y
+// Hora fin, que es de donde salen la duración y el importe.
+const HORAS_DE_FRANJA: Record<string, { horaInicio: string; horaFin: string }> = {
+  "Mañana": { horaInicio: "09:00", horaFin: "13:00" },
+  "Tarde": { horaInicio: "16:00", horaFin: "20:00" },
+  "Todo el día": { horaInicio: "09:00", horaFin: "17:00" },
+};
+
 const FRANJAS = ["Mañana", "Tarde", "Todo el día"];
 
 // La recurrencia se escribía a mano ("L-V", "lunes y miércoles") y había que
@@ -141,6 +150,12 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
     tareasPrevistas: "",
   });
   const [errorPlan, setErrorPlan] = useState<string | null>(null);
+  // Por qué no se ha podido hacer lo último que se pidió. Ninguna de las
+  // acciones de esta ficha lo decía: cuando el servidor las rechazaba —y las
+  // rechaza por buenas razones: papeles caducados, un estado que no toca, una
+  // jornada ya facturada— la promesa se rompía por dentro y en pantalla no
+  // pasaba nada. Quien está delante pulsa otra vez, y otra.
+  const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [guardandoPlan, setGuardandoPlan] = useState(false);
   // Qué ha pasado con la agenda al guardar: las jornadas se crean y se
   // mueven solas, y sin decirlo parece que el cambio no ha hecho nada.
@@ -156,21 +171,32 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
     tipoServicio: "PUNTUAL" as "PUNTUAL" | "RECURRENTE",
     ivaPorcentaje: "",
   });
+  // Quién tiene los papeles en regla. Sin esto la lista ofrecía a todo el
+  // mundo como "le encaja", el servidor rechazaba la asignación y en pantalla
+  // no pasaba nada: dos clics perdidos y ninguna explicación.
+  const [expedientes, setExpedientes] = useState<FichaProfesional[]>([]);
+  // La tarifa vigente de la casa, para proponer el precio en vez de pedir que
+  // se teclee en cada servicio.
+  const [tarifasVigentes, setTarifasVigentes] = useState<TarifaVigente[]>([]);
   const [nuevaVisita, setNuevaVisita] = useState({ fecha: "", horaInicio: "", horaFin: "", tareas: "" });
   const [diaSueltoAbierto, setDiaSueltoAbierto] = useState(false);
   const [pidiendoTiempo, setPidiendoTiempo] = useState<Visita | null>(null);
 
   async function cargar() {
-    const [sol, necs, pros, emps] = await Promise.all([
+    const [sol, necs, pros, emps, exps, tars] = await Promise.all([
       api.get<Solicitud>(`/solicitudes/${solicitudId}`, token),
       api.get<Necesidad[]>("/necesidades", token),
       api.get<Profesional[]>("/profesionales", token),
       api.get<EmpresaColaboradora[]>("/empresas-colaboradoras", token),
+      api.get<FichaProfesional[]>("/personal", token).catch(() => []),
+      api.get<TarifaVigente[]>("/reglas/tarifas", token).catch(() => []),
     ]);
     setS(sol);
     setNecesidades(necs);
     setProfesionales(pros);
     setEmpresas(emps);
+    setExpedientes(exps);
+    setTarifasVigentes(tars);
     if (sol.plan) {
       setPlan({
         fechaInicio: sol.plan.fechaInicio.slice(0, 10),
@@ -206,19 +232,37 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
     onChanged();
   }
 
+  // Todo lo que le pide algo al servidor pasa por aquí: si sale mal, el
+  // motivo se lee arriba de la ficha, con las palabras que ha usado el
+  // servidor.
+  async function intentar(accion: () => Promise<void>) {
+    setErrorAccion(null);
+    try {
+      await accion();
+    } catch (e) {
+      setErrorAccion(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido hacer.");
+    }
+  }
+
   async function clasificar(necesidadId: string) {
-    await api.patch(`/solicitudes/${solicitudId}`, { necesidadId }, token);
-    await recargar();
+    await intentar(async () => {
+      await api.patch(`/solicitudes/${solicitudId}`, { necesidadId }, token);
+      await recargar();
+    });
   }
 
   async function aceptarSolicitud() {
-    await api.post(`/solicitudes/${solicitudId}/estado`, { estado: "ACEPTADA" }, token);
-    await recargar();
+    await intentar(async () => {
+      await api.post(`/solicitudes/${solicitudId}/estado`, { estado: "ACEPTADA" }, token);
+      await recargar();
+    });
   }
 
   async function cancelarSolicitud() {
-    await api.post(`/solicitudes/${solicitudId}/estado`, { estado: "CANCELADA" }, token);
-    await recargar();
+    await intentar(async () => {
+      await api.post(`/solicitudes/${solicitudId}/estado`, { estado: "CANCELADA" }, token);
+      await recargar();
+    });
   }
 
   // Guardar los días y las horas fallaba en silencio: sin fecha de inicio,
@@ -282,14 +326,17 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
 
   async function asignar(profesionalId: string) {
     if (!s?.servicio || !profesionalId) return;
-    await api.post(`/servicios/${s.servicio.id}/asignar`, { profesionalId }, token);
-    await recargar();
+    await intentar(async () => {
+      await api.post(`/servicios/${s!.servicio!.id}/asignar`, { profesionalId }, token);
+      await recargar();
+    });
   }
 
   async function guardarTarifa() {
     if (!s?.servicio) return;
+    await intentar(async () => {
     await api.post(
-      `/servicios/${s.servicio.id}/tarifa`,
+      `/servicios/${s!.servicio!.id}/tarifa`,
       {
         empresaColaboradoraId: tarifa.empresaColaboradoraId || null,
         precioHora: tarifa.precioHora ? Number(tarifa.precioHora) : null,
@@ -303,6 +350,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
       token,
     );
     await recargar();
+    });
   }
 
   async function cambiarTipoServicio(t: "PUNTUAL" | "RECURRENTE") {
@@ -348,27 +396,35 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   // sigue siendo correcta.
   async function reemplazarProfesional(profesionalId: string) {
     if (!s?.servicio || !profesionalId) return;
-    await api.post(`/servicios/${s.servicio.id}/reemplazar-profesional`, { profesionalId }, token);
-    setReemplazoAbierto(false);
-    await recargar();
+    await intentar(async () => {
+      await api.post(`/servicios/${s!.servicio!.id}/reemplazar-profesional`, { profesionalId }, token);
+      setReemplazoAbierto(false);
+      await recargar();
+    });
   }
 
   async function cambiarEstadoServicio(estado: string) {
     if (!s?.servicio || estado === s.servicio.estado) return;
-    await api.post(`/servicios/${s.servicio.id}/estado`, { estado }, token);
-    await recargar();
+    await intentar(async () => {
+      await api.post(`/servicios/${s!.servicio!.id}/estado`, { estado }, token);
+      await recargar();
+    });
   }
 
   async function cancelarServicio() {
     if (!s?.servicio) return;
-    await api.post(`/servicios/${s.servicio.id}/estado`, { estado: "CANCELADO" }, token);
-    await recargar();
+    await intentar(async () => {
+      await api.post(`/servicios/${s!.servicio!.id}/estado`, { estado: "CANCELADO" }, token);
+      await recargar();
+    });
   }
 
   async function marcarPagado() {
     if (!s?.servicio) return;
-    await api.post(`/servicios/${s.servicio.id}/pago`, {}, token);
-    await recargar();
+    await intentar(async () => {
+      await api.post(`/servicios/${s!.servicio!.id}/pago`, {}, token);
+      await recargar();
+    });
   }
 
   // Sin tiempo trabajado no se verifica: se facturaría a cero. Si falta, se
@@ -378,8 +434,10 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
       setPidiendoTiempo(visita);
       return;
     }
-    await api.post(`/visitas/${visita.id}/revisar`, {}, token);
-    await recargar();
+    await intentar(async () => {
+      await api.post(`/visitas/${visita.id}/revisar`, {}, token);
+      await recargar();
+    });
   }
 
   async function programarVisita() {
@@ -404,14 +462,18 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
 
   async function confirmarCancelacion() {
     if (!s?.servicio) return;
-    await api.post(`/servicios/${s.servicio.id}/confirmar-cancelacion`, {}, token);
-    await recargar();
+    await intentar(async () => {
+      await api.post(`/servicios/${s!.servicio!.id}/confirmar-cancelacion`, {}, token);
+      await recargar();
+    });
   }
 
   async function rechazarCancelacion() {
     if (!s?.servicio) return;
-    await api.post(`/servicios/${s.servicio.id}/rechazar-cancelacion`, {}, token);
-    await recargar();
+    await intentar(async () => {
+      await api.post(`/servicios/${s!.servicio!.id}/rechazar-cancelacion`, {}, token);
+      await recargar();
+    });
   }
 
   if (!s) {
@@ -466,6 +528,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   })();
 
   const candidatos = (() => {
+    const porId = new Map(expedientes.map((e) => [e.id, e]));
     const lista = profesionales
       .filter((pro) => pro.estado === "ACTIVO")
       .map((pro) => {
@@ -474,16 +537,54 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
         const diasQueFaltan = diasElegidos.filter((d) => !disp.dias.includes(d));
         const franjaEncaja = disp.franja === "Todo el día" || plan.franjaHoraria === "Todo el día" || disp.franja === plan.franjaHoraria;
 
-        if (sinOferta) return { profesional: pro, encaja: false, orden: 2, motivo: "Sin disponibilidad puesta" };
-        if (diasQueFaltan.length > 0) {
-          return { profesional: pro, encaja: false, orden: 3, motivo: `No trabaja ${diasQueFaltan.map((d) => NOMBRE_DIA[d] ?? d).join(", ")}` };
+        // Los papeles primero: nadie entra en casa de una persona sin el
+        // certificado de delitos sexuales y el DNI en regla, y ofrecerlo como
+        // candidato sólo sirve para que el servidor lo rechace después.
+        const exp = porId.get(pro.id);
+        if (exp?.bloqueado) {
+          const falta = exp.carencias.map((c) => c.etiqueta.toLowerCase()).join(", ");
+          return { profesional: pro, bloqueado: true, encaja: false, orden: 4, motivo: falta ? `Le falta ${falta}` : "No puede trabajar" };
         }
-        if (!franjaEncaja) return { profesional: pro, encaja: false, orden: 3, motivo: `Solo por la ${disp.franja.toLowerCase()}` };
-        return { profesional: pro, encaja: true, orden: 0, motivo: "Le encaja" };
+
+        if (sinOferta) return { profesional: pro, bloqueado: false, encaja: false, orden: 2, motivo: "Sin disponibilidad puesta" };
+        if (diasQueFaltan.length > 0) {
+          return { profesional: pro, bloqueado: false, encaja: false, orden: 3, motivo: `No trabaja ${diasQueFaltan.map((d) => NOMBRE_DIA[d] ?? d).join(", ")}` };
+        }
+        if (!franjaEncaja) return { profesional: pro, bloqueado: false, encaja: false, orden: 3, motivo: `Solo por la ${disp.franja.toLowerCase()}` };
+        return { profesional: pro, bloqueado: false, encaja: true, orden: 0, motivo: "Le encaja" };
       })
       .sort((a, b) => a.orden - b.orden || a.profesional.apellidos.localeCompare(b.profesional.apellidos, "es"));
     return soloDisponibles ? lista.filter((c) => c.encaja) : lista;
   })();
+
+  // La tarifa vigente para este tipo de servicio. Primero la específica; si
+  // no hay, la general de la casa. Está en Configuración desde el principio,
+  // pero hasta ahora no la usaba nadie: el precio se tecleaba de memoria en
+  // cada servicio, y dos servicios iguales acababan a precios distintos.
+  const tarifaDeLaCasa = (() => {
+    const hoy = new Date();
+    const vigente = (t: TarifaVigente) =>
+      t.activa && new Date(t.vigenteDesde) <= hoy && (!t.vigenteHasta || new Date(t.vigenteHasta) >= hoy);
+    const candidatas = tarifasVigentes.filter(vigente);
+    return candidatas.find((t) => t.necesidadId && t.necesidadId === s?.necesidad.id) ?? candidatas.find((t) => !t.necesidadId) ?? null;
+  })();
+
+  // Qué comisión queda para CUIDA con esa tarifa, en porcentaje: es lo que
+  // pide el formulario, y sale de la diferencia entre las dos horas.
+  const comisionDeLaCasa =
+    tarifaDeLaCasa && tarifaDeLaCasa.precioHoraCliente > 0
+      ? Math.round(((tarifaDeLaCasa.precioHoraCliente - tarifaDeLaCasa.precioHoraProfesional) / tarifaDeLaCasa.precioHoraCliente) * 1000) / 10
+      : null;
+
+  function aplicarTarifaDeLaCasa() {
+    if (!tarifaDeLaCasa) return;
+    setTarifa((t) => ({
+      ...t,
+      precioHora: String(tarifaDeLaCasa.precioHoraCliente),
+      comisionPorcentaje: comisionDeLaCasa != null ? String(comisionDeLaCasa) : t.comisionPorcentaje,
+      tarifaTipo: t.tarifaTipo || "PAGADO",
+    }));
+  }
 
   // El reparto que se va a aplicar, calculado en local mientras se teclea.
   // El backend vuelve a hacer la cuenta al guardar: esto solo enseña.
@@ -617,16 +718,22 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 </p>
               )}
 
+              {/* La franja no es otro dato al lado de las horas: es un
+                  atajo para ponerlas. Tenerlas por separado hacía que un
+                  servicio pudiera decir "por la mañana" y no tener hora, y
+                  sin hora no se programa, no se factura y el profesional no
+                  sabe cuándo ir. */}
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 {FRANJAS.map((f) => (
                   <button
                     key={f}
-                    onClick={() => setPlan((p) => ({ ...p, franjaHoraria: f }))}
+                    onClick={() => setPlan((p) => ({ ...p, franjaHoraria: f, ...HORAS_DE_FRANJA[f] }))}
                     className={`rounded-md border px-2.5 py-1 text-xs ${plan.franjaHoraria === f ? "border-brand bg-brand text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
                   >
                     {f}
                   </button>
                 ))}
+                <span className="text-xs text-slate-400">pone las horas de esa franja; ajústalas si hace falta</span>
               </div>
 
               <div className="mt-2">
@@ -702,6 +809,19 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
           Solicitud creada el {new Date(s.createdAt).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })} a las{" "}
           {new Date(s.createdAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
         </p>
+
+        {/* Por qué no se ha podido hacer lo último. Va arriba del todo y
+            con el motivo tal cual lo dice el servidor: "falta el certificado
+            de delitos sexuales" se entiende; que no pase nada al pulsar, no. */}
+        {errorAccion && (
+          <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5">
+            <IconAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" aria-hidden />
+            <p className="flex-1 text-sm text-rose-800">{errorAccion}</p>
+            <button onClick={() => setErrorAccion(null)} className="shrink-0 text-xs font-medium text-rose-500 hover:text-rose-700">
+              Cerrar
+            </button>
+          </div>
+        )}
 
         {cancelada ? (
           <div className="rounded-lg border-2 border-rose-200 bg-rose-50 px-4 py-3">
@@ -976,6 +1096,33 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
 
             {bloqueQueYCuando}
 
+            {/* Lo que le falta a este servicio para poder prestarse. Se podía
+                publicar y mandárselo a un profesional sin horas y sin precio:
+                él no sabía cuándo ir ni cuánto iba a cobrar, y al facturar no
+                salía ningún importe porque no había de dónde sacarlo. */}
+            {["PENDIENTE", "ASIGNADO"].includes(srv.estado) && (!plan.horaInicio || !plan.horaFin || (!tarifa.precioHora && tarifa.tarifaTipo !== "VOLUNTARIO")) && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                <IconAlert className="h-4 w-4 shrink-0 text-amber-500" aria-hidden />
+                <p className="min-w-0 flex-1 text-sm text-amber-800">
+                  {!plan.horaInicio || !plan.horaFin
+                    ? tarifa.precioHora || tarifa.tarifaTipo === "VOLUNTARIO"
+                      ? "Este servicio no tiene horas: el profesional no sabe cuándo ir."
+                      : "Este servicio no tiene horas ni precio: el profesional no sabe cuándo ir ni cuánto va a cobrar."
+                    : "Este servicio no tiene precio: no se puede facturar ni liquidar."}
+                </p>
+                {(!plan.horaInicio || !plan.horaFin) && (
+                  <button onClick={() => setDatosAbiertos(true)} className="boton-secundario-sm shrink-0">
+                    Poner las horas
+                  </button>
+                )}
+                {!tarifa.precioHora && tarifa.tarifaTipo !== "VOLUNTARIO" && (
+                  <button onClick={() => setTarifaAbierta(true)} className="boton-secundario-sm shrink-0">
+                    Poner el precio
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Fase "buscando": elegir explícitamente entre dejarlo en el
                 mercado de profesionales o asignar a alguien directamente —
                 nunca las dos cosas mezcladas en el mismo formulario. */}
@@ -1041,12 +1188,18 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                       </p>
                     ) : (
                       <ul className="max-h-64 space-y-1 overflow-y-auto">
-                        {candidatos.map(({ profesional: pro, encaja, motivo }) => (
+                        {candidatos.map(({ profesional: pro, encaja, bloqueado, motivo }) => (
                           <li key={pro.id}>
                             <button
                               onClick={() => asignar(pro.id)}
-                              className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left transition hover:bg-slate-50 ${
-                                encaja ? "border-brand-green-200 bg-brand-green-50/40" : "border-slate-200"
+                              disabled={bloqueado}
+                              title={bloqueado ? "No puede trabajar hasta que su expediente esté completo" : undefined}
+                              className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left transition ${
+                                bloqueado
+                                  ? "cursor-not-allowed border-rose-200 bg-rose-50/50 opacity-70"
+                                  : encaja
+                                    ? "border-brand-green-200 bg-brand-green-50/40 hover:bg-slate-50"
+                                    : "border-slate-200 hover:bg-slate-50"
                               }`}
                             >
                               <span className="min-w-0">
@@ -1061,7 +1214,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                               </span>
                               <span
                                 className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                                  encaja ? "bg-brand-green-100 text-brand-green-700" : "bg-slate-100 text-slate-500"
+                                  bloqueado ? "bg-rose-100 text-rose-700" : encaja ? "bg-brand-green-100 text-brand-green-700" : "bg-slate-100 text-slate-500"
                                 }`}
                               >
                                 {motivo}
@@ -1241,6 +1394,22 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
               </button>
               {tarifaAbierta && (
                 <div className="space-y-3 border-t border-slate-100 px-3 pb-3 pt-3">
+                  {/* La tarifa de la casa, a un clic. Está puesta en
+                      Configuración; que haya que teclearla otra vez aquí era
+                      la forma más segura de que dos servicios iguales
+                      acabaran a precios distintos. */}
+                  {tarifaDeLaCasa && String(tarifa.precioHora) !== String(tarifaDeLaCasa.precioHoraCliente) && (
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-brand-green-200 bg-brand-green-50 px-2.5 py-2 text-xs text-brand-green-800">
+                      <span className="min-w-0 flex-1">
+                        Tarifa de la casa «{tarifaDeLaCasa.nombre}»: <b>{tarifaDeLaCasa.precioHoraCliente} €/h</b> a la familia,{" "}
+                        {tarifaDeLaCasa.precioHoraProfesional} €/h al profesional
+                        {comisionDeLaCasa != null && ` · ${comisionDeLaCasa} % para CUIDA`}.
+                      </span>
+                      <button onClick={aplicarTarifaDeLaCasa} className="boton-verde shrink-0 px-3 py-1.5 text-xs">
+                        Aplicar
+                      </button>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                     <label className="text-slate-500">
                       Empresa responsable

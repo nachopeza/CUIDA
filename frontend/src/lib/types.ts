@@ -641,3 +641,19 @@ export interface RiesgosCobertura {
   avisan: number;
   riesgos: RiesgoCobertura[];
 }
+
+// Una tarifa de la casa: lo que se le cobra a la familia y lo que se le paga
+// al profesional por hora, con su vigencia. De aquí sale el precio que la
+// ficha propone, para no teclearlo servicio a servicio.
+export interface TarifaVigente {
+  id: string;
+  nombre: string;
+  necesidadId: string | null;
+  necesidad?: { id: string; nombre: string } | null;
+  precioHoraCliente: number;
+  precioHoraProfesional: number;
+  comisionHora: number;
+  vigenteDesde: string;
+  vigenteHasta: string | null;
+  activa: boolean;
+}

@@ -314,3 +314,24 @@ Tres reglas sostienen ese caso:
 
 El desglose de la jornada avisa antes de decidir: "esta jornada ya está en la
 factura A/2026/0002; la diferencia entrará como regularización en la siguiente".
+
+## Lo que no se puede mandar a medias
+
+Un servicio que llega al profesional sin horas o sin precio no es un servicio:
+él no sabe cuándo ir ni cuánto va a cobrar, y al facturar no sale ningún
+importe porque no hay de dónde sacarlo. La ficha lo dice mientras está a
+tiempo, con el botón que lo arregla al lado.
+
+Las horas no se piden dos veces. La franja —mañana, tarde, todo el día— es un
+atajo que pone la horquilla habitual de la casa (09:00–13:00, 16:00–20:00,
+09:00–17:00) en Hora inicio y Hora fin; lo que vale es lo que quede en esas
+dos casillas, que es de donde salen la duración y el importe.
+
+El precio tampoco se teclea de memoria: la tarifa vigente para ese tipo de
+servicio está en Configuración y la ficha la propone con un botón, diciendo de
+cuál se trata y qué queda para CUIDA. Se puede cambiar, pero por defecto dos
+servicios iguales cuestan lo mismo.
+
+Y "1 día" es un día. El último día del plan es el de inicio más los días que
+quedan por delante: una solicitud de una semana genera siete jornadas, no
+ocho.

@@ -79,8 +79,12 @@ solicitudesRouter.post("/", async (req, res) => {
     const inicio = new Date(fechaInicio);
     let fin: Date | null = null;
     if (dias) {
+      // "1 día" es el mismo día, no dos. El último día del plan es el de
+      // inicio más los días que quedan por delante, y por eso se resta uno:
+      // sin esto, una solicitud de una semana generaba ocho jornadas y se
+      // facturaba una de más.
       fin = new Date(inicio);
-      fin.setDate(fin.getDate() + dias);
+      fin.setDate(fin.getDate() + dias - 1);
     }
     await prisma.plan.create({
       data: { solicitudId: solicitud.id, fechaInicio: inicio, fechaFin: fin, franjaHoraria },

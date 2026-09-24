@@ -27,7 +27,10 @@ interface Props {
   personaId?: string;
   personas?: Persona[];
   onClose: () => void;
-  onCreated: () => void;
+  // Recibe el id de la solicitud recién creada: lo siguiente que hay que
+  // hacer con ella —poner las horas y el precio— está en su ficha, y hasta
+  // ahora había que volver a buscarla en el listado.
+  onCreated: (solicitudId?: string) => void;
 }
 
 // Los cuatro pasos del alta, en orden. Uno a la vez: el formulario entero
@@ -172,7 +175,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
     setEnviando(true);
     setError(null);
     try {
-      await api.post(
+      const creada = await api.post<{ id?: string }>(
         "/solicitudes",
         {
           personaId: personaSel,
@@ -185,7 +188,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
         },
         token,
       );
-      onCreated();
+      onCreated(creada?.id);
       onClose();
     } catch (e) {
       // Antes un fallo de red dejaba el modal como si nada hubiera pasado y la
