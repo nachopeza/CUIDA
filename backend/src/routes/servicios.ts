@@ -9,6 +9,7 @@ import { ausenteEse, carenciasDe } from "../services/rrhh.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
 import { anotarSiNoSeCreo, asegurarSesiones } from "../services/sesiones.js";
+import { candidatosParaServicio } from "../services/candidatos.js";
 import { calcularReparto, minutosEntre } from "../services/economia.js";
 import { reglasDe } from "../services/motorTiempo.js";
 
@@ -309,6 +310,18 @@ const asignarSchema = z.object({ profesionalId: z.string().min(1) });
 
 // Motor de asignación P0: manual (sección 10). El coordinador ve candidatos
 // (vía GET /profesionales) y selecciona; el sistema registra el resultado.
+// Quién puede cubrir este servicio, con los tres filtros que de verdad
+// descartan —los papeles, lo que ha ofertado y lo que ya tiene en la agenda—
+// y el motivo escrito. Lo contesta el servidor porque es quien lo sabe: la
+// pantalla cruzaba sólo la disponibilidad declarada y dejaba asignar a quien
+// ya tenía otra jornada a esa hora.
+serviciosRouter.get("/:id/candidatos", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id }, select: { organizacionId: true } });
+  if (!servicio) return res.status(404).json({ error: "No encontrado" });
+  if (servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+  res.json(await candidatosParaServicio(req.params.id));
+});
+
 serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
   const parsed = asignarSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -327,6 +340,36 @@ serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", 
   } catch (err) {
     if (err instanceof TransicionInvalidaError) return res.status(409).json({ error: err.message });
     throw err;
+  }
+
+  // Un servicio sin hora no se le puede proponer a nadie. Quien lo acepta se
+  // está comprometiendo a ir, y hay que decirle cuándo; además la jornada que
+  // se crea al confirmarlo saldría sin hora, y una jornada sin hora no se
+  // puede vigilar —no hay "va tarde"— ni facturar, porque el importe sale de
+  // la duración. Se comprueba aquí y no sólo en la pantalla, para que valga
+  // igual desde el listado de candidatos, desde el mercado y desde el
+  // desplegable de reasignar.
+  const planDelServicio = await prisma.plan.findFirst({
+    where: { solicitudId: servicio.solicitudId },
+    select: { horaInicio: true, horaFin: true },
+  });
+  if (!planDelServicio?.horaInicio || !planDelServicio?.horaFin) {
+    return res.status(409).json({
+      error: "Este servicio todavía no tiene hora de inicio y fin. Ponlas en «Qué se hace y cuándo» antes de proponérselo a nadie.",
+    });
+  }
+
+  // Y que de verdad pueda ese día. Decir que trabaja los martes por la tarde
+  // no quiere decir que este martes por la tarde esté libre: si ya tiene otra
+  // jornada a esa hora o está de ausencia, la asignación salía bien, el
+  // profesional la aceptaba y la jornada no se creaba nunca. La persona se
+  // quedaba con un servicio confirmado y nadie yendo a su casa.
+  const candidatos = await candidatosParaServicio(servicio.id);
+  const suPlaza = candidatos.find((c) => c.id === profesional.id);
+  if (suPlaza?.impide && !suPlaza.bloqueado) {
+    return res.status(409).json({
+      error: `No se puede asignar a ${profesional.nombre}: ${suPlaza.motivo.toLowerCase()}. Elige a otra persona o cambia el día o la hora.`,
+    });
   }
 
   // Nadie entra en casa de una persona mayor sin los papeles en regla. El

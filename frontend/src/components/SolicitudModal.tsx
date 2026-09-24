@@ -212,11 +212,31 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
 
             {paso === 0 && (
               <section>
-                {(personas?.length ?? 0) > 6 && (
-                  <SearchBox value={buscaPersona} onChange={setBuscaPersona} placeholder="Buscar por nombre o código…" className="mb-2 w-full sm:max-w-xs" />
-                )}
+                {/* El buscador va siempre, no a partir de cierto número de
+                    fichas: en todos los listados de la casa está ahí, y un
+                    campo que aparece y desaparece según cuántas personas
+                    haya es un campo que nadie busca cuando lo necesita. */}
+                <SearchBox
+                  value={buscaPersona}
+                  onChange={setBuscaPersona}
+                  placeholder="Buscar por nombre o código…"
+                  className="mb-2 w-full sm:max-w-xs"
+                  autoFocus
+                  // Si al escribir queda una sola, Enter la elige y pasa al
+                  // paso siguiente: teclear tres letras y seguir.
+                  alPulsarEnter={() => {
+                    if (personasFiltradas.length !== 1) return;
+                    setPersonaSel(personasFiltradas[0].id);
+                    setError(null);
+                    setPaso(1);
+                  }}
+                />
                 <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-200">
-                  {personasFiltradas.length === 0 && <p className="px-3 py-2 text-sm text-slate-400">Ninguna persona coincide.</p>}
+                  {personasFiltradas.length === 0 && (
+                    <p className="px-3 py-2 text-sm text-slate-400">
+                      Ninguna persona coincide con «{buscaPersona.trim()}». Compruébalo, o dala de alta antes desde Personas.
+                    </p>
+                  )}
                   {personasFiltradas.map((p) => (
                     <button
                       key={p.id}

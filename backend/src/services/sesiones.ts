@@ -34,8 +34,15 @@ function sinTildes(texto: string) {
 // días", "lunes y miércoles"), así que el lector es deliberadamente tolerante.
 // Si no reconoce nada, asume todos los días: es preferible proponer una
 // jornada de más, que coordinación mueve, a dejar el servicio sin agenda.
-export function diasDeRecurrencia(recurrencia: string | null | undefined): number[] {
-  if (!recurrencia) return TODOS;
+// Qué días de la semana toca. `diaDelPlan` es el día en que empieza el plan
+// y se usa cuando no se ha elegido ninguno: un servicio recurrente sin días
+// marcados quiere decir "cada semana, el día que empezó", que es lo que
+// cualquiera entiende y lo que dice la ficha ("Solo una vez" al lado de las
+// letras vacías). Antes quería decir "los siete días", y un servicio de los
+// siete días no lo puede cubrir nadie: la lista de candidatos se quedaba
+// vacía y no había forma de saber por qué.
+export function diasDeRecurrencia(recurrencia: string | null | undefined, diaDelPlan?: number): number[] {
+  if (!recurrencia) return diaDelPlan != null ? [diaDelPlan] : TODOS;
   const texto = sinTildes(recurrencia);
 
   if (/(diario|todos los dias|cada dia|a diario)/.test(texto)) return TODOS;
@@ -54,7 +61,7 @@ export function diasDeRecurrencia(recurrencia: string | null | undefined): numbe
     }
   }
 
-  return dias.size > 0 ? Array.from(dias).sort() : TODOS;
+  return dias.size > 0 ? Array.from(dias).sort() : diaDelPlan != null ? [diaDelPlan] : TODOS;
 }
 
 function aMedianoche(fecha: Date) {
@@ -81,7 +88,7 @@ function seSolapan(aInicio: string | null, aFin: string | null, bInicio: string 
 
 // ¿Tiene ya el profesional algo a esa hora ese día? Mismo criterio que el
 // alta manual: la agenda de una persona es una sola, no una por servicio.
-async function hayConflicto(profesionalId: string | null, fecha: Date, horaInicio: string | null, horaFin: string | null) {
+export async function hayConflicto(profesionalId: string | null, fecha: Date, horaInicio: string | null, horaFin: string | null) {
   if (!profesionalId) return false;
   const inicioDia = aMedianoche(fecha);
   const finDia = new Date(inicioDia.getTime() + 24 * 60 * 60 * 1000);
@@ -94,7 +101,7 @@ async function hayConflicto(profesionalId: string | null, fecha: Date, horaInici
 // ¿Está de baja o de vacaciones ese día? Comprobarlo sólo al asignar no basta:
 // en un servicio recurrente la ausencia cae en una jornada que todavía no
 // existe, así que hay que mirarlo también al generarla.
-async function estaAusente(profesionalId: string | null, fecha: Date) {
+export async function estaAusente(profesionalId: string | null, fecha: Date) {
   if (!profesionalId) return false;
   const dia = aMedianoche(fecha);
   const solapa = await prisma.ausencia.findFirst({
@@ -185,7 +192,7 @@ export async function asegurarSesiones(servicioId: string): Promise<ResultadoSes
   // antes del comienzo del plan.
   const desde = new Date(Math.max(hoy.getTime(), aMedianoche(plan.fechaInicio).getTime(), ultima ? aMedianoche(ultima).getTime() + 86400000 : 0));
 
-  const dia = siguienteDia(desde, diasDeRecurrencia(plan.recurrencia));
+  const dia = siguienteDia(desde, diasDeRecurrencia(plan.recurrencia, aMedianoche(plan.fechaInicio).getDay()));
   if (!dia) return { creadas: [], motivo: "La recurrencia no señala ningún día" };
   // Un servicio indefinido (fechaFin null) nunca deja de generar jornadas;
   // uno con fecha de fin se para ahí solo.
@@ -264,7 +271,7 @@ export async function sincronizarSesionesConPlan(servicioId: string): Promise<Re
 
   const resultado: ResultadoSincronizacion = { movidas: [], reprogramadas: [], retiradas: [], cambios: [] };
   const hoy = aMedianoche(new Date());
-  const dias = diasDeRecurrencia(plan.recurrencia);
+  const dias = diasDeRecurrencia(plan.recurrencia, aMedianoche(plan.fechaInicio).getDay());
 
   const tareasDelPlan = (plan.tareasPrevistas ?? "")
     .split(/[\n,;]+/)

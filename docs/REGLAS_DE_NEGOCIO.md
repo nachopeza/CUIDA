@@ -335,3 +335,32 @@ servicios iguales cuestan lo mismo.
 Y "1 día" es un día. El último día del plan es el de inicio más los días que
 quedan por delante: una solicitud de una semana genera siete jornadas, no
 ocho.
+
+## Quién puede cubrir un servicio
+
+La pregunta la contesta el servidor, una vez, con tres filtros en el orden en
+que descartan:
+
+1. **Los papeles.** Sin el certificado de delitos sexuales y el DNI en regla no
+   se entra en casa de nadie. Es un no que no se puede saltar.
+2. **Lo que ha ofertado.** Los días de la semana y la franja que el profesional
+   tiene puestos en su disponibilidad.
+3. **La agenda de verdad.** Decir que trabaja los martes por la tarde no quiere
+   decir que este martes por la tarde esté libre: si ya tiene otra jornada a
+   esa hora o está de ausencia, tampoco puede. También es un no que no se puede
+   saltar, porque asignar igualmente no crea la jornada: el servicio se queda
+   confirmado y nadie va a esa casa.
+
+Lo que sale en la lista es el motivo, escrito: «Le encaja», «Ocupado el 24 sept
+a esa hora», «Solo por la mañana», «Le falta certificado de delitos sexuales».
+Los dos noes duros no se pueden pulsar; los blandos sí, porque a veces se
+asigna igual y se llama por teléfono.
+
+Y un servicio sin hora de inicio y fin no se le propone a nadie: quien lo
+acepta se compromete a ir y hay que decirle cuándo.
+
+## Un recurrente sin días marcados
+
+Quiere decir «cada semana, el día que empezó». Antes quería decir «los siete
+días», y un servicio de los siete días no lo puede cubrir nadie: la lista de
+candidatos salía vacía sin explicar por qué.

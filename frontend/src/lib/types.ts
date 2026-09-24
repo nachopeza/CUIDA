@@ -657,3 +657,25 @@ export interface TarifaVigente {
   vigenteHasta: string | null;
   activa: boolean;
 }
+
+// Quién puede cubrir un servicio, según el servidor: los papeles, lo que ha
+// ofertado y lo que ya tiene en la agenda, con el motivo escrito. La pantalla
+// no lo recalcula — lo calculaba distinto y dejaba asignar a quien ya estaba
+// ocupado a esa hora.
+export interface Candidato {
+  id: string;
+  codigo: string;
+  nombre: string;
+  apellidos: string;
+  zona: string | null;
+  comunidad: string | null;
+  municipio: string | null;
+  vehiculoPropio: boolean;
+  titulacion: Titulacion | null;
+  foto: string | null;
+  encaja: boolean;
+  bloqueado: boolean;
+  impide: boolean;
+  motivo: string;
+  orden: number;
+}

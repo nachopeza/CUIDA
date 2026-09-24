@@ -894,7 +894,7 @@ export function CoordinadorPage() {
         {/* Las cuatro entradas de Finanzas: dos listas, enteras o sólo por
             lo que queda pendiente. */}
         {(tab === "facturacion" || tab === "cobros" || tab === "liquidaciones" || tab === "pagos") && (
-          <FacturacionTab focoFacturaId={foco} onFocoConsumido={() => setFoco(null)} vista={tab} />
+          <FacturacionTab focoFacturaId={foco} onFocoConsumido={() => setFoco(null)} vista={tab} onIrA={irA} />
         )}
 
         {tab === "historial" && <ActividadTab />}

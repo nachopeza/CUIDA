@@ -69,9 +69,13 @@ interface PropsFacturacion {
   onFocoConsumido?: () => void;
   // Cuál de las cuatro entradas de Finanzas se ha pulsado en el menú.
   vista?: VistaFinanzas;
+  // Para llevar a donde se resuelve lo que impide facturar. El motivo por el
+  // que no se puede cerrar el mes casi siempre está en otra pantalla, y
+  // decirlo sin decir dónde deja a quien lo lee buscándolo a mano.
+  onIrA?: (tab: string) => void;
 }
 
-export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "facturacion" }: PropsFacturacion = {}) {
+export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "facturacion", onIrA }: PropsFacturacion = {}) {
   const { token } = useAuth();
   // De qué lista se trata y si se enseña entera o sólo lo que queda por
   // resolver. Es lo único que distingue a las cuatro entradas.
@@ -222,7 +226,19 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
         <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar…" className="w-full sm:w-56" />
       </div>
 
-      {error && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
+      {error && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          <span className="min-w-0 flex-1">{error}</span>
+          {/* Lo que más veces impide cerrar el mes es tiempo de más sin
+              decidir, y se decide en Verificaciones. Un atajo, en vez de
+              nombrar las jornadas y dejar que las busque. */}
+          {/sin aprobar|sin decidir|desglose/i.test(error) && onIrA && (
+            <button onClick={() => onIrA("verificacion")} className="boton-secundario-sm shrink-0">
+              Ir a decidir ese tiempo
+            </button>
+          )}
+        </div>
+      )}
       {aviso && <p className="rounded-md border border-brand-green-200 bg-brand-green-50 px-3 py-2 text-xs text-brand-green-700">{aviso}</p>}
 
       {/* ------------------------------ FACTURAS: facturación y cobros ---- */}

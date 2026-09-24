@@ -26,7 +26,7 @@ import { IncidenciaFichaModal } from "../pages/coordinador/IncidenciaFichaModal.
 import { parsearDisponibilidad } from "../lib/disponibilidad.js";
 import { etiquetaTitulacion, zonaDe } from "../lib/territorio.js";
 import { resumenDisponibilidad } from "./DisponibilidadPicker.js";
-import type { EmpresaColaboradora, FichaProfesional, Necesidad, Profesional, Solicitud, TarifaVigente, Visita } from "../lib/types.js";
+import type { Candidato, EmpresaColaboradora, Necesidad, Profesional, Solicitud, TarifaVigente, Visita } from "../lib/types.js";
 
 // Espejo de TRANSICIONES_SERVICIO del backend (backend/src/services/estados.ts):
 // un desplegable solo debe ofrecer estados a los que realmente se pueda pasar
@@ -174,7 +174,8 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   // Quién tiene los papeles en regla. Sin esto la lista ofrecía a todo el
   // mundo como "le encaja", el servidor rechazaba la asignación y en pantalla
   // no pasaba nada: dos clics perdidos y ninguna explicación.
-  const [expedientes, setExpedientes] = useState<FichaProfesional[]>([]);
+  // Quién puede cubrirlo, según el servidor.
+  const [candidatosTodos, setCandidatosTodos] = useState<Candidato[]>([]);
   // La tarifa vigente de la casa, para proponer el precio en vez de pedir que
   // se teclee en cada servicio.
   const [tarifasVigentes, setTarifasVigentes] = useState<TarifaVigente[]>([]);
@@ -183,19 +184,20 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   const [pidiendoTiempo, setPidiendoTiempo] = useState<Visita | null>(null);
 
   async function cargar() {
-    const [sol, necs, pros, emps, exps, tars] = await Promise.all([
-      api.get<Solicitud>(`/solicitudes/${solicitudId}`, token),
+    // La ficha primero, porque de ella sale el id del servicio.
+    const sol = await api.get<Solicitud>(`/solicitudes/${solicitudId}`, token);
+    const [necs, pros, emps, cands, tars] = await Promise.all([
       api.get<Necesidad[]>("/necesidades", token),
       api.get<Profesional[]>("/profesionales", token),
       api.get<EmpresaColaboradora[]>("/empresas-colaboradoras", token),
-      api.get<FichaProfesional[]>("/personal", token).catch(() => []),
+      sol.servicio ? api.get<Candidato[]>(`/servicios/${sol.servicio.id}/candidatos`, token).catch(() => []) : Promise.resolve([]),
       api.get<TarifaVigente[]>("/reglas/tarifas", token).catch(() => []),
     ]);
     setS(sol);
     setNecesidades(necs);
     setProfesionales(pros);
     setEmpresas(emps);
-    setExpedientes(exps);
+    setCandidatosTodos(cands);
     setTarifasVigentes(tars);
     if (sol.plan) {
       setPlan({
@@ -527,35 +529,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
     return `${dias} por la ${plan.franjaHoraria.toLowerCase()}`;
   })();
 
-  const candidatos = (() => {
-    const porId = new Map(expedientes.map((e) => [e.id, e]));
-    const lista = profesionales
-      .filter((pro) => pro.estado === "ACTIVO")
-      .map((pro) => {
-        const disp = parsearDisponibilidad(pro.disponibilidad);
-        const sinOferta = disp.dias.length === 0;
-        const diasQueFaltan = diasElegidos.filter((d) => !disp.dias.includes(d));
-        const franjaEncaja = disp.franja === "Todo el día" || plan.franjaHoraria === "Todo el día" || disp.franja === plan.franjaHoraria;
-
-        // Los papeles primero: nadie entra en casa de una persona sin el
-        // certificado de delitos sexuales y el DNI en regla, y ofrecerlo como
-        // candidato sólo sirve para que el servidor lo rechace después.
-        const exp = porId.get(pro.id);
-        if (exp?.bloqueado) {
-          const falta = exp.carencias.map((c) => c.etiqueta.toLowerCase()).join(", ");
-          return { profesional: pro, bloqueado: true, encaja: false, orden: 4, motivo: falta ? `Le falta ${falta}` : "No puede trabajar" };
-        }
-
-        if (sinOferta) return { profesional: pro, bloqueado: false, encaja: false, orden: 2, motivo: "Sin disponibilidad puesta" };
-        if (diasQueFaltan.length > 0) {
-          return { profesional: pro, bloqueado: false, encaja: false, orden: 3, motivo: `No trabaja ${diasQueFaltan.map((d) => NOMBRE_DIA[d] ?? d).join(", ")}` };
-        }
-        if (!franjaEncaja) return { profesional: pro, bloqueado: false, encaja: false, orden: 3, motivo: `Solo por la ${disp.franja.toLowerCase()}` };
-        return { profesional: pro, bloqueado: false, encaja: true, orden: 0, motivo: "Le encaja" };
-      })
-      .sort((a, b) => a.orden - b.orden || a.profesional.apellidos.localeCompare(b.profesional.apellidos, "es"));
-    return soloDisponibles ? lista.filter((c) => c.encaja) : lista;
-  })();
+  const candidatos = soloDisponibles ? candidatosTodos.filter((c) => c.encaja) : candidatosTodos;
 
   // La tarifa vigente para este tipo de servicio. Primero la específica; si
   // no hay, la general de la casa. Está en Configuración desde el principio,
@@ -1175,7 +1149,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-xs text-slate-600">
                       <input type="checkbox" checked={soloDisponibles} onChange={(e) => setSoloDisponibles(e.target.checked)} />
-                      Solo quien ha ofertado {descripcionDemanda}
+                      Solo quien puede cubrirlo: {descripcionDemanda}, con los papeles en regla y libre a esa hora
                     </label>
 
                     {/* Mandar la propuesta a quien no trabaja ese día es
@@ -1184,20 +1158,21 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                         encaja o por qué no. */}
                     {candidatos.length === 0 ? (
                       <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                        Ningún profesional ha ofertado {descripcionDemanda}. Quita el filtro para ver a todos, o publícalo en el mercado.
+                        Nadie puede cubrirlo tal como está: {descripcionDemanda}. Quita el filtro para ver a todos y por qué no
+                        pueden, cambia el día o la hora, o publícalo en el mercado.
                       </p>
                     ) : (
                       <ul className="max-h-64 space-y-1 overflow-y-auto">
-                        {candidatos.map(({ profesional: pro, encaja, bloqueado, motivo }) => (
+                        {candidatos.map((pro) => (
                           <li key={pro.id}>
                             <button
                               onClick={() => asignar(pro.id)}
-                              disabled={bloqueado}
-                              title={bloqueado ? "No puede trabajar hasta que su expediente esté completo" : undefined}
+                              disabled={pro.impide}
+                              title={pro.impide ? pro.motivo : undefined}
                               className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left transition ${
-                                bloqueado
+                                pro.impide
                                   ? "cursor-not-allowed border-rose-200 bg-rose-50/50 opacity-70"
-                                  : encaja
+                                  : pro.encaja
                                     ? "border-brand-green-200 bg-brand-green-50/40 hover:bg-slate-50"
                                     : "border-slate-200 hover:bg-slate-50"
                               }`}
@@ -1214,10 +1189,10 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                               </span>
                               <span
                                 className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                                  bloqueado ? "bg-rose-100 text-rose-700" : encaja ? "bg-brand-green-100 text-brand-green-700" : "bg-slate-100 text-slate-500"
+                                  pro.impide ? "bg-rose-100 text-rose-700" : pro.encaja ? "bg-brand-green-100 text-brand-green-700" : "bg-slate-100 text-slate-500"
                                 }`}
                               >
-                                {motivo}
+                                {pro.motivo}
                               </span>
                             </button>
                           </li>
@@ -1242,9 +1217,10 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                     onChange={(e) => asignar(e.target.value)}
                     className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
                   >
-                    {profesionales.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nombre} {p.apellidos} · {p.zona ?? "Cantabria"}
+                    {(candidatosTodos.length > 0 ? candidatosTodos : profesionales.map((p) => ({ ...p, impide: false, motivo: "" }))).map((p) => (
+                      <option key={p.id} value={p.id} disabled={"impide" in p && p.impide}>
+                        {p.nombre} {p.apellidos}
+                        {"motivo" in p && p.motivo && p.motivo !== "Le encaja" ? ` · ${p.motivo}` : ` · ${p.zona ?? "Cantabria"}`}
                       </option>
                     ))}
                   </select>
