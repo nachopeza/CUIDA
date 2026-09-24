@@ -131,9 +131,14 @@ export interface TiemposDeVisita {
   minutosLiquidables: number;
   retrasoMinutos: number | null;
   desviacionMinutos: number | null;
-  // Hay más tiempo del acordado por encima de la tolerancia y las reglas dicen
-  // que eso no se cobra solo: alguien tiene que aprobarlo.
+  // Hay una diferencia con lo acordado por encima de la tolerancia y las reglas
+  // dicen que eso no se resuelve solo: alguien tiene que mirarlo.
   requiereAprobacion: boolean;
+  // De qué lado va: "EXCESO" se fichó de más, "DEFECTO" de menos. Nulo cuando
+  // la jornada cuadra. La pantalla lo necesita porque no se resuelven igual:
+  // el de más se aprueba o se rechaza; el de menos casi siempre es un fichaje
+  // sin cerrar que hay que corregir.
+  ladoDesviacion: "EXCESO" | "DEFECTO" | null;
   explicacion: string;
 }
 
@@ -205,6 +210,7 @@ export function calcularTiempos(entrada: EntradaVisita, reglas: Reglas): Tiempos
       retrasoMinutos: retraso,
       desviacionMinutos: desviacion,
       requiereAprobacion: false,
+      ladoDesviacion: null,
       explicacion:
         `La jornada no se prestó: ${noPrestada.porque}. ` +
         `Sobre las ${formatearDuracion(programados)} acordadas se aplica el ${noPrestada.cobro} % a la familia ` +
@@ -233,7 +239,12 @@ export function calcularTiempos(entrada: EntradaVisita, reglas: Reglas): Tiempos
   const liquidables = ajustar(baseLiquidacion, "Pago");
 
   const exceso = desviacion != null && desviacion > reglas.toleranciaExcesoMinutos ? desviacion : 0;
-  const requiereAprobacion = reglas.aprobarTiempoExtra && exceso > 0;
+  // Y el tiempo de MENOS, que hasta ahora se tragaba en silencio. Una jornada
+  // de tres horas fichada en una y media no es un detalle contable: o la
+  // persona se quedó sin la mitad de su servicio, o alguien olvidó cerrar el
+  // fichaje. Las dos cosas hay que mirarlas, y ninguna se arregla sola.
+  const defecto = desviacion != null && desviacion < -reglas.toleranciaExcesoMinutos ? -desviacion : 0;
+  const requiereAprobacion = reglas.aprobarTiempoExtra && (exceso > 0 || defecto > 0);
 
   const frase: string[] = [];
   if (programados != null) frase.push(`Acordado ${formatearDuracion(programados)}`);
@@ -248,13 +259,22 @@ export function calcularTiempos(entrada: EntradaVisita, reglas: Reglas): Tiempos
   if (retraso != null && retraso > reglas.toleranciaRetrasoMinutos) {
     explicacion += ` Entrada con ${retraso} min de retraso sobre lo previsto.`;
   }
-  if (requiereAprobacion) {
+  if (requiereAprobacion && exceso > 0) {
     if (entrada.ajusteEstado === "APROBADO") {
       explicacion += ` Los ${exceso} min por encima de lo acordado están aprobados: entran en la factura y en la liquidación.`;
     } else if (entrada.ajusteEstado === "RECHAZADO") {
       explicacion += ` Los ${exceso} min por encima de lo acordado se decidieron no cobrar: la jornada se queda en lo acordado.`;
     } else {
       explicacion += ` Hay ${exceso} min por encima de lo acordado: pendientes de que coordinación los apruebe.`;
+    }
+  }
+  if (requiereAprobacion && defecto > 0) {
+    if (entrada.ajusteEstado === "APROBADO") {
+      explicacion += ` Faltan ${defecto} min respecto a lo acordado y se ha dado por bueno: se cobra y se paga lo fichado.`;
+    } else if (entrada.ajusteEstado === "RECHAZADO") {
+      explicacion += ` Faltaban ${defecto} min y se ha decidido contar la jornada entera: era un fichaje mal cerrado.`;
+    } else {
+      explicacion += ` Faltan ${defecto} min respecto a lo acordado: hay que comprobar si se hizo menos servicio o si el fichaje quedó mal cerrado.`;
     }
   }
 
@@ -266,6 +286,7 @@ export function calcularTiempos(entrada: EntradaVisita, reglas: Reglas): Tiempos
     retrasoMinutos: retraso,
     desviacionMinutos: desviacion,
     requiereAprobacion,
+    ladoDesviacion: exceso > 0 ? "EXCESO" : defecto > 0 ? "DEFECTO" : null,
     explicacion,
   };
 }

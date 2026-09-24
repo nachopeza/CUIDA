@@ -203,6 +203,39 @@ no es un fallo de la aplicación: es un problema de plantilla, y hay que poder
 leerlo como tal.
 
 
+### El tiempo que no cuadra
+
+Una jornada puede no cuadrar de dos maneras, y no se resuelven igual.
+
+**De más.** Se fichó por encima de lo acordado, más allá de la tolerancia. Eso
+no se cobra solo: coordinación lo aprueba o lo rechaza, y hasta entonces la
+factura se queda en lo acordado.
+
+**De menos.** Se fichó por debajo. Hasta ahora esto se tragaba en silencio —el
+motor sólo miraba la desviación positiva— y la jornada salía verificada como si
+nada. Pero una jornada de tres horas fichada en hora y media no es un detalle
+contable: **o la persona se quedó sin la mitad de su servicio, o alguien olvidó
+cerrar el fichaje**. Las dos cosas hay que mirarlas y ninguna se arregla sola.
+
+Por eso el tiempo de menos **abre incidencia** (motivo `HORAS`) y el de más no.
+La diferencia no es caprichosa: cobrar de más se decide y se acabó, pero que a
+una persona le falten treinta minutos de su servicio es un hecho que hay que
+aclarar con alguien —la profesional, la familia— y dejar escrito cómo acabó.
+Eso es exactamente una incidencia, y así entra en la bandeja con las demás en
+vez de vivir en una pantalla aparte.
+
+La incidencia dice lo que hay que comprobar con nombre y apellidos: *"se
+acordaron 3 h y se han fichado 1 h 30 min (90 min menos). Comprueba con Carmen
+si se hizo menos servicio o si olvidó cerrar el fichaje, y corrige las horas o
+da por buena la jornada."*
+
+**Y se resuelve corrigiendo.** Coordinación llama, se aclara, y corrige el
+fichaje desde la propia jornada. El fichaje original no se borra nunca: queda
+el valor anterior, el nuevo, quién lo cambió y por qué. Si con las horas nuevas
+el tiempo ya cuadra, **la incidencia se cierra ahí mismo**: obligar a ir a otra
+pantalla a cerrarla a mano es pedir que se apunte dos veces lo mismo, y acaba
+en una bandeja llena de avisos ya resueltos.
+
 ### El repaso de lo que viene
 
 Todo lo anterior actúa cuando la jornada ya se ha perdido. Para no llegar

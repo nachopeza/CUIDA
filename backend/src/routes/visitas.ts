@@ -223,16 +223,60 @@ visitasRouter.post("/:id/finalizar", async (req, res) => {
     visita.servicio.solicitudId,
   );
 
-  // El tiempo de más no se cobra solo. Si la desviación pasa de la tolerancia
-  // y las reglas exigen aprobación, coordinación se entera ahora y no al ver
-  // la factura del mes.
+  // El tiempo que no cuadra no se resuelve solo, y hay dos formas de no
+  // cuadrar. Coordinación se entera ahora y no al ver la factura del mes.
   if (liquidada?.tiempos.requiereAprobacion) {
+    const minutos = Math.abs(liquidada.tiempos.desviacionMinutos ?? 0);
+    const deMenos = liquidada.tiempos.ladoDesviacion === "DEFECTO";
+
     await notificarGestores(
       visita.servicio.organizacionId,
       "tiempo_extra_por_aprobar",
-      `La visita ${visita.codigo} tiene ${liquidada.tiempos.desviacionMinutos} min por encima de lo acordado. Aprueba o rechaza ese tiempo antes de facturarlo.`,
+      deMenos
+        ? `La visita ${visita.codigo} se ha fichado con ${minutos} min menos de lo acordado. Comprueba si se hizo menos servicio o si el fichaje quedó mal cerrado.`
+        : `La visita ${visita.codigo} tiene ${minutos} min por encima de lo acordado. Aprueba o rechaza ese tiempo antes de facturarlo.`,
       visita.servicio.solicitudId,
     );
+
+    // El tiempo de menos abre incidencia, el de más no. La diferencia no es
+    // caprichosa: cobrar de más se decide y ya está, pero que a una persona le
+    // falte media hora de su servicio es un hecho que hay que aclarar con
+    // alguien —la profesional, la familia— y dejar escrito cómo acabó. Eso es
+    // exactamente una incidencia, y así entra en la bandeja con las demás.
+    if (deMenos) {
+      const yaAbierta = await prisma.incidencia.findFirst({
+        where: { visitaId: visita.id, motivo: "HORAS", estado: { notIn: ["RESUELTA", "CERRADA"] } },
+      });
+      if (!yaAbierta) {
+        const quienLaHizo = visita.profesionalId
+          ? await prisma.profesional.findUnique({ where: { id: visita.profesionalId }, select: { nombre: true } })
+          : null;
+        const incidencia = await prisma.incidencia.create({
+          data: {
+            codigo: await generarCodigo("incidencia"),
+            tipo: "GENERAL",
+            estado: "NUEVA",
+            motivo: "HORAS",
+            prioridad: "MEDIA",
+            descripcion:
+              `${visita.codigo}: se acordaron ${formatearDuracion(liquidada.tiempos.minutosProgramados ?? 0)} y se han fichado ` +
+              `${formatearDuracion(liquidada.tiempos.minutosReales ?? 0)} (${minutos} min menos). ` +
+              `Comprueba con ${quienLaHizo?.nombre ?? "quien la hizo"} si se hizo menos servicio o si olvidó cerrar el fichaje, ` +
+              `y corrige las horas o da por buena la jornada.`,
+            visitaId: visita.id,
+            servicioId: visita.servicioId,
+            creadoPorUsuarioId: req.usuario!.sub,
+          },
+        });
+        await registrarHistorial({
+          entidadTipo: "Incidencia",
+          estadoAnterior: "NUEVA",
+          estadoNuevo: "NUEVA",
+          motivo: `Abierta sola al cerrar ${visita.codigo}: ${minutos} min por debajo de lo acordado`,
+          incidenciaId: incidencia.id,
+        });
+      }
+    }
   }
 
   res.json({ ...actualizada, tiempos: liquidada?.tiempos ?? null });
@@ -582,8 +626,31 @@ visitasRouter.patch("/:id/fichaje", requiereRol("COORDINADOR", "ORGANIZACION", "
     visitaId: visita.id,
   });
 
+  // Corregir el fichaje es, la mayoría de las veces, la respuesta a la
+  // incidencia que se abrió sola por el tiempo que no cuadraba. Si con las
+  // horas nuevas ya cuadra, la incidencia se cierra aquí: obligar a ir a otra
+  // pantalla a cerrarla a mano es pedirle a alguien que apunte dos veces lo
+  // mismo, y acaba en una bandeja llena de avisos ya resueltos.
+  let incidenciaResuelta: string | null = null;
+  if (liquidada && !liquidada.tiempos.requiereAprobacion) {
+    const abierta = await prisma.incidencia.findFirst({
+      where: { visitaId: visita.id, motivo: "HORAS", estado: { notIn: ["RESUELTA", "CERRADA"] } },
+    });
+    if (abierta) {
+      await prisma.incidencia.update({ where: { id: abierta.id }, data: { estado: "RESUELTA" } });
+      await registrarHistorial({
+        entidadTipo: "Incidencia",
+        estadoAnterior: abierta.estado,
+        estadoNuevo: "RESUELTA",
+        motivo: `Fichaje corregido a ${horaInicio}-${horaFin}: el tiempo ya cuadra · ${parsed.data.motivo}`,
+        incidenciaId: abierta.id,
+      });
+      incidenciaResuelta = abierta.codigo;
+    }
+  }
+
   const documentada = await yaDocumentada(visita.id);
-  res.json({ ...liquidada?.visita, tiempos: liquidada?.tiempos ?? null, documentada });
+  res.json({ ...liquidada?.visita, tiempos: liquidada?.tiempos ?? null, documentada, incidenciaResuelta });
 });
 
 function horaDe(d: Date): string {
