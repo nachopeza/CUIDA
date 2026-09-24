@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Cronometro } from "../../components/Cronometro.js";
-import { Novedades } from "../../components/Novedades.js";
 import { Avatar } from "../../components/Avatar.js";
 import { infoMotivo } from "../../lib/incidencias.js";
 import { INFO_PRIORIDAD, calcularPendientes, type Asunto } from "../../lib/pendientes.js";
@@ -1153,12 +1152,6 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
             )}
           </section>
 
-          <Novedades
-            onAbrir={(tipo, id) => {
-              if (tipo === "Solicitud") onAbrirSolicitud(id);
-              if (tipo === "Incidencia") onAbrirIncidencia(id);
-            }}
-          />
         </div>
       </div>
 

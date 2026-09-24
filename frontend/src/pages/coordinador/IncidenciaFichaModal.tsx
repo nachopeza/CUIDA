@@ -5,7 +5,7 @@ import { Modal } from "../../components/Modal.js";
 import { EstadoBadge } from "../../components/EstadoBadge.js";
 import { infoMotivo } from "../../lib/incidencias.js";
 import { duracion, horaDe, minutosFichados, minutosEntre, compararConAcordado } from "../../lib/economia.js";
-import type { CuentaResumen, Incidencia, IncidenciaServicio, Profesional } from "../../lib/types.js";
+import type { Candidato, CuentaResumen, Incidencia, IncidenciaServicio } from "../../lib/types.js";
 import { IconArrowRight, IconCheckCircle, IconClipboard, IconClock, IconMail, IconPhone, IconRefresh } from "../../components/icons.js";
 
 // Espejo de TRANSICIONES_INCIDENCIA del backend (backend/src/services/estados.ts).
@@ -76,7 +76,12 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged, onAbrir
 
   // Reemplazo: a quién se pone en lugar de quien no puede ir, y si la jornada
   // perdida se recupera otro día.
-  const [profesionales, setProfesionales] = useState<Profesional[]>([]);
+  // A quién se le puede pasar el servicio, con el mismo criterio que en la
+  // ficha de la solicitud: los papeles, lo que ha ofertado y lo que ya tiene
+  // en la agenda. Aquí la lista era de todos los profesionales, sin filtrar:
+  // se podía elegir a quien no puede trabajar o a quien ese día ya está
+  // ocupado, y el reemplazo fallaba después.
+  const [candidatos, setCandidatos] = useState<Candidato[]>([]);
   const [sustitutoId, setSustitutoId] = useState("");
   const [recuperar, setRecuperar] = useState(false);
   const [fechaRecuperacion, setFechaRecuperacion] = useState("");
@@ -92,9 +97,27 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged, onAbrir
   useEffect(() => {
     cargar();
     api.get<CuentaResumen[]>("/cuenta/coordinadores", token).then(setCoordinadores).catch(() => setCoordinadores([]));
-    if (esGestor) api.get<Profesional[]>("/profesionales", token).then(setProfesionales).catch(() => setProfesionales([]));
+    // Los candidatos dependen del servicio, que llega con la incidencia.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incidenciaId]);
+
+  // Cuando ya sabemos de qué servicio se trata, preguntamos quién puede
+  // cubrirlo.
+  useEffect(() => {
+    const servicioId = i?.servicio?.id ?? i?.visita?.servicio?.id ?? i?.servicioId;
+    if (!esGestor || !servicioId) return;
+    // Si la incidencia dice qué días hay que cubrir, se pregunta por esos días:
+    // quien esté libre esta semana puede no estarlo el mes que viene.
+    const ventana =
+      i?.cubrirDesde && i?.cubrirHasta
+        ? `?desde=${encodeURIComponent(i.cubrirDesde)}&hasta=${encodeURIComponent(i.cubrirHasta)}`
+        : "";
+    api
+      .get<Candidato[]>(`/servicios/${servicioId}/candidatos${ventana}`, token)
+      .then(setCandidatos)
+      .catch(() => setCandidatos([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [i?.servicio?.id, i?.visita?.servicio?.id, i?.servicioId, i?.cubrirDesde, i?.cubrirHasta, esGestor]);
 
   async function recargar() {
     await cargar();
@@ -205,6 +228,15 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged, onAbrir
   // sellada aquella jornada: si ya se sustituyó, la jornada sigue siendo de
   // quien la tenía, pero a quien se releva es a la persona actual.
   const profesionalActual = servicio?.profesional ?? i.visita?.profesional;
+  // A quién se le puede pasar de verdad: quien encaja y no es quien ya estaba.
+  const disponibles = candidatos.filter((c) => c.id !== profesionalActual?.id && !c.impide);
+  // Una ausencia aprobada deja escrito qué días hay que cubrir. Con esos días,
+  // el reemplazo es temporal; sin ellos, el relevo es definitivo. Son dos
+  // cosas muy distintas y hay que decir cuál se va a hacer antes de pulsar.
+  const cubrirDesde = i.cubrirDesde ? new Date(i.cubrirDesde) : null;
+  const cubrirHasta = i.cubrirHasta ? new Date(i.cubrirHasta) : null;
+  const soloEstosDias = cubrirDesde != null && cubrirHasta != null;
+  const comoDia = (f: Date) => f.toLocaleDateString("es-ES", { day: "numeric", month: "long" });
   const plan = solicitud?.plan;
   const visita = i.visita;
 
@@ -357,13 +389,20 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged, onAbrir
               <IconRefresh className="h-3.5 w-3.5 text-slate-400" /> Buscar reemplazo
             </p>
             <p className="mb-2 text-xs text-slate-500">
-              {profesionalActual ? (
+              {soloEstosDias ? (
+                <>
+                  Cubre <span className="font-medium text-slate-700">del {comoDia(cubrirDesde!)} al {comoDia(cubrirHasta!)}</span>, los
+                  días que {profesionalActual ? profesionalActual.nombre : "quien lo lleva"} no puede. El servicio sigue siendo suyo y
+                  vuelve a él en cuanto se reincorpore.
+                </>
+              ) : profesionalActual ? (
                 <>
                   Pasa el servicio de{" "}
                   <span className="font-medium text-slate-700">
                     {profesionalActual.nombre} {profesionalActual.apellidos}
                   </span>{" "}
-                  a otra persona. Las jornadas que aún no han empezado pasan al sustituto; las ya trabajadas siguen siendo de quien las hizo.
+                  a otra persona, de forma definitiva. Las jornadas que aún no han empezado pasan al sustituto; las ya trabajadas siguen
+                  siendo de quien las hizo.
                 </>
               ) : (
                 "El servicio está sin cubrir. Elige quién lo atiende a partir de ahora."
@@ -379,16 +418,29 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged, onAbrir
                   className="mt-1 w-full campo font-normal normal-case text-slate-700"
                 >
                   <option value="">Elige un profesional…</option>
-                  {profesionales
-                    .filter((p) => p.id !== profesionalActual?.id)
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nombre} {p.apellidos}
-                        {p.zona ? ` · ${p.zona}` : ""}
+                  {candidatos
+                    .filter((c) => c.id !== profesionalActual?.id)
+                    .map((c) => (
+                      // Quien no puede, sale con el motivo y no se puede
+                      // elegir: ofrecerlo sólo sirve para que el servidor lo
+                      // rechace después.
+                      <option key={c.id} value={c.id} disabled={c.impide}>
+                        {c.nombre} {c.apellidos}
+                        {c.motivo === "Le encaja" ? (c.zona ? ` · ${c.zona}` : "") : ` · ${c.motivo}`}
                       </option>
                     ))}
                 </select>
               </label>
+
+              {/* Si no queda nadie elegible, el desplegable se queda con
+                  opciones grises y sin explicación. Decirlo evita que se
+                  piense que la aplicación no carga. */}
+              {candidatos.length > 0 && disponibles.length === 0 && (
+                <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+                  Ahora mismo no hay nadie de la plantilla que pueda cubrirlo: o les faltan papeles, o no trabajan esos días, o ya
+                  están ocupados a esa hora. Habla con la familia para mover el horario, o da de alta a alguien más.
+                </p>
+              )}
 
               {/* Recuperar la jornada perdida crea una nueva, no reescribe la
                   que no se hizo: aquel día no fue nadie y eso queda como pasó. */}

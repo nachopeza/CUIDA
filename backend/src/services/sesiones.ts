@@ -64,7 +64,7 @@ export function diasDeRecurrencia(recurrencia: string | null | undefined, diaDel
   return dias.size > 0 ? Array.from(dias).sort() : diaDelPlan != null ? [diaDelPlan] : TODOS;
 }
 
-function aMedianoche(fecha: Date) {
+export function aMedianoche(fecha: Date) {
   const d = new Date(fecha);
   d.setHours(0, 0, 0, 0);
   return d;
@@ -81,6 +81,41 @@ export function siguienteDia(desde: Date, dias: number[]): Date | null {
   return null;
 }
 
+// Qué días tendría que ir alguien a este servicio entre dos fechas, según su
+// plan, haya o no jornada creada todavía. Hace falta porque un servicio
+// recurrente sólo lleva una jornada por delante: una baja del mes que viene no
+// solapa ninguna jornada existente y, sin esto, se aprobaba como si no dejara
+// a nadie sin cubrir. Los días que tocan son un hecho del plan, no de la
+// agenda ya montada.
+export async function diasPrevistosEntre(servicioId: string, desde: Date, hasta: Date): Promise<Date[]> {
+  const servicio = await prisma.servicio.findUnique({
+    where: { id: servicioId },
+    include: { solicitud: { include: { plan: true } } },
+  });
+  const plan = servicio?.solicitud.plan;
+  if (!servicio || !plan) return [];
+  if (!["CONFIRMADO", "EN_CURSO"].includes(servicio.estado)) return [];
+
+  const inicio = new Date(Math.max(aMedianoche(desde).getTime(), aMedianoche(plan.fechaInicio).getTime()));
+  const fin = plan.fechaFin ? new Date(Math.min(aMedianoche(hasta).getTime(), aMedianoche(plan.fechaFin).getTime())) : aMedianoche(hasta);
+  if (inicio > fin) return [];
+
+  // Un puntual sólo tiene un día: el del plan.
+  if (servicio.tipoServicio !== "RECURRENTE") {
+    const dia = aMedianoche(plan.fechaInicio);
+    return dia >= inicio && dia <= fin ? [dia] : [];
+  }
+
+  const dias = diasDeRecurrencia(plan.recurrencia, aMedianoche(plan.fechaInicio).getDay());
+  const previstos: Date[] = [];
+  // Tope de 60 días: una baja más larga que eso se tramita por contrato, no
+  // buscando reemplazo jornada a jornada.
+  for (let d = new Date(inicio), i = 0; d <= fin && i < 60; d.setDate(d.getDate() + 1), i += 1) {
+    if (dias.includes(d.getDay())) previstos.push(new Date(d));
+  }
+  return previstos;
+}
+
 function seSolapan(aInicio: string | null, aFin: string | null, bInicio: string | null, bFin: string | null): boolean {
   if (!aInicio || !aFin || !bInicio || !bFin) return true;
   return aInicio < bFin && bInicio < aFin;
@@ -88,12 +123,25 @@ function seSolapan(aInicio: string | null, aFin: string | null, bInicio: string 
 
 // ¿Tiene ya el profesional algo a esa hora ese día? Mismo criterio que el
 // alta manual: la agenda de una persona es una sola, no una por servicio.
-export async function hayConflicto(profesionalId: string | null, fecha: Date, horaInicio: string | null, horaFin: string | null) {
+export async function hayConflicto(
+  profesionalId: string | null,
+  fecha: Date,
+  horaInicio: string | null,
+  horaFin: string | null,
+  // Las jornadas de este servicio no cuentan como conflicto consigo mismas:
+  // si no, quien ya lo lleva aparece siempre como "ocupado a esa hora" en su
+  // propio servicio.
+  exceptoServicioId?: string,
+) {
   if (!profesionalId) return false;
   const inicioDia = aMedianoche(fecha);
   const finDia = new Date(inicioDia.getTime() + 24 * 60 * 60 * 1000);
   const delDia = await prisma.visita.findMany({
-    where: { profesionalId, fecha: { gte: inicioDia, lt: finDia } },
+    where: {
+      profesionalId,
+      fecha: { gte: inicioDia, lt: finDia },
+      ...(exceptoServicioId ? { servicioId: { not: exceptoServicioId } } : {}),
+    },
   });
   return delDia.some((v) => seSolapan(v.horaInicioProg, v.horaFinProg, horaInicio, horaFin));
 }

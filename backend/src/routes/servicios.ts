@@ -319,7 +319,14 @@ serviciosRouter.get("/:id/candidatos", requiereRol("COORDINADOR", "ORGANIZACION"
   const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id }, select: { organizacionId: true } });
   if (!servicio) return res.status(404).json({ error: "No encontrado" });
   if (servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
-  res.json(await candidatosParaServicio(req.params.id));
+  // Se puede preguntar por unos días concretos —los de una baja— en vez de por
+  // los próximos: buscar reemplazo para el mes que viene mirando la agenda de
+  // esta semana daba por libre a quien no lo estaba.
+  const desde = typeof req.query.desde === "string" ? new Date(req.query.desde) : null;
+  const hasta = typeof req.query.hasta === "string" ? new Date(req.query.hasta) : null;
+  const ventana =
+    desde && hasta && !Number.isNaN(desde.getTime()) && !Number.isNaN(hasta.getTime()) && desde <= hasta ? { desde, hasta } : undefined;
+  res.json(await candidatosParaServicio(req.params.id, ventana));
 });
 
 serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
@@ -619,6 +626,32 @@ serviciosRouter.post("/:id/aceptar", requiereRol("PROFESIONAL"), async (req, res
   } catch (err) {
     if (err instanceof TransicionInvalidaError) return res.status(409).json({ error: err.message });
     throw err;
+  }
+
+  // Aceptar un servicio cuya jornada no cabe deja a la persona atendida con
+  // un servicio confirmado y nadie yendo a su casa: la jornada no se crea y
+  // el único rastro era una línea del historial. Así que no se acepta, y el
+  // aviso sube a coordinación, que es quien puede cambiar el día o la hora.
+  // Al profesional no se le deja con un "no puedes" sin salida: se le dice
+  // que coordinación ya lo sabe.
+  const puede = (await candidatosParaServicio(servicio.id)).find((c) => c.id === servicio.profesionalId);
+  if (puede?.impide) {
+    await registrarHistorial({
+      entidadTipo: "Servicio",
+      estadoAnterior: servicio.estado,
+      estadoNuevo: servicio.estado,
+      motivo: `No se ha podido aceptar: ${puede.motivo.toLowerCase()}`,
+      servicioId: servicio.id,
+    });
+    await notificarGestores(
+      servicio.organizacionId,
+      "servicio_sin_jornada",
+      `${puede.nombre} no ha podido aceptar ${servicio.codigo}: ${puede.motivo.toLowerCase()}. Cambia el día o la hora, o asigna a otra persona.`,
+      servicio.solicitudId,
+    ).catch(() => undefined);
+    return res.status(409).json({
+      error: `No puedes aceptarlo: ${puede.motivo.toLowerCase()}. Ya hemos avisado a coordinación para que lo cambie o se lo pase a otra persona.`,
+    });
   }
 
   const actualizado = await prisma.servicio.update({ where: { id: servicio.id }, data: { estado: "CONFIRMADO" } });

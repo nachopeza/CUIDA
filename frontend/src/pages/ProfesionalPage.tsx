@@ -64,6 +64,11 @@ export function ProfesionalPage() {
   const [notaTexto, setNotaTexto] = useState("");
   const [incidenciaAbierta, setIncidenciaAbierta] = useState<string | null>(null);
   const [incidenciaForm, setIncidenciaForm] = useState({ descripcion: "", prioridad: "MEDIA" as (typeof PRIORIDADES)[number] });
+  // Por qué no se ha podido hacer lo último que se pidió. Ninguna de estas
+  // acciones lo decía: si el servidor las rechazaba —y las rechaza por
+  // buenas razones— la promesa se rompía por dentro y en pantalla no pasaba
+  // nada. Quien está delante vuelve a pulsar, y otra vez.
+  const [error, setError] = useState<string | null>(null);
 
   async function cargar() {
     if (!usuario?.profesionalId) return;
@@ -77,17 +82,32 @@ export function ProfesionalPage() {
     setProfesional(propio);
   }
 
+  // Todo lo que le pide algo al servidor pasa por aquí: si sale mal, el
+  // motivo se lee arriba, con las palabras del servidor.
+  async function intentar(accion: () => Promise<void>) {
+    setError(null);
+    try {
+      await accion();
+    } catch (e) {
+      setError(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido hacer.");
+    }
+  }
+
   async function aceptar(servicioId: string) {
-    await api.post(`/servicios/${servicioId}/aceptar`, {}, token);
-    await cargar();
+    await intentar(async () => {
+      await api.post(`/servicios/${servicioId}/aceptar`, {}, token);
+      await cargar();
+    });
   }
 
   async function rechazar() {
     if (!rechazando) return;
-    await api.post(`/servicios/${rechazando.id}/rechazar`, { motivo: motivoRechazo.trim() || undefined }, token);
-    setRechazando(null);
-    setMotivoRechazo("");
-    await cargar();
+    await intentar(async () => {
+      await api.post(`/servicios/${rechazando!.id}/rechazar`, { motivo: motivoRechazo.trim() || undefined }, token);
+      setRechazando(null);
+      setMotivoRechazo("");
+      await cargar();
+    });
   }
 
   useEffect(() => {
@@ -96,13 +116,17 @@ export function ProfesionalPage() {
   }, [usuario?.profesionalId]);
 
   async function iniciar(id: string) {
-    await api.post(`/visitas/${id}/iniciar`, {}, token);
-    await cargar();
+    await intentar(async () => {
+      await api.post(`/visitas/${id}/iniciar`, {}, token);
+      await cargar();
+    });
   }
 
   async function finalizar(id: string, datos: { horaInicio: string; horaFin: string; observacion?: string }) {
-    await api.post(`/visitas/${id}/finalizar`, datos, token);
-    await cargar();
+    await intentar(async () => {
+      await api.post(`/visitas/${id}/finalizar`, datos, token);
+      await cargar();
+    });
   }
 
   async function toggleTarea(visitaId: string, tareaId: string, completada: boolean) {
@@ -112,18 +136,22 @@ export function ProfesionalPage() {
 
   async function enviarNota(visitaId: string) {
     if (!notaTexto.trim()) return;
-    await api.post(`/visitas/${visitaId}/actuaciones`, { descripcion: notaTexto.trim() }, token);
-    setNotaTexto("");
-    setNotaAbierta(null);
-    await cargar();
+    await intentar(async () => {
+      await api.post(`/visitas/${visitaId}/actuaciones`, { descripcion: notaTexto.trim() }, token);
+      setNotaTexto("");
+      setNotaAbierta(null);
+      await cargar();
+    });
   }
 
   async function enviarIncidencia(visitaId: string) {
     if (!incidenciaForm.descripcion.trim()) return;
-    await api.post("/incidencias", { visitaId, descripcion: incidenciaForm.descripcion.trim(), prioridad: incidenciaForm.prioridad }, token);
-    setIncidenciaForm({ descripcion: "", prioridad: "MEDIA" });
-    setIncidenciaAbierta(null);
-    await cargar();
+    await intentar(async () => {
+      await api.post("/incidencias", { visitaId, descripcion: incidenciaForm.descripcion.trim(), prioridad: incidenciaForm.prioridad }, token);
+      setIncidenciaForm({ descripcion: "", prioridad: "MEDIA" });
+      setIncidenciaAbierta(null);
+      await cargar();
+    });
   }
 
   // "Algo que diga Hola Carmen, próximamente tienes tal servicio": la
@@ -174,6 +202,18 @@ export function ProfesionalPage() {
       }
     >
       <div className="min-w-0 flex-1">
+        {/* Por qué no se ha podido hacer lo último. Va arriba del todo y con
+            el motivo tal cual: "ya tienes otra jornada a esa hora" se
+            entiende; que no pase nada al pulsar, no. */}
+        {error && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5">
+            <IconAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" aria-hidden />
+            <p className="flex-1 text-sm text-rose-800">{error}</p>
+            <button onClick={() => setError(null)} className="shrink-0 text-xs font-medium text-rose-500 hover:text-rose-700">
+              Cerrar
+            </button>
+          </div>
+        )}
 
       {profesional && tab === "proximos" && (
         <div className="mb-4 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">

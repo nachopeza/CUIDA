@@ -384,7 +384,7 @@ async function main() {
     titulacion: "AUXILIAR_ENFERMERIA",
     foto: "https://i.pravatar.cc/300?img=32",
     biografia:
-      "Doce años en atención domiciliaria, los seis últimos en Cuidados del Bages. Formación en demencias y Alzheimer, y en manejo de grúas y transferencias. Trabaja tardes y fines de semana.",
+      "Doce años en atención domiciliaria, los seis últimos en Cuidados del Bages. Formación en demencias y Alzheimer, y en manejo de grúas y transferencias. Hace el turno de tarde de jueves a domingo.",
     dias: ["J", "V", "S", "D"],
     franja: "Tarde",
     estado: "ACTIVO",
@@ -407,6 +407,29 @@ async function main() {
     franja: "Mañana",
     estado: "ACTIVO",
     email: "javier.profesional@cuida.demo",
+  });
+
+  // La que releva. Papeles en regla, semana entera y mañana y tarde: es a
+  // quien se recurre cuando alguien cae enfermo. Cubre también fin de semana
+  // a propósito — si no, una baja en un servicio de sábado se queda sin nadie
+  // a quien pasarla y parece un fallo de la aplicación cuando en realidad es
+  // un problema de plantilla.
+  const lucia = await crearProfesional({
+    nombre: "Lucía",
+    apellidos: "Fernández Lastra",
+    telefono: "600 333 111",
+    municipio: "Santander",
+    zona: "Centro",
+    carneConducir: "B",
+    vehiculoPropio: true,
+    titulacion: "ATENCION_SOCIOSANITARIA",
+    foto: "https://i.pravatar.cc/300?img=47",
+    biografia:
+      "Ocho años en ayuda a domicilio. Cubre bajas y urgencias: tiene la semana entera abierta, mañana y tarde, y conoce a casi todas las personas de la zona centro.",
+    dias: ["L", "M", "X", "J", "V", "S", "D"],
+    franja: "Todo el día",
+    estado: "ACTIVO",
+    email: "lucia.profesional@cuida.demo",
   });
 
   // Recién dada de alta: aparece en el aviso "profesionales por verificar"
@@ -1277,6 +1300,7 @@ async function main() {
   await prisma.profesional.update({ where: { id: profesional.id }, data: { tipoRelacion: "LABORAL", horasSemanales: 30 } });
   await prisma.profesional.update({ where: { id: rosa.id }, data: { tipoRelacion: "LABORAL", horasSemanales: 20 } });
   await prisma.profesional.update({ where: { id: javier.id }, data: { tipoRelacion: "AUTONOMO", irpfPorcentaje: 15 } });
+  await prisma.profesional.update({ where: { id: lucia.id }, data: { tipoRelacion: "LABORAL", horasSemanales: 38 } });
 
   // 15. Expedientes de personal. Tres situaciones distintas a propósito: una
   // en regla, otra con el certificado a punto de caducar y otra a la que le
@@ -1302,6 +1326,18 @@ async function main() {
         // impedimento — todavía puede trabajar.
         { tipo: "DELITOS_SEXUALES" as const, nombre: "Certificación negativa del Registro Central", fechaEmision: fechaEn(-345), fechaCaducidad: fechaEn(20) },
         { tipo: "CONTRATO" as const, nombre: "Contrato temporal a tiempo parcial (20 h)", fechaEmision: fechaEn(-300), fechaCaducidad: fechaEn(65) },
+      ],
+    },
+    {
+      profesional: lucia,
+      contrato: { tipoContrato: "INDEFINIDO" as const, fechaAlta: fechaEn(-400), categoria: "Auxiliar de ayuda a domicilio" },
+      documentos: [
+        { tipo: "DNI" as const, nombre: "DNI 55667788D", fechaEmision: fechaEn(-1000), fechaCaducidad: fechaEn(1800) },
+        { tipo: "DELITOS_SEXUALES" as const, nombre: "Certificación negativa del Registro Central", fechaEmision: fechaEn(-60), fechaCaducidad: fechaEn(305) },
+        { tipo: "TITULACION" as const, nombre: "Certificado de Atención Sociosanitaria a Personas Dependientes", fechaEmision: fechaEn(-2200), fechaCaducidad: null },
+        { tipo: "CARNE_CONDUCIR" as const, nombre: "Permiso B", fechaEmision: fechaEn(-2000), fechaCaducidad: fechaEn(900) },
+        { tipo: "CONTRATO" as const, nombre: "Contrato indefinido a tiempo completo (38 h)", fechaEmision: fechaEn(-400), fechaCaducidad: null },
+        { tipo: "ALTA_SEGURIDAD_SOCIAL" as const, nombre: "Alta en el régimen general", fechaEmision: fechaEn(-400), fechaCaducidad: null },
       ],
     },
     {
@@ -1491,6 +1527,7 @@ async function main() {
   console.log(`  Personas       herminia@cuida.demo · manuel@cuida.demo · dolores@cuida.demo · amadeo@cuida.demo`);
   console.log(`  Familiares     hija.herminia@cuida.demo · hijo.manuel@cuida.demo · hija.dolores@cuida.demo`);
   console.log(`  Profesionales  carmen.profesional@cuida.demo · rosa.profesional@cuida.demo · javier.profesional@cuida.demo`);
+  console.log(`                 lucia.profesional@cuida.demo (la que releva: semana entera, papeles en regla)`);
   console.log(`                 nadia.profesional@cuida.demo (pendiente de verificar)`);
 }
 

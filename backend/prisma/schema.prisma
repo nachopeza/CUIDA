@@ -1149,6 +1149,13 @@ model Incidencia {
   creadoPorUsuarioId String?
   creadoPor          Usuario? @relation("IncidenciaCreadaPor", fields: [creadoPorUsuarioId], references: [id])
 
+  // Qué días hay que cubrir. Lo rellena la ausencia aprobada que abre la
+  // incidencia: una baja de tres días se cubre esos tres días y el servicio
+  // sigue siendo de quien lo lleva. Sin esto, buscar reemplazo traspasaba el
+  // servicio entero para siempre porque alguien se cogía una tarde libre.
+  cubrirDesde DateTime?
+  cubrirHasta DateTime?
+
   estadoHistorial EstadoHistorial[]
 
   @@map("incidencias")

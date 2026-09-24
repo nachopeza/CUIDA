@@ -171,6 +171,11 @@ export interface Incidencia {
   // Quién abrió el aviso: sin esto la ficha contaba el caso pero no de quién
   // venía, y no se sabía a quién llamar para preguntar.
   creadoPor?: { id: string; email: string; nombre?: string | null; rol?: string } | null;
+  // Días que hay que cubrir, cuando la incidencia la abrió una ausencia
+  // aprobada. Con ventana, el reemplazo cubre esos días y el servicio sigue
+  // siendo de quien lo lleva; sin ventana, el relevo es definitivo.
+  cubrirDesde?: string | null;
+  cubrirHasta?: string | null;
   estadoHistorial?: EstadoHistorialEntry[];
 }
 

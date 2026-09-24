@@ -70,24 +70,44 @@ function aMedianoche(f: Date) {
 // Los días que el plan va a ocupar de verdad, como mucho los seis primeros:
 // con eso basta para saber si alguien está libre, y evita recorrer un plan
 // indefinido entero por cada profesional de la lista.
-function diasDelPlan(plan: { fechaInicio: Date; fechaFin: Date | null; recurrencia: string | null }, recurrente: boolean): Date[] {
+function diasDelPlan(
+  plan: { fechaInicio: Date; fechaFin: Date | null; recurrencia: string | null },
+  recurrente: boolean,
+  ventana?: Ventana,
+): Date[] {
   const inicio = aMedianoche(plan.fechaInicio);
   if (!recurrente) return [inicio];
   const dias = diasDeRecurrencia(plan.recurrencia, aMedianoche(plan.fechaInicio).getDay());
   const tope = plan.fechaFin ? aMedianoche(plan.fechaFin) : null;
+  const finVentana = ventana ? aMedianoche(ventana.hasta) : null;
   const salida: Date[] = [];
-  let cursor = new Date(Math.max(inicio.getTime(), aMedianoche(new Date()).getTime()));
+  // Desde cuándo mirar: normalmente hoy, pero si se pregunta por unos días
+  // concretos —los de una baja del mes que viene— hay que mirar esos y no los
+  // de esta semana. Decir "libre" mirando el día equivocado es peor que no
+  // decir nada.
+  const arranque = ventana ? aMedianoche(ventana.desde) : aMedianoche(new Date());
+  let cursor = new Date(Math.max(inicio.getTime(), arranque.getTime()));
   for (let i = 0; i < 6; i++) {
     const siguiente = siguienteDia(cursor, dias);
     if (!siguiente) break;
     if (tope && siguiente > tope) break;
+    if (finVentana && siguiente > finVentana) break;
     salida.push(siguiente);
     cursor = new Date(siguiente.getTime() + 86400000);
   }
-  return salida.length > 0 ? salida : [inicio];
+  if (salida.length > 0) return salida;
+  return ventana ? [] : [inicio];
 }
 
-export async function candidatosParaServicio(servicioId: string): Promise<Candidato[]> {
+// Los días por los que se pregunta, cuando no son "los próximos". Los rellena
+// la incidencia de una ausencia aprobada: a quien hay que buscar es a alguien
+// libre esos días.
+export interface Ventana {
+  desde: Date;
+  hasta: Date;
+}
+
+export async function candidatosParaServicio(servicioId: string, ventana?: Ventana): Promise<Candidato[]> {
   const servicio = await prisma.servicio.findUnique({
     where: { id: servicioId },
     include: { solicitud: { include: { plan: true } } },
@@ -97,7 +117,10 @@ export async function candidatosParaServicio(servicioId: string): Promise<Candid
   const plan = servicio.solicitud.plan;
   const franjaPedida = plan?.franjaHoraria ?? "Mañana";
   const recurrente = servicio.tipoServicio === "RECURRENTE";
-  const dias = plan ? diasDelPlan(plan, recurrente) : [];
+  let dias = plan ? diasDelPlan(plan, recurrente, ventana) : [];
+  // Un puntual sólo tiene su día: si cae fuera de la ventana preguntada, la
+  // ventana no dice nada y se mira igual el día del plan.
+  if (ventana && dias.length === 0 && plan) dias = diasDelPlan(plan, recurrente);
   const letrasPedidas = plan?.recurrencia
     ? plan.recurrencia
         .split(/[\s,]+/)
@@ -178,7 +201,7 @@ export async function candidatosParaServicio(servicioId: string): Promise<Candid
         ocupado = `De ausencia el ${dia.toLocaleDateString("es-ES", { day: "numeric", month: "short" })}`;
         break;
       }
-      if (await hayConflicto(pro.id, dia, plan?.horaInicio ?? null, plan?.horaFin ?? null)) {
+      if (await hayConflicto(pro.id, dia, plan?.horaInicio ?? null, plan?.horaFin ?? null, servicio.id)) {
         ocupado = `Ocupado el ${dia.toLocaleDateString("es-ES", { day: "numeric", month: "short" })} a esa hora`;
         break;
       }
