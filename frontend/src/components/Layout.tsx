@@ -71,7 +71,12 @@ export function Layout({ children }: { children: ReactNode }) {
             arriba porque el buscador y la campana se usan desde cualquier
             sitio sin tener que subir la página. */}
         <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur">
-          <div className="relative mx-auto flex h-16 w-full max-w-[1600px] items-center gap-3 px-3 sm:px-5">
+          {/* Sin tope de ancho: la aplicación ocupa la pantalla que haya. El
+              tope de 1600 px centraba todo y dejaba una franja muerta a cada
+              lado en cuanto el monitor era un poco grande —200 px por banda en
+              una pantalla de 2000—, que es exactamente lo que se veía como una
+              barra gris a la izquierda. */}
+          <div className="relative flex h-16 w-full items-center gap-3 px-3 sm:px-5">
             {/* La hamburguesa, lo primero y sólo en móvil: es donde la mano
                 la busca, y así no se va con el desplazamiento. */}
             {usuario && abrirMenuMovil && (
@@ -173,7 +178,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1600px]">{children}</main>
+        <main className="w-full">{children}</main>
         {cuentaAbierta && <MiCuentaModal onClose={() => setCuentaAbierta(false)} />}
       </div>
     </MenuMovilContexto.Provider>
