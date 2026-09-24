@@ -189,17 +189,15 @@ una sombra, no como un color. La entrada elegida sigue siendo verde —es el
 color de la casa— pero la sombra pasa a ser un apoyo de 2 px en vez de un halo
 verde de 20 px que sobre la barra oscura parecía suciedad.
 
-El buscador empieza **justo donde empiezan las tarjetas** (16.25rem: las 15rem
-de la barra lateral más 1.25rem de margen) y mide 32rem, encogiéndose si no
-cabe. Va colocado sobre esa posición en vez de ir en el flujo de la cabecera,
-porque en el flujo dependía de lo que midiera lo que tuviera al lado.
+El buscador mide 32rem y va **anclado por la derecha**: su borde derecho cae
+exactamente donde acaba el bloque ancho del contenido, o sea 24.75rem desde el
+borde de la cabecera (22.5rem de la columna estrecha, 1rem del hueco de la
+rejilla y 1.25rem del margen). Se ancla por ahí y no por la izquierda porque
+por la izquierda dependía de lo que midiera el rótulo de al lado, y entonces o
+cabía el rótulo o el buscador quedaba alineado, nunca las dos cosas.
 
-Y lo que tenía al lado era el rótulo del área ("Centro de coordinación"), que
-ocupaba de 260 a 436 px: exactamente el trozo por donde empieza la columna. En
-una sola fila **o cabía el rótulo o el buscador quedaba alineado**, no las dos
-cosas. Así que el rótulo se ha mudado a lo alto de la barra lateral, donde
-sigue estando a la vista —y en blanco sobre azul se lee mejor que antes— y la
-cabecera queda para el logo, la búsqueda y quién eres.
+Por la izquierda tiene un tope en 16.25rem —donde empiezan las tarjetas— para
+que en pantallas cortas se encoja en vez de meterse debajo del menú.
 
 El **logo lleva al inicio**, como en cualquier sitio. Cada panel registra cuál
 es su inicio —el escritorio de coordinación, el "hoy" del profesional—, porque

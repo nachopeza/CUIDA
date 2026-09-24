@@ -17,6 +17,19 @@ const ROL_LABEL: Record<string, string> = {
   SUPERADMIN: "Superadmin",
 };
 
+// Cómo se llama esta parte de la casa, y para qué sirve. El subtítulo no es
+// decoración: a quien entra por primera vez le dice de qué va lo que tiene
+// delante antes de leer un solo dato.
+const AREA: Record<string, { titulo: string; lema: string }> = {
+  PERSONA: { titulo: "Tu espacio", lema: "Lo que has pedido y quién va a ir." },
+  FAMILIAR: { titulo: "Seguimiento familiar", lema: "Cómo va el cuidado de los tuyos." },
+  PROFESIONAL: { titulo: "Panel profesional", lema: "Tus jornadas, tus horas, tu contrato." },
+  COORDINADOR: { titulo: "Centro de coordinación", lema: "Personas que importan. Servicios que funcionan." },
+  ORGANIZACION: { titulo: "Centro de coordinación", lema: "Personas que importan. Servicios que funcionan." },
+  ADMIN: { titulo: "Centro de coordinación", lema: "Personas que importan. Servicios que funcionan." },
+  SUPERADMIN: { titulo: "Centro de coordinación", lema: "Personas que importan. Servicios que funcionan." },
+};
+
 function iniciales(email: string, nombre?: string | null) {
   if (nombre) {
     const partes = nombre.trim().split(/\s+/);
@@ -48,6 +61,7 @@ export function Layout({ children }: { children: ReactNode }) {
   // El nombre de la cuenta si lo hay; si no, lo que haya antes de la arroba,
   // que es mejor que enseñar la dirección entera.
   const nombre = usuario?.nombre?.trim() || usuario?.email.split("@")[0].replace(/[._]/g, " ") || "";
+  const area = usuario ? AREA[usuario.rol] : null;
 
   return (
     <MenuMovilContexto.Provider value={{ abrir: abrirMenuMovil, registrar: registrarMenuMovil, irAInicio, registrarInicio }}>
@@ -85,10 +99,15 @@ export function Layout({ children }: { children: ReactNode }) {
               ) : (
                 <img src={logoCuida} alt="CUIDA" className="block h-8 w-auto sm:h-9" />
               )}
-              {/* El rótulo del área se ha mudado a lo alto de la barra
-                  lateral: aquí ocupaba justo el trozo por donde empieza la
-                  columna de contenido, y había que elegir entre tenerlo o
-                  tener el buscador alineado. Allí caben los dos. */}
+              {area && (
+                <>
+                  <span className="hidden h-8 w-px shrink-0 bg-slate-200 lg:block" aria-hidden />
+                  <div className="hidden min-w-0 lg:block">
+                    <p className="truncate text-sm font-semibold leading-tight text-brand-800">{area.titulo}</p>
+                    <p className="truncate text-xs leading-tight text-slate-400">{area.lema}</p>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* La ranura del buscador. Cada panel mete aquí el suyo desde su
@@ -101,9 +120,14 @@ export function Layout({ children }: { children: ReactNode }) {
                 es lo que antes obligaba a elegir entre una cosa y la otra.
                 El ancho se queda en 32rem, y se encoge si no cabe para no
                 meterse debajo de la campana. */}
+            {/* Anclado por la DERECHA, al borde del bloque ancho: 22.5rem de
+                la columna estrecha más 1rem del hueco de la rejilla más
+                1.25rem del margen, o sea 24.75rem desde el borde. Por la
+                izquierda no pasa de donde empiezan las tarjetas, así que en
+                pantallas cortas se encoge en vez de meterse bajo el menú. */}
             <div
               id={RANURA_BUSCADOR}
-              className="absolute left-[16.25rem] top-1/2 hidden w-[min(32rem,calc(100%-16.25rem-16rem))] -translate-y-1/2 md:block"
+              className="absolute left-[16.25rem] right-[24.75rem] top-1/2 ml-auto hidden max-w-[32rem] -translate-y-1/2 md:block"
             />
 
             {usuario && (

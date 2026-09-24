@@ -187,7 +187,6 @@ export function ProfesionalPage() {
     <Panel
       nav={
         <Navegacion
-        rotulo={{ titulo: "Panel profesional", lema: "Tus jornadas, tus horas, tu contrato." }}
           items={NAV}
           activo={tab}
           onIr={(k) => {
