@@ -97,11 +97,17 @@ export function Layout({ children }: { children: ReactNode }) {
 
             {/* La ranura del buscador. Cada panel mete aquí el suyo desde su
                 propio árbol (ver lib/ranuras.ts): en la cabecera es donde se
-                busca, pero quien sabe qué hay que buscar es cada panel. */}
-            <div id={RANURA_BUSCADOR} className="hidden w-full max-w-xl md:block" />
+                busca, pero quien sabe qué hay que buscar es cada panel.
+                Ocupa exactamente la columna ancha del contenido: empieza donde
+                empieza ésta y termina donde empieza la columna estrecha. */}
+            <div id={RANURA_BUSCADOR} className="hidden w-full min-w-0 flex-1 md:block" />
 
+            {/* La campana y la cuenta ocupan la columna estrecha: 22.5rem más
+                el hueco de 1rem de la rejilla, menos los 0.75rem que separan
+                los bloques de esta cabecera. Así el buscador corta justo donde
+                corta el bloque ancho, medido y no a ojo. */}
             {usuario && (
-              <div className="ml-auto flex items-center gap-1 sm:gap-2">
+              <div className="ml-auto flex shrink-0 items-center justify-end gap-1 sm:gap-2 xl:w-[22.75rem]">
                 <NotificationBell />
                 <div className="relative" ref={menuRef}>
                   <button
