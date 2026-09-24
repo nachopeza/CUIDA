@@ -4,6 +4,7 @@ import { api } from "../../lib/api.js";
 import { ArchivoUpload, ArchivoEnlace, type ArchivoSubido } from "../../components/ArchivoUpload.js";
 import { Modal } from "../../components/Modal.js";
 import { SearchBox } from "../../components/SearchBox.js";
+import { LoQueDeja } from "./LoQueDeja.js";
 import { exportarCSV } from "../../lib/csv.js";
 import { duracion } from "../../lib/economia.js";
 import {
@@ -247,6 +248,7 @@ export function PersonalTab({ focoProfesionalId, onFocoConsumido }: PropsPersona
                         {a.motivo && ` · ${a.motivo}`}
                       </p>
                       {a.respuesta && <p className="mt-0.5 text-xs text-slate-400">Respuesta: {a.respuesta}</p>}
+                      {a.estado === "SOLICITADA" && <LoQueDeja ausenciaId={a.id} token={token} />}
                     </div>
                     {a.estado === "SOLICITADA" && (
                       <div className="flex shrink-0 gap-1.5">

@@ -4,8 +4,9 @@ import { api } from "../../lib/api.js";
 import { Avatar } from "../../components/Avatar.js";
 import { SearchBox } from "../../components/SearchBox.js";
 import { DIAS_SEMANA, parsearDisponibilidad } from "../../lib/disponibilidad.js";
-import { IconAlert } from "../../components/icons.js";
+import { IconAlert, IconCalendar } from "../../components/icons.js";
 import type { Ausencia, FichaProfesional, Servicio } from "../../lib/types.js";
+import { LoQueDeja } from "./LoQueDeja.js";
 
 // ---------------------------------------------------------------------------
 // Disponibilidad
@@ -21,6 +22,10 @@ import type { Ausencia, FichaProfesional, Servicio } from "../../lib/types.js";
 
 const NOMBRE_DIA: Record<string, string> = { L: "Lunes", M: "Martes", X: "Miércoles", J: "Jueves", V: "Viernes", S: "Sábado", D: "Domingo" };
 
+function dia(iso: string) {
+  return new Date(iso).toLocaleDateString("es-ES", { day: "numeric", month: "long" });
+}
+
 function hoyISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -32,6 +37,36 @@ export function DisponibilidadTab() {
   const [ausencias, setAusencias] = useState<Ausencia[]>([]);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [busqueda, setBusqueda] = useState("");
+  const [respondiendo, setRespondiendo] = useState<string | null>(null);
+  const [errorRespuesta, setErrorRespuesta] = useState<string | null>(null);
+
+  async function cargar() {
+    const [eq, aus, servs] = await Promise.all([
+      api.get<FichaProfesional[]>("/personal", token).catch(() => []),
+      api.get<Ausencia[]>("/personal/ausencias", token).catch(() => []),
+      api.get<Servicio[]>("/servicios", token).catch(() => []),
+    ]);
+    setPlantilla(eq);
+    setAusencias(aus);
+    setServicios(servs);
+  }
+
+  // Responder aquí mismo. La bandeja de "Pendiente de ti" manda a esta
+  // pantalla con la acción "Responder", pero hasta ahora sólo se podía contar
+  // cuántas peticiones había: para contestarlas había que entrar en el
+  // expediente de cada persona, que no está en el menú.
+  async function responder(id: string, estado: "APROBADA" | "RECHAZADA", respuesta?: string) {
+    setRespondiendo(id);
+    setErrorRespuesta(null);
+    try {
+      await api.post(`/personal/ausencias/${id}/estado`, { estado, respuesta }, token);
+      await cargar();
+    } catch (e) {
+      setErrorRespuesta(e instanceof Error ? e.message : "No se ha podido guardar");
+    } finally {
+      setRespondiendo(null);
+    }
+  }
 
   useEffect(() => {
     void (async () => {
@@ -94,6 +129,57 @@ export function DisponibilidadTab() {
             <span className="pastilla bg-slate-100 text-slate-600">{pedidas.length} petición(es) de días sin responder</span>
           )}
         </div>
+      )}
+
+      {/* Las peticiones de días, con lo que costaría aprobarlas y el sí o el no
+          en el mismo sitio. Antes esto era sólo un número: para contestar había
+          que entrar en el expediente de cada persona. */}
+      {pedidas.length > 0 && (
+        <section className="tarjeta p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <IconCalendar className="h-3.5 w-3.5 text-slate-400" /> Días pedidos, esperando tu respuesta
+          </p>
+          {errorRespuesta && (
+            <p className="mb-2 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs text-rose-700">{errorRespuesta}</p>
+          )}
+          <ul className="space-y-2">
+            {pedidas.map((a) => (
+              <li key={a.id} className="rounded-xl border border-slate-200 p-2.5">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-800">
+                      {a.profesional?.nombre} {a.profesional?.apellidos}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {a.tipo.toLowerCase().replace(/_/g, " ")} · del {dia(a.desde)} al {dia(a.hasta)}
+                      {a.motivo && ` · ${a.motivo}`}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-1.5">
+                    <button
+                      onClick={() => void responder(a.id, "APROBADA")}
+                      disabled={respondiendo === a.id}
+                      className="boton-verde-sm"
+                    >
+                      Aprobar
+                    </button>
+                    <button
+                      onClick={() => {
+                        const porque = window.prompt("¿Por qué no se puede?");
+                        if (porque !== null) void responder(a.id, "RECHAZADA", porque);
+                      }}
+                      disabled={respondiendo === a.id}
+                      className="boton-secundario-sm"
+                    >
+                      Rechazar
+                    </button>
+                  </div>
+                </div>
+                <LoQueDeja ausenciaId={a.id} token={token} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar profesional…" />

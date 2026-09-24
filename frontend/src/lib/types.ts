@@ -147,6 +147,25 @@ export interface Actuacion {
   createdAt: string;
 }
 
+// Lo que cuesta aprobar unas vacaciones, calculado antes de aprobarlas: qué
+// servicios se quedan sin cubrir esos días y quién podría ir. Se pide a
+// /personal/ausencias/:id/impacto.
+export interface ImpactoAusencia {
+  jornadas: number;
+  servicios: {
+    id: string;
+    codigo: string;
+    persona: string;
+    necesidad: string;
+    dias: string[];
+    puedenCubrirlo: string[];
+    noPueden: { quien: string; motivo: string }[];
+  }[];
+  // Las personas que se quedarían sin nadie. Si la lista no está vacía, hay
+  // que hablar con alguien antes de contestar.
+  sinCubrir: string[];
+}
+
 export interface Incidencia {
   id: string;
   codigo: string;

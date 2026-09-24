@@ -83,6 +83,7 @@ ejecución; el tiempo es lo que genera dinero.
 | 29 | Servicio incompleto | Incidencia sobre la jornada; coordinación decide al verificar |
 | 30 | Sustitución | Reemplazo de profesional; las jornadas ya hechas conservan su profesional para que la liquidación de cada uno siga siendo correcta |
 | 30 quater | Alcance del reemplazo | Si viene de una ausencia, cubre sólo sus días y el servicio vuelve a su titular; si no, el relevo es definitivo |
+| 30 quinquies | Ausencia solicitada | No bloquea ni abre incidencias, pero antes de aprobarla se dice qué jornadas deja sin cubrir y quién podría ir |
 
 ## Cuando no va nadie
 
@@ -106,6 +107,33 @@ Una **ausencia aprobada** (baja médica, vacaciones, permiso) hace lo mismo sin
 esperar al día: al aprobarla se abre una incidencia por cada servicio que deja
 sin cubrir, diciendo cuántas jornadas son y de quién, para que coordinación
 busque reemplazo antes de que llegue la fecha.
+
+### Antes de decir sí
+
+Una ausencia **solicitada** no bloquea nada: quien la pide sigue saliendo como
+disponible y no se abre ninguna incidencia, porque unas vacaciones que quizá se
+denieguen no pueden dejar a nadie fuera del cuadrante ni generar trabajo que
+luego habría que deshacer. Lo único que aparece es en la bandeja de coordinación
+—**Días por responder**—, porque quien lo pide está haciendo planes.
+
+Pero se aprueba **sabiendo lo que cuesta**. Junto a cada petición, antes de los
+botones de aprobar y rechazar, se dice qué se va a quedar sin cubrir: *"deja 8
+jornadas sin cubrir · Manuel Prats Soler · Acompañamiento (22 oct … 1 nov) —
+pueden cubrirlo Lucía Fernández Lastra"*, o en rojo *"nadie puede: Lucía (de
+ausencia el 22 oct), Carmen (no trabaja sábado, domingo), Javier (le falta
+certificado de delitos sexuales)"*. Es la misma maquinaria que se usa al aprobar
+y al buscar reemplazo, sólo consultada antes; no crea ni cambia nada.
+
+Sin eso se aprobaba a ciegas: se pulsaba Aprobar y sólo entonces salían las
+incidencias diciendo que tres servicios estaban descubiertos y que no había
+nadie con el perfil para cubrirlos. Con diez días de vacaciones eso es justo lo
+que hay que saber antes de contestar, porque a lo mejor la respuesta es "sí,
+pero moviendo dos días" o "esa semana no puede ser".
+
+La respuesta se da **donde la bandeja te lleva**, en Disponibilidad. Antes el
+aviso decía "Responder" y llevaba a una pantalla que sólo contaba cuántas
+peticiones había: para contestarlas había que entrar en el expediente de cada
+persona, que no está en el menú.
 
 Los días que cuentan como descubiertos **son los que el plan señala**, no sólo
 los que ya están en la agenda. Un servicio recurrente lleva una sola jornada
