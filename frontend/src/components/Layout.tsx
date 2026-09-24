@@ -17,19 +17,6 @@ const ROL_LABEL: Record<string, string> = {
   SUPERADMIN: "Superadmin",
 };
 
-// Cómo se llama esta parte de la casa, y para qué sirve. El subtítulo no es
-// decoración: a quien entra por primera vez le dice de qué va lo que tiene
-// delante antes de leer un solo dato.
-const AREA: Record<string, { titulo: string; lema: string }> = {
-  PERSONA: { titulo: "Tu espacio", lema: "Lo que has pedido y quién va a ir." },
-  FAMILIAR: { titulo: "Seguimiento familiar", lema: "Cómo va el cuidado de los tuyos." },
-  PROFESIONAL: { titulo: "Panel profesional", lema: "Tus jornadas, tus horas, tu contrato." },
-  COORDINADOR: { titulo: "Centro de coordinación", lema: "Personas que importan. Servicios que funcionan." },
-  ORGANIZACION: { titulo: "Centro de coordinación", lema: "Personas que importan. Servicios que funcionan." },
-  ADMIN: { titulo: "Centro de coordinación", lema: "Personas que importan. Servicios que funcionan." },
-  SUPERADMIN: { titulo: "Centro de coordinación", lema: "Personas que importan. Servicios que funcionan." },
-};
-
 function iniciales(email: string, nombre?: string | null) {
   if (nombre) {
     const partes = nombre.trim().split(/\s+/);
@@ -45,6 +32,8 @@ export function Layout({ children }: { children: ReactNode }) {
   // cabecera sólo pinta el botón.
   const [abrirMenuMovil, setAbrirMenuMovil] = useState<(() => void) | null>(null);
   const registrarMenuMovil = useCallback((abrir: (() => void) | null) => setAbrirMenuMovil(() => abrir), []);
+  const [irAInicio, setIrAInicio] = useState<(() => void) | null>(null);
+  const registrarInicio = useCallback((ir: (() => void) | null) => setIrAInicio(() => ir), []);
   const [cuentaAbierta, setCuentaAbierta] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -56,13 +45,12 @@ export function Layout({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("mousedown", fuera);
   }, []);
 
-  const area = usuario ? AREA[usuario.rol] : null;
   // El nombre de la cuenta si lo hay; si no, lo que haya antes de la arroba,
   // que es mejor que enseñar la dirección entera.
   const nombre = usuario?.nombre?.trim() || usuario?.email.split("@")[0].replace(/[._]/g, " ") || "";
 
   return (
-    <MenuMovilContexto.Provider value={{ abrir: abrirMenuMovil, registrar: registrarMenuMovil }}>
+    <MenuMovilContexto.Provider value={{ abrir: abrirMenuMovil, registrar: registrarMenuMovil, irAInicio, registrarInicio }}>
       <div className="min-h-screen">
         {/* La cabecera: el logo, de qué va esta parte, el buscador en el
             centro y, a la derecha, los avisos y quién eres. Se queda fija
@@ -86,16 +74,25 @@ export function Layout({ children }: { children: ReactNode }) {
                 que venga después —el buscador— empiece justo donde empieza la
                 columna de contenido y no flotando en mitad de la cabecera. */}
             <div className="flex shrink-0 items-center gap-3 md:w-[15.55rem]">
-              <img src={logoCuida} alt="CUIDA" className="block h-8 w-auto sm:h-9" />
-              {area && (
-                <>
-                  <span className="hidden h-8 w-px shrink-0 bg-slate-200 lg:block" aria-hidden />
-                  <div className="hidden min-w-0 lg:block">
-                    <p className="truncate text-sm font-semibold leading-tight text-brand-800">{area.titulo}</p>
-                    <p className="truncate text-xs leading-tight text-slate-400">{area.lema}</p>
-                  </div>
-                </>
+              {/* El logo lleva al inicio, como en cualquier sitio. Si nadie ha
+                  registrado un inicio (la pantalla de entrar, por ejemplo), se
+                  queda como una imagen y no finge ser un botón. */}
+              {irAInicio ? (
+                <button
+                  onClick={() => irAInicio()}
+                  aria-label="Ir al inicio"
+                  className="-m-1 shrink-0 rounded-lg p-1 transition hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-300"
+                >
+                  <img src={logoCuida} alt="CUIDA" className="block h-8 w-auto sm:h-9" />
+                </button>
+              ) : (
+                <img src={logoCuida} alt="CUIDA" className="block h-8 w-auto sm:h-9" />
               )}
+              {/* El rótulo del área ("Centro de coordinación") vivía aquí y
+                  decía tres veces lo mismo: ya lo dice la chapa de la cuenta
+                  —"Coordinadora"— y el título de cada pantalla. Al fijar este
+                  bloque al ancho de la barra para alinear el buscador ya no
+                  cabía entero, y un rótulo cortado es peor que ninguno. */}
             </div>
 
             {/* La ranura del buscador. Cada panel mete aquí el suyo desde su

@@ -7,9 +7,19 @@ import { createContext, useContext, useEffect } from "react";
 interface MenuMovil {
   abrir: (() => void) | null;
   registrar: (abrir: (() => void) | null) => void;
+  // Lo mismo para el logo: pulsarlo lleva al inicio, pero quién sabe cuál es
+  // "el inicio" es cada panel —el escritorio de coordinación, el de hoy del
+  // profesional— y no la cabecera.
+  irAInicio: (() => void) | null;
+  registrarInicio: (ir: (() => void) | null) => void;
 }
 
-export const MenuMovilContexto = createContext<MenuMovil>({ abrir: null, registrar: () => {} });
+export const MenuMovilContexto = createContext<MenuMovil>({
+  abrir: null,
+  registrar: () => {},
+  irAInicio: null,
+  registrarInicio: () => {},
+});
 
 export function useRegistrarMenuMovil(abrir: () => void) {
   const { registrar } = useContext(MenuMovilContexto);
@@ -22,4 +32,15 @@ export function useRegistrarMenuMovil(abrir: () => void) {
 
 export function useMenuMovil() {
   return useContext(MenuMovilContexto);
+}
+
+// El logo de CUIDA lleva al inicio, como en cualquier sitio web. Cada panel
+// dice aquí cuál es su inicio.
+export function useRegistrarInicio(ir: () => void) {
+  const { registrarInicio } = useContext(MenuMovilContexto);
+  useEffect(() => {
+    registrarInicio(ir);
+    return () => registrarInicio(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 }

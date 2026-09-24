@@ -163,3 +163,39 @@ La factura y la liquidación **no llevan el estilo de la interfaz**: son
 documentos en papel. Su caja es un folio A4 de 210 × 297 mm (`.hoja-a4`), se
 ve así en pantalla —para que lo que se revisa sea lo que se va a entregar— y
 se imprime con esas mismas medidas.
+
+## El menú, replegado a 17 entradas
+
+Un menú se lee entero cada vez que se busca algo, así que la pregunta no es
+cuántas pantallas hay sino cuántas líneas hay que leer. De 24 se ha pasado a
+17, **sin perder ninguna pantalla**: lo que eran entradas hermanas ahora son
+pestañas de la misma pantalla.
+
+| Antes, en el menú | Ahora |
+|---|---|
+| Visitas · Verificaciones | **Jornadas**, con "todas" y "por verificar" dentro |
+| Personas · Familiares / Contactos | **Personas**, con las dos pestañas dentro |
+| Profesionales · Disponibilidad · Cobertura | **Profesionales**: quiénes son · cuándo trabajan · qué va a fallar |
+| Indicadores · Servicios · Profesionales · Ingresos | **Análisis**, una entrada con las cuatro secciones dentro |
+
+Visitas y Verificaciones ya compartían pantalla y aun así ocupaban dos líneas
+del menú, que era justo la confusión que esto quita. Y Análisis va al final,
+sin rótulo de grupo: se mira de vez en cuando, no se trabaja desde ahí.
+
+### La cabecera
+
+La barra lateral es **azul marino**; el teal casi negro de antes se leía como
+una sombra, no como un color. La entrada elegida sigue siendo verde —es el
+color de la casa— pero la sombra pasa a ser un apoyo de 2 px en vez de un halo
+verde de 20 px que sobre la barra oscura parecía suciedad.
+
+El bloque del logo mide exactamente el ancho de la barra lateral, para que el
+buscador empiece **justo donde empieza la columna de contenido** en vez de
+flotar en mitad de la cabecera. Eso obligó a quitar el rótulo del área
+("Centro de coordinación"), que ya no cabía entero: decía por tercera vez algo
+que ya dicen la chapa de la cuenta y el título de cada pantalla, y un rótulo
+cortado es peor que ninguno.
+
+El **logo lleva al inicio**, como en cualquier sitio. Cada panel registra cuál
+es su inicio —el escritorio de coordinación, el "hoy" del profesional—, porque
+la cabecera no tiene por qué saberlo.

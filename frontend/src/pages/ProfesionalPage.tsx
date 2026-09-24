@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../lib/auth.js";
-import { useRegistrarMenuMovil } from "../lib/menuMovil.js";
+import { useRegistrarInicio, useRegistrarMenuMovil } from "../lib/menuMovil.js";
 import { api } from "../lib/api.js";
 import { Card, Panel } from "../components/Layout.js";
 import { Novedades } from "../components/Novedades.js";
@@ -51,6 +51,8 @@ export function ProfesionalPage() {
   const [menuAbierto, setMenuAbierto] = useState(false);
   // La hamburguesa está en la cabecera y abre este cajón.
   useRegistrarMenuMovil(() => setMenuAbierto(true));
+  // El logo de la cabecera lleva aquí.
+  useRegistrarInicio(() => setTab("proximos"));
   const [chatAbierto, setChatAbierto] = useState<string | null>(null);
   const [rechazando, setRechazando] = useState<Servicio | null>(null);
   const [motivoRechazo, setMotivoRechazo] = useState("");

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../lib/auth.js";
-import { useRegistrarMenuMovil } from "../lib/menuMovil.js";
+import { useRegistrarInicio, useRegistrarMenuMovil } from "../lib/menuMovil.js";
 import { api } from "../lib/api.js";
 import { Avatar } from "../components/Avatar.js";
 import { Card, Panel } from "../components/Layout.js";
@@ -67,6 +67,8 @@ export function FamiliaPage() {
   const [menuAbierto, setMenuAbierto] = useState(false);
   // La hamburguesa está en la cabecera y abre este cajón.
   useRegistrarMenuMovil(() => setMenuAbierto(true));
+  // El logo de la cabecera lleva aquí.
+  useRegistrarInicio(() => setTab("resumen"));
   const [otrosAbiertos, setOtrosAbiertos] = useState(false);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [necesidades, setNecesidades] = useState<Necesidad[]>([]);

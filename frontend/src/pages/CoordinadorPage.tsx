@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth.js";
-import { useRegistrarMenuMovil } from "../lib/menuMovil.js";
+import { useRegistrarInicio, useRegistrarMenuMovil } from "../lib/menuMovil.js";
 import { api } from "../lib/api.js";
 import { EstadoBadge, EstadoUnificadoBadge } from "../components/EstadoBadge.js";
 import { estadoDeSolicitud, tieneIncidencia, ESTADOS, infoEstado, type ClaveEstado } from "../lib/estadoUnificado.js";
@@ -42,6 +42,7 @@ import {
 } from "../components/icons.js";
 import { ResumenTab } from "./coordinador/ResumenTab.js";
 import { GlobalSearch } from "./coordinador/GlobalSearch.js";
+import { SubPestanas } from "../components/SubPestanas.js";
 import { createPortal } from "react-dom";
 import { Navegacion, type AreaNav, type BadgeNav, type ItemNav } from "../components/Navegacion.js";
 import { Panel } from "../components/Layout.js";
@@ -129,30 +130,33 @@ const AREAS: AreaNav[] = [
     items: [
       { key: "solicitudes", label: "Solicitudes", icon: IconClipboard },
       { key: "servicios", label: "Servicios", icon: IconBriefcase },
-      { key: "visitas", label: "Visitas", icon: IconWalk },
+      // Verificar es una pestaña de aquí dentro, no otra entrada: era la
+      // misma tabla con otro filtro.
+      { key: "visitas", label: "Jornadas", icon: IconWalk },
       { key: "calendario", label: "Calendario", icon: IconCalendar },
     ],
   },
   {
     titulo: "Personas",
     items: [
+      // Una persona y quien responde por ella son la misma ficha mirada desde
+      // dos sitios: separarlas obligaba a saltar de entrada para algo que se
+      // consulta a la vez.
       { key: "personas", label: "Personas", icon: IconUsers },
-      { key: "contactos", label: "Familiares / Contactos", icon: IconFamily },
     ],
   },
   {
     titulo: "Profesionales",
     items: [
+      // Quién es, qué días trabaja y qué se va a caer la semana que viene son
+      // tres preguntas sobre la misma plantilla. Van juntas.
       { key: "profesionales", label: "Profesionales", icon: IconUsersGroup },
-      { key: "disponibilidad", label: "Disponibilidad", icon: IconClock },
-      { key: "cobertura", label: "Cobertura", icon: IconShield },
     ],
   },
   {
     titulo: "Seguimiento",
     items: [
       { key: "incidencias", label: "Incidencias", icon: IconAlert },
-      { key: "verificacion", label: "Verificaciones", icon: IconCheckCircle },
       { key: "historial", label: "Historial", icon: IconActivity },
     ],
   },
@@ -166,13 +170,10 @@ const AREAS: AreaNav[] = [
     ],
   },
   {
-    titulo: "Análisis",
-    items: [
-      { key: "ind_indicadores", label: "Indicadores", icon: IconChart },
-      { key: "ind_servicios", label: "Servicios", icon: IconTag },
-      { key: "ind_profesionales", label: "Profesionales", icon: IconUsers },
-      { key: "ind_ingresos", label: "Ingresos", icon: IconEuro },
-    ],
+    // Sin rótulo de grupo y al final: se mira de vez en cuando, no se trabaja
+    // desde aquí. Las cuatro secciones viven dentro, en pestañas.
+    titulo: "",
+    items: [{ key: "ind_indicadores", label: "Análisis", icon: IconChart }],
   },
   {
     titulo: "Administración",
@@ -191,15 +192,15 @@ const TITULOS: Record<Tab, string> = {
   escritorio: "Inicio",
   solicitudes: "Solicitudes",
   servicios: "Servicios",
-  visitas: "Visitas",
+  visitas: "Jornadas",
   calendario: "Calendario",
   personas: "Personas atendidas",
-  contactos: "Familiares y contactos",
+  contactos: "Personas · familiares y contactos",
   profesionales: "Profesionales",
-  disponibilidad: "Disponibilidad",
-  cobertura: "Cobertura",
+  disponibilidad: "Profesionales · cuándo trabajan",
+  cobertura: "Profesionales · qué va a fallar",
   incidencias: "Incidencias",
-  verificacion: "Verificaciones",
+  verificacion: "Jornadas · por verificar",
   historial: "Historial",
   cobros: "Cobros",
   pagos: "Pagos",
@@ -257,6 +258,8 @@ export function CoordinadorPage() {
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
   // La hamburguesa está en la cabecera y abre este cajón.
   useRegistrarMenuMovil(() => setMenuMovilAbierto(true));
+  // El logo de la cabecera lleva aquí.
+  useRegistrarInicio(() => setTab("escritorio"));
   const [filtro, setFiltro] = useState<Filtro>(null);
   // Lo que hay que abrir nada más aterrizar en la pestaña de destino: la
   // jornada concreta, el expediente concreto. Sin esto, "Decidir" dejaba a la
@@ -851,30 +854,79 @@ export function CoordinadorPage() {
           />
         )}
 
-        {tab === "personas" && <PersonasTab onAbrirFicha={abrirPersona} refreshKey={personasRefreshKey} />}
-        {tab === "contactos" && <ContactosTab onAbrirPersona={abrirPersona} />}
-        {tab === "profesionales" && <ProfesionalesTab />}
-        {tab === "disponibilidad" && <DisponibilidadTab />}
-        {tab === "personal" && <PersonalTab focoProfesionalId={foco} onFocoConsumido={() => setFoco(null)} />}
-        {tab === "cobertura" && (
-          <CoberturaTab
-            solicitudes={solicitudes}
-            servicios={servicios}
-            onAbrirSolicitud={(id) => setFichaAbierta(id)}
-            onAbrirIncidencia={(id) => setIncidenciaFichaAbierta(id)}
-            riesgos={riesgos}
-          />
+        {/* Personas y quien responde por ellas, en la misma pantalla: se
+            consultan a la vez, y tenerlas en dos entradas del menú obligaba a
+            saltar para algo que es la misma ficha. */}
+        {(tab === "personas" || tab === "contactos") && (
+          <div className="space-y-3">
+            <SubPestanas
+              valor={tab === "contactos" ? "contactos" : "personas"}
+              onCambiar={(v) => setTab(v as Tab)}
+              opciones={[
+                { clave: "personas", etiqueta: "Personas", cuenta: personas.length },
+                { clave: "contactos", etiqueta: "Familiares y contactos" },
+              ]}
+            />
+            {tab === "personas" ? (
+              <PersonasTab onAbrirFicha={abrirPersona} refreshKey={personasRefreshKey} />
+            ) : (
+              <ContactosTab onAbrirPersona={abrirPersona} />
+            )}
+          </div>
         )}
+
+        {/* Quién es, qué días trabaja y qué se va a caer: tres preguntas sobre
+            la misma plantilla. */}
+        {(tab === "profesionales" || tab === "disponibilidad" || tab === "cobertura") && (
+          <div className="space-y-3">
+            <SubPestanas
+              valor={tab}
+              onCambiar={(v) => setTab(v as Tab)}
+              opciones={[
+                { clave: "profesionales", etiqueta: "Quiénes son" },
+                { clave: "disponibilidad", etiqueta: "Cuándo trabajan" },
+                { clave: "cobertura", etiqueta: "Qué va a fallar", cuenta: riesgos?.bloquean ?? 0 },
+              ]}
+            />
+            {tab === "profesionales" && <ProfesionalesTab />}
+            {tab === "disponibilidad" && <DisponibilidadTab />}
+            {tab === "cobertura" && (
+              <CoberturaTab
+                solicitudes={solicitudes}
+                servicios={servicios}
+                onAbrirSolicitud={(id) => setFichaAbierta(id)}
+                onAbrirIncidencia={(id) => setIncidenciaFichaAbierta(id)}
+                riesgos={riesgos}
+              />
+            )}
+          </div>
+        )}
+
+        {tab === "personal" && <PersonalTab focoProfesionalId={foco} onFocoConsumido={() => setFoco(null)} />}
         {tab === "usuarios" && <EquipoTab />}
         {tab === "permisos" && <PermisosTab />}
         {tab === "configuracion" && <ConfiguracionTab />}
 
-        {/* Las cuatro entradas de Análisis: los mismos datos, cada entrada
-            con lo que contesta su pregunta. */}
-        {tab === "ind_indicadores" && <AnalisisTab seccion="indicadores" />}
-        {tab === "ind_servicios" && <AnalisisTab seccion="servicios" />}
-        {tab === "ind_profesionales" && <AnalisisTab seccion="profesionales" />}
-        {tab === "ind_ingresos" && <AnalisisTab seccion="ingresos" />}
+        {/* Análisis: una sola entrada del menú, cuatro secciones dentro. Se
+            mira de vez en cuando; no hay que trabajar desde aquí. */}
+        {(tab === "ind_indicadores" || tab === "ind_servicios" || tab === "ind_profesionales" || tab === "ind_ingresos") && (
+          <div className="space-y-3">
+            <SubPestanas
+              valor={tab}
+              onCambiar={(v) => setTab(v as Tab)}
+              opciones={[
+                { clave: "ind_indicadores", etiqueta: "Indicadores" },
+                { clave: "ind_servicios", etiqueta: "Servicios" },
+                { clave: "ind_profesionales", etiqueta: "Profesionales" },
+                { clave: "ind_ingresos", etiqueta: "Ingresos" },
+              ]}
+            />
+            {tab === "ind_indicadores" && <AnalisisTab seccion="indicadores" />}
+            {tab === "ind_servicios" && <AnalisisTab seccion="servicios" />}
+            {tab === "ind_profesionales" && <AnalisisTab seccion="profesionales" />}
+            {tab === "ind_ingresos" && <AnalisisTab seccion="ingresos" />}
+          </div>
+        )}
         {tab === "bandeja" && (
           <BandejaTab
             solicitudes={solicitudes}

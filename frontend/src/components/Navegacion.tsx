@@ -102,9 +102,10 @@ function Botones({ items, activo, onIr, badges }: { items: ItemNav[] } & Pick<Pr
               seleccionado
                 ? // El elegido: la pastilla verde de la maqueta, en degradado
                   // y con un poco de brillo para que se despegue del fondo.
-                  // Un azul más claro que el fondo, sin sombra de color: la
-                  // sombra verde sobre barra azul se veía como un halo sucio.
-                  "bg-[#2a5b8f] font-semibold text-white shadow-[0_6px_16px_-10px_rgba(0,0,0,0.9)]"
+                  // Verde, que es el color de la casa. La sombra, apenas un
+                  // apoyo: la de antes era un halo verde de 20 px que sobre la
+                  // barra oscura parecía suciedad, no relieve.
+                  "bg-gradient-to-r from-[#23a084] to-[#188a72] font-semibold text-white shadow-[0_2px_6px_-2px_rgba(0,0,0,0.35)]"
                 : "font-medium text-white/75 hover:bg-white/[0.07] hover:text-white"
             }`}
           >
