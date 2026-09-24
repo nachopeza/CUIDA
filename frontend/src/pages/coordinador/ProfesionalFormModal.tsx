@@ -146,10 +146,10 @@ export function ProfesionalFormModal({
         <div className="sm:col-span-2">
           <FotoUpload value={form.foto} onChange={(foto) => setForm((f) => ({ ...f, foto }))} nombre={form.nombre || "?"} />
         </div>
-        <input required placeholder="Nombre" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        <input required placeholder="Apellidos" value={form.apellidos} onChange={(e) => setForm((f) => ({ ...f, apellidos: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        <input placeholder="Teléfono" value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        <input placeholder="DNI" value={form.dni} onChange={(e) => setForm((f) => ({ ...f, dni: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        <input required placeholder="Nombre" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} className="campo" />
+        <input required placeholder="Apellidos" value={form.apellidos} onChange={(e) => setForm((f) => ({ ...f, apellidos: e.target.value }))} className="campo" />
+        <input placeholder="Teléfono" value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} className="campo" />
+        <input placeholder="DNI" value={form.dni} onChange={(e) => setForm((f) => ({ ...f, dni: e.target.value }))} className="campo" />
 
         {/* Dónde trabaja, de una lista cerrada: al elegir comunidad cambian
             los municipios. Antes era un campo libre y cada ficha lo escribía
@@ -159,7 +159,7 @@ export function ProfesionalFormModal({
           <select
             value={form.comunidad}
             onChange={(e) => setForm((f) => ({ ...f, comunidad: e.target.value, municipio: "" }))}
-            className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800"
+            className="mt-0.5 w-full campo text-slate-800"
           >
             <option value="">Sin indicar</option>
             {COMUNIDADES.map((c) => (
@@ -175,7 +175,7 @@ export function ProfesionalFormModal({
             value={form.municipio}
             onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))}
             disabled={!form.comunidad}
-            className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 disabled:bg-slate-100"
+            className="mt-0.5 w-full campo text-slate-800 disabled:bg-slate-100"
           >
             <option value="">{form.comunidad ? "Toda la comunidad" : "Elige comunidad primero"}</option>
             {municipiosDe(form.comunidad).map((m) => (
@@ -189,7 +189,7 @@ export function ProfesionalFormModal({
           placeholder="Barrio o zona concreta (opcional)"
           value={form.zona}
           onChange={(e) => setForm((f) => ({ ...f, zona: e.target.value }))}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
+          className="campo sm:col-span-2"
         />
 
         <label className="text-xs text-slate-500">
@@ -197,7 +197,7 @@ export function ProfesionalFormModal({
           <select
             value={form.carneConducir}
             onChange={(e) => setForm((f) => ({ ...f, carneConducir: e.target.value as CarneConducir }))}
-            className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800"
+            className="mt-0.5 w-full campo text-slate-800"
           >
             {CARNES.map((c) => (
               <option key={c.valor} value={c.valor}>
@@ -211,7 +211,7 @@ export function ProfesionalFormModal({
           <select
             value={form.titulacion}
             onChange={(e) => setForm((f) => ({ ...f, titulacion: e.target.value as Titulacion | "" }))}
-            className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800"
+            className="mt-0.5 w-full campo text-slate-800"
           >
             <option value="">Sin indicar</option>
             {TITULACIONES.map((t) => (
@@ -229,19 +229,19 @@ export function ProfesionalFormModal({
           />
           Tiene vehículo propio
         </label>
-        <input placeholder="Número de cuenta (IBAN)" value={form.numeroCuenta} onChange={(e) => setForm((f) => ({ ...f, numeroCuenta: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        <input placeholder="Bizum" value={form.bizum} onChange={(e) => setForm((f) => ({ ...f, bizum: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2" />
+        <input placeholder="Número de cuenta (IBAN)" value={form.numeroCuenta} onChange={(e) => setForm((f) => ({ ...f, numeroCuenta: e.target.value }))} className="campo" />
+        <input placeholder="Bizum" value={form.bizum} onChange={(e) => setForm((f) => ({ ...f, bizum: e.target.value }))} className="campo sm:col-span-2" />
         <textarea
           placeholder="Biografía / experiencia (tipo CV) — la ven coordinación y la familia al elegir profesional"
           value={form.biografia}
           onChange={(e) => setForm((f) => ({ ...f, biografia: e.target.value }))}
           rows={3}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
+          className="campo sm:col-span-2"
         />
         <select
           value={form.empresaColaboradoraId}
           onChange={(e) => setForm((f) => ({ ...f, empresaColaboradoraId: e.target.value }))}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
+          className="campo sm:col-span-2"
         >
           <option value="">Independiente (no trabaja para ninguna empresa)</option>
           {empresas.map((emp) => (
@@ -265,7 +265,7 @@ export function ProfesionalFormModal({
               placeholder="Email de acceso (opcional)"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="campo"
             />
             <input
               type="password"
@@ -273,14 +273,14 @@ export function ProfesionalFormModal({
               placeholder="Contraseña (si le das email)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="campo"
             />
           </>
         )}
 
         {error && <p className="text-sm text-rose-600 sm:col-span-2">{error}</p>}
 
-        <button type="submit" disabled={guardando} className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2">
+        <button type="submit" disabled={guardando} className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2">
           {guardando ? "Guardando…" : profesional ? "Guardar cambios" : "Crear profesional"}
         </button>
       </form>
@@ -292,7 +292,7 @@ export function ProfesionalFormModal({
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Cuenta de acceso</p>
             {cuenta ? (
-              <div className="rounded-lg border border-slate-200 p-3 text-sm">
+              <div className="rounded-xl border border-slate-200 p-3 text-sm">
                 <p className="text-slate-700">
                   {cuenta.email} {!cuenta.activo && <span className="text-rose-600">(inactiva)</span>}
                 </p>
@@ -321,7 +321,7 @@ export function ProfesionalFormModal({
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Pagos</p>
             <dl className="mb-2 grid grid-cols-3 gap-2 text-xs">
-              <div className="rounded-md bg-slate-50 px-2.5 py-2">
+              <div className="rounded-xl bg-slate-50 px-2.5 py-2">
                 <dt className="text-slate-400">Ganado</dt>
                 <dd className="text-sm font-semibold text-slate-800">{totalGanado.toFixed(2)} €</dd>
               </div>
@@ -343,7 +343,7 @@ export function ProfesionalFormModal({
             ) : (
               <ul className="space-y-1">
                 {historial.map((s) => (
-                  <li key={s.id} className="flex items-center justify-between rounded-md bg-slate-50 px-2.5 py-1.5 text-xs">
+                  <li key={s.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-2.5 py-1.5 text-xs">
                     <span>
                       {s.codigo} · {s.solicitud?.persona.nombre} {s.solicitud?.persona.apellidos} · {s.solicitud?.necesidad.nombre}
                     </span>

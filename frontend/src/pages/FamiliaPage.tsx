@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../lib/auth.js";
 import { useRegistrarMenuMovil } from "../lib/menuMovil.js";
 import { api } from "../lib/api.js";
-import { Card } from "../components/Layout.js";
+import { Avatar } from "../components/Avatar.js";
+import { Card, Panel } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
+import { Modal } from "../components/Modal.js";
+import { FacturaDocumento, referenciaFactura } from "../components/FacturaDocumento.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
 import { ConversacionesPanel } from "../components/ConversacionesPanel.js";
 import { IconoNecesidad } from "../lib/necesidadIconos.js";
@@ -19,6 +22,7 @@ import {
   IconHome,
   IconInfinity,
   IconPlus,
+  IconFile,
   IconReceipt,
   IconUsers,
 } from "../components/icons.js";
@@ -73,6 +77,13 @@ export function FamiliaPage() {
   const [formEdicion, setFormEdicion] = useState({ telefono: "", direccion: "", contactos: "", preferencias: "" });
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [necesidadModal, setNecesidadModal] = useState<Necesidad | null>(null);
+  // La factura abierta se pide entera: el listado no trae ni las líneas ni el
+  // QR de cotejo, y el documento los necesita.
+  const [facturaAbierta, setFacturaAbierta] = useState<Factura | null>(null);
+
+  async function abrirFactura(id: string) {
+    setFacturaAbierta(await api.get<Factura>(`/facturas/${id}`, token));
+  }
   const [cancelando, setCancelando] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
 
@@ -167,22 +178,28 @@ export function FamiliaPage() {
   const incidenciasAbiertas = incidencias.filter((i) => !["RESUELTA", "CERRADA"].includes(i.estado));
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row">
-      <Navegacion
-        items={NAV}
-        activo={tab}
-        onIr={(k) => {
-          setTab(k as Tab);
-          setMenuAbierto(false);
-        }}
-        badges={{ incidencias: incidenciasAbiertas.length > 0 ? { valor: incidenciasAbiertas.length, tono: "rose" } : undefined }}
-        abierto={menuAbierto}
-        onCerrar={() => setMenuAbierto(false)}
-      />
-
+    <Panel
+      nav={
+        <Navegacion
+          items={NAV}
+          activo={tab}
+          onIr={(k) => {
+            setTab(k as Tab);
+            setMenuAbierto(false);
+          }}
+          badges={{ incidencias: incidenciasAbiertas.length > 0 ? { valor: incidenciasAbiertas.length, tono: "rose" } : undefined }}
+          // Lo que una familia mira a diario: cómo va, qué servicios hay, pedir
+          // y si hay algo que reclamar.
+          pestanasMovil={NAV.slice(0, 4)}
+          abierto={menuAbierto}
+          onAbrir={() => setMenuAbierto(true)}
+          onCerrar={() => setMenuAbierto(false)}
+        />
+      }
+    >
       <div className="min-w-0 flex-1">
 
-      {mensaje && <div className="mb-4 rounded-lg border border-brand-green-200 bg-brand-green-50 px-4 py-3 text-sm text-brand-green-700">{mensaje}</div>}
+      {mensaje && <div className="mb-4 rounded-xl border border-brand-green-200 bg-brand-green-50 px-4 py-3 text-sm text-brand-green-700">{mensaje}</div>}
 
       {tab === "resumen" && (
         <>
@@ -285,7 +302,7 @@ export function FamiliaPage() {
               {contratados.length > 1 && (
                 <div className="mt-2">
                   {otrosAbiertos && (
-                    <ul className="mb-2 divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    <ul className="mb-2 divide-y divide-slate-100 overflow-hidden tarjeta">
                       {contratados.slice(1).map(({ solicitud: s, proxima, enCurso }) => (
                         <li key={s.id} className="flex items-center gap-2.5 px-3 py-2.5">
                           <IconoNecesidad codigo={s.necesidad.codigo} className="h-4 w-4 shrink-0 text-slate-400" />
@@ -307,7 +324,7 @@ export function FamiliaPage() {
                   )}
                   <button
                     onClick={() => setOtrosAbiertos((v) => !v)}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                    className="flex w-full items-center justify-center gap-1.5 tarjeta px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
                   >
                     {otrosAbiertos ? "Ver menos" : `Ver ${contratados.length - 1} servicio${contratados.length > 2 ? "s" : ""} más`}
                     <IconChevronDown className={`h-4 w-4 transition ${otrosAbiertos ? "rotate-180" : ""}`} />
@@ -398,7 +415,7 @@ export function FamiliaPage() {
                     nombre. */}
                 {s.servicio?.profesional?.biografia && ["CONFIRMADO", "EN_CURSO", "FINALIZADO", "VALIDADO", "CERRADO"].includes(s.servicio.estado) && (
                   <div className="mt-1 flex items-start gap-2 pl-2">
-                    {s.servicio.profesional.foto && <img src={s.servicio.profesional.foto} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />}
+                    <Avatar foto={s.servicio.profesional.foto} nombre={s.servicio.profesional.nombre} apellidos={s.servicio.profesional.apellidos} className="h-8 w-8" />
                     <p className="text-xs text-slate-500">{s.servicio.profesional.biografia}</p>
                   </div>
                 )}
@@ -453,29 +470,57 @@ export function FamiliaPage() {
 
       {tab === "facturacion" && (
         <Card title="Facturación">
-          {facturas.length === 0 && <p className="text-sm text-slate-500">Todavía no hay facturas.</p>}
+          {facturas.length === 0 && <p className="text-sm text-slate-500">Todavía no hay facturas emitidas.</p>}
           <ul className="divide-y divide-slate-100">
             {facturas.map((f) => (
               <li key={f.id} className="py-3 text-sm">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-medium">
                     {f.persona.nombre} · {f.mes}
+                    {/* El número de la factura es lo que se cita al banco o a
+                        Hacienda: sin él, la familia no tiene cómo referirse a
+                        lo que está pagando. */}
+                    <span className="block text-xs font-normal text-slate-500">{referenciaFactura(f)}</span>
                   </p>
                   <EstadoBadge estado={f.estado} />
                 </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  Base {Number(f.importeTotal).toFixed(2)} € + IVA {Number(f.ivaTotal ?? 0).toFixed(2)} € = <strong>{Number(f.totalConIva ?? f.importeTotal).toFixed(2)} € total</strong>
-                </p>
+                <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-slate-500">
+                    Base {Number(f.importeTotal).toFixed(2)} € + IVA {Number(f.ivaTotal ?? 0).toFixed(2)} € = <strong>{Number(f.totalConIva ?? f.importeTotal).toFixed(2)} € total</strong>
+                  </p>
+                  {/* Poder verla y guardarla es la mitad de la factura: hasta
+                      ahora la familia veía la cifra pero no el documento. */}
+                  <button
+                    onClick={() => abrirFactura(f.id)}
+                    className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    <IconFile className="h-3.5 w-3.5" /> Ver la factura
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
         </Card>
       )}
 
+      {facturaAbierta && (
+        <Modal title={referenciaFactura(facturaAbierta)} onClose={() => setFacturaAbierta(null)} size="doc">
+          <div className="mb-3 flex justify-end print:hidden">
+            <button
+              onClick={() => window.print()}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Imprimir o guardar en PDF
+            </button>
+          </div>
+          <FacturaDocumento factura={facturaAbierta} />
+        </Modal>
+      )}
+
       {tab === "editar" && personas.length > 0 && (
         <Card title="Editar datos de contacto">
           {personas.length > 1 && (
-            <select value={personaEditando} onChange={(e) => elegirPersonaEditar(e.target.value)} className="mb-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <select value={personaEditando} onChange={(e) => elegirPersonaEditar(e.target.value)} className="mb-3 w-full campo">
               {personas.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.nombre} {p.apellidos}
@@ -491,7 +536,7 @@ export function FamiliaPage() {
                 <input
                   value={formEdicion[campo]}
                   onChange={(e) => setFormEdicion((f) => ({ ...f, [campo]: e.target.value }))}
-                  className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-0.5 w-full rounded-xl border border-slate-200 px-3 py-2"
                 />
               </label>
             ))}
@@ -499,7 +544,7 @@ export function FamiliaPage() {
           <button
             onClick={guardarEdicion}
             disabled={guardandoEdicion}
-            className="mt-3 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+            className="mt-3 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
           >
             {guardandoEdicion ? "Guardando…" : "Guardar cambios"}
           </button>
@@ -530,6 +575,6 @@ export function FamiliaPage() {
           onClose={() => setCancelando(null)}
         />
       )}
-    </div>
+    </Panel>
   );
 }

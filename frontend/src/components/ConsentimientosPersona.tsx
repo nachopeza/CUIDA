@@ -121,7 +121,7 @@ export function ConsentimientosPersona({ personaId }: { personaId: string }) {
 
       <ul className="space-y-2">
         {estado.map((c) => (
-          <li key={c.tipo} className="rounded-lg border border-slate-200 p-3">
+          <li key={c.tipo} className="rounded-xl border border-slate-200 p-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-slate-700">
@@ -160,7 +160,7 @@ export function ConsentimientosPersona({ personaId }: { personaId: string }) {
                 <button
                   onClick={() => responder(c.tipo, true)}
                   disabled={ocupado === c.tipo}
-                  className="rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+                  className="rounded-xl bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
                 >
                   {c.tipo === "INFORMACION" ? "Se le ha informado" : "Lo autoriza"}
                 </button>

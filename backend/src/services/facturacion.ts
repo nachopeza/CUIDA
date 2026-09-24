@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { registrarAlta } from "./registroFacturacion.js";
 
 // Todo lo que convierte una factura en un documento entregable: numeración
 // correlativa, congelado de los datos de las partes y vencimiento. Vive
@@ -111,4 +112,85 @@ export function problemasParaEmitir(partes: PartesFactura, domiciliado: boolean,
   if (!partes.titularNif) faltan.push("el NIF del titular");
   if (domiciliado && !tieneMandato) faltan.push("un mandato SEPA en vigor para poder domiciliar");
   return faltan;
+}
+
+// ---------------------------------------------------------------------------
+// Emitir
+//
+// Vive aquí y no dentro de la ruta porque emitir es una operación con reglas
+// —numeración correlativa, plazo de vencimiento, registro encadenado del
+// RD 1007/2023— y esas reglas tienen que ser las mismas se entre por donde se
+// entre: desde el panel de coordinación o desde el seed que prepara la demo.
+// Duplicarlas era garantizar que un día dejaran de coincidir.
+//
+// Devuelve el motivo en vez de lanzar: quien llama decide si eso es un 409
+// para la coordinadora o un aviso por consola.
+// ---------------------------------------------------------------------------
+export type ResultadoEmision =
+  | { ok: true; factura: Awaited<ReturnType<typeof prisma.factura.update>>; registro: { huella: string; urlCotejo: string } }
+  | { ok: false; motivo: string };
+
+export async function emitirFactura(facturaId: string, organizacionId: string, incluir?: object): Promise<ResultadoEmision> {
+  const factura = await prisma.factura.findUnique({ where: { id: facturaId } });
+  if (!factura) return { ok: false, motivo: "Factura no encontrada" };
+  if (factura.organizacionId !== organizacionId) return { ok: false, motivo: "Sin permiso" };
+  if (factura.estado !== "BORRADOR") return { ok: false, motivo: `La factura ${factura.codigo} ya está emitida` };
+
+  const partes = await partesDeLaFactura(factura.personaId, factura.organizacionId);
+  const datos = await prisma.datosFacturacion.findUnique({
+    where: { personaId: factura.personaId },
+    include: { mandatos: true },
+  });
+  const domiciliado = factura.formaPago === "DOMICILIACION";
+  const mandato = datos?.mandatos.find((m) => m.estado === "ACTIVO") ?? null;
+
+  const faltan = problemasParaEmitir(partes, domiciliado, mandato != null);
+  if (faltan.length > 0) return { ok: false, motivo: `No se puede emitir todavía: falta ${faltan.join(", ")}.` };
+
+  const empresa = await prisma.organizacion.findUnique({
+    where: { id: factura.organizacionId },
+    select: { diasVencimiento: true, cif: true },
+  });
+  // Sin NIF no hay registro de facturación posible, y sin registro no se
+  // puede emitir: el RD 1007/2023 no admite emitir primero y registrar luego.
+  if (!empresa?.cif) {
+    return { ok: false, motivo: "Falta el CIF de la empresa: sin él no se puede generar el registro de facturación obligatorio." };
+  }
+
+  const emision = new Date();
+  const numero = await siguienteNumero(factura.organizacionId, factura.serie, factura.ejercicio);
+  const emitida = await prisma.factura.update({
+    where: { id: factura.id },
+    data: {
+      estado: "EMITIDA",
+      numero,
+      fechaEmision: emision,
+      // Los días de plazo salen de lo pactado con este cliente y, si no hay
+      // nada pactado, de lo que la empresa tenga puesto por defecto.
+      fechaVencimiento: calcularVencimiento(emision, domiciliado, datos?.diaCobro ?? 5, datos?.diasVencimiento ?? empresa.diasVencimiento ?? 30),
+      mandatoSepaId: domiciliado ? mandato!.id : null,
+      ...partes,
+    },
+    ...(incluir ? { include: incluir as never } : {}),
+  });
+
+  // El registro va después del update porque necesita el número ya asignado, y
+  // antes de dar por buena la emisión porque una factura emitida sin registro
+  // es justo lo que el reglamento prohíbe.
+  const registro = await registrarAlta(
+    {
+      id: emitida.id,
+      organizacionId: emitida.organizacionId,
+      serie: emitida.serie,
+      numero,
+      ejercicio: emitida.ejercicio,
+      fechaEmision: emision,
+      totalIva: emitida.ivaTotal,
+      totalConIva: emitida.totalConIva,
+      facturaRectificadaId: emitida.facturaRectificadaId,
+    },
+    empresa.cif,
+  );
+
+  return { ok: true, factura: emitida, registro };
 }

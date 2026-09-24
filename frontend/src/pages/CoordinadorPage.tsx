@@ -15,13 +15,18 @@ import { exportarCSV } from "../lib/csv.js";
 import {
   IconActivity,
   IconAlert,
+  IconArrowDown,
+  IconArrowUp,
   IconBriefcase,
-  IconBuilding,
   IconCalendar,
   IconCheckCircle,
   IconClipboard,
+  IconClock,
+  IconEuro,
+  IconFamily,
+  IconFile,
   IconHome,
-  IconList,
+  IconKey,
   IconInfinity,
   IconPlus,
   IconReceipt,
@@ -32,139 +37,208 @@ import {
   IconIdCard,
   IconShield,
   IconUsersGroup,
+  IconWalk,
   IconX,
 } from "../components/icons.js";
 import { ResumenTab } from "./coordinador/ResumenTab.js";
 import { GlobalSearch } from "./coordinador/GlobalSearch.js";
-import { Navegacion, type AreaNav } from "../components/Navegacion.js";
+import { createPortal } from "react-dom";
+import { Navegacion, type AreaNav, type BadgeNav, type ItemNav } from "../components/Navegacion.js";
+import { Panel } from "../components/Layout.js";
+import { RANURA_BUSCADOR, useRanura } from "../lib/ranuras.js";
 import { duracion, minutosEntre } from "../lib/economia.js";
 import { PersonasTab } from "./coordinador/PersonasTab.js";
 import { NuevoUsuarioModal } from "./coordinador/NuevoUsuarioModal.js";
 import { PersonaDetalleModal } from "./coordinador/PersonaDetalleModal.js";
 import { ProfesionalesTab } from "./coordinador/ProfesionalesTab.js";
-import { EmpresasTab } from "./coordinador/EmpresasTab.js";
 import { CalendarioTab } from "./coordinador/CalendarioTab.js";
 import { ActividadTab } from "./coordinador/ActividadTab.js";
 import { FacturacionTab } from "./coordinador/FacturacionTab.js";
-import { ServiciosTab } from "./coordinador/ServiciosTab.js";
 import { VerificacionTab } from "./coordinador/VerificacionTab.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
 import { SolicitudFichaModal } from "../components/SolicitudFichaModal.js";
 import { IncidenciaFichaModal } from "./coordinador/IncidenciaFichaModal.js";
 import { IncidenciasTab } from "./coordinador/IncidenciasTab.js";
-import { EquipoTab } from "./coordinador/EquipoTab.js";
 import { AnalisisTab } from "./coordinador/AnalisisTab.js";
 import { BandejaTab } from "./coordinador/BandejaTab.js";
-import { ReglasTab } from "./coordinador/ReglasTab.js";
-import { ProteccionDatosTab } from "./coordinador/ProteccionDatosTab.js";
-import { EmpresaTab } from "./coordinador/EmpresaTab.js";
 import { PersonalTab } from "./coordinador/PersonalTab.js";
 import { CoberturaTab } from "./coordinador/CoberturaTab.js";
+import { ContactosTab } from "./coordinador/ContactosTab.js";
+import { DisponibilidadTab } from "./coordinador/DisponibilidadTab.js";
+import { PermisosTab } from "./coordinador/PermisosTab.js";
+import { ConfiguracionTab } from "./coordinador/ConfiguracionTab.js";
+import { EquipoTab } from "./coordinador/EquipoTab.js";
 import type { EmpresaColaboradora, Incidencia, Necesidad, Persona, Profesional, RiesgosCobertura, Servicio, Solicitud } from "../lib/types.js";
 
 type Tab =
-  | "empresa"
-  | "proteccion"
-  | "bandeja"
-  | "analisis"
-  | "reglas"
   | "escritorio"
+  // Operación
   | "solicitudes"
-  | "verificacion"
   | "servicios"
-  | "incidencias"
-  | "personas"
-  | "profesionales"
-  | "equipo"
-  | "empresas"
+  | "visitas"
   | "calendario"
-  | "facturacion"
-  | "personal"
+  // Personas
+  | "personas"
+  | "contactos"
+  // Profesionales
+  | "profesionales"
+  | "disponibilidad"
   | "cobertura"
-  | "actividad";
+  // Seguimiento
+  | "incidencias"
+  | "verificacion"
+  | "historial"
+  // Finanzas
+  | "cobros"
+  | "pagos"
+  | "facturacion"
+  | "liquidaciones"
+  // Análisis
+  | "ind_indicadores"
+  | "ind_servicios"
+  | "ind_profesionales"
+  | "ind_ingresos"
+  // Administración
+  | "usuarios"
+  | "permisos"
+  | "configuracion"
+  // Dos destinos que no están en el menú porque no se entra a ellos desde el
+  // menú: a la bandeja se llega desde el escritorio y al expediente de un
+  // profesional, desde la fila que lo nombra.
+  | "bandeja"
+  | "personal";
 
-// Doce entradas sueltas obligaban a leérselas todas para encontrar una. Se
-// agrupan por aquello de lo que tratan, que es también el orden en que se
-// trabaja: primero lo que ocurre hoy, luego a quién atiendes, con quién,
-// cómo va, cuánto se cobra y, al final, la casa.
+// El menú es el de la maqueta, entrada por entrada: siete áreas y veintidós
+// destinos. Lo que antes eran entradas sueltas se ha replegado dentro de
+// ellos —el catálogo, las reglas, la empresa y los colaboradores viven en
+// Configuración; el equipo interno, también— porque un menú se lee entero
+// cada vez que se busca algo, y veintidós entradas agrupadas se leen mejor
+// que veintidós entradas y siete más al final.
 //
-// Profesionales y Equipo son cosas distintas y por eso están en áreas
-// distintas: profesional es quien hace el servicio en casa de la persona
-// —trabaje para la empresa o por su cuenta—; el equipo es quien está en la
-// oficina.
+// Dos pares de entradas comparten pantalla a propósito, porque son la misma
+// tabla mirada desde dos preguntas distintas: Visitas / Verificaciones, y
+// Cobros / Facturación (igual que Pagos / Liquidaciones).
 const AREAS: AreaNav[] = [
   {
-    // Sin rótulo: lo primero del menú es "qué tengo que hacer hoy", y eso no
-    // necesita que nadie le ponga nombre.
+    // Sin rótulo: lo primero del menú no necesita que le pongan nombre.
     titulo: "",
-    items: [
-      { key: "escritorio", label: "Centro de coordinación", icon: IconHome },
-      // La bandeja va pegada al escritorio: son la misma pregunta, una
-      // resumida y la otra completa.
-      { key: "bandeja", label: "Bandeja de trabajo", icon: IconList },
-    ],
+    items: [{ key: "escritorio", label: "Inicio", icon: IconHome }],
   },
   {
-    // El trabajo del día, en el orden en que ocurre: llega una petición, se
-    // pone en el calendario, se comprueba lo que se hizo y, si algo se
-    // tuerce, se abre una incidencia. Antes estaba repartido entre
-    // "Operaciones" y "Seguimiento", que obligaba a saber en cuál de los dos
-    // vivía cada cosa.
-    titulo: "El día",
+    titulo: "Operación",
     items: [
       { key: "solicitudes", label: "Solicitudes", icon: IconClipboard },
+      { key: "servicios", label: "Servicios", icon: IconBriefcase },
+      { key: "visitas", label: "Visitas", icon: IconWalk },
       { key: "calendario", label: "Calendario", icon: IconCalendar },
-      { key: "verificacion", label: "Verificación", icon: IconCheckCircle },
-      { key: "incidencias", label: "Incidencias", icon: IconAlert },
     ],
   },
   {
-    // Quién recibe el cuidado y quién lo presta, juntos: en una empresa de
-    // ayuda a domicilio son las dos caras del mismo encaje, y cubrir un
-    // servicio se mira saltando de una lista a la otra.
     titulo: "Personas",
     items: [
-      { key: "personas", label: "Personas atendidas", icon: IconUsers },
-      { key: "profesionales", label: "Profesionales", icon: IconBriefcase },
-      { key: "personal", label: "Expedientes y jornada", icon: IconIdCard },
+      { key: "personas", label: "Personas", icon: IconUsers },
+      { key: "contactos", label: "Familiares / Contactos", icon: IconFamily },
+    ],
+  },
+  {
+    titulo: "Profesionales",
+    items: [
+      { key: "profesionales", label: "Profesionales", icon: IconUsersGroup },
+      { key: "disponibilidad", label: "Disponibilidad", icon: IconClock },
       { key: "cobertura", label: "Cobertura", icon: IconShield },
     ],
   },
   {
-    // Lo que entra, lo que sale y las horas de las que salen los dos números.
-    titulo: "Dinero",
+    titulo: "Seguimiento",
     items: [
-      { key: "facturacion", label: "Cobros y pagos", icon: IconReceipt },
-      { key: "analisis", label: "Horas y economía", icon: IconChart },
+      { key: "incidencias", label: "Incidencias", icon: IconAlert },
+      { key: "verificacion", label: "Verificaciones", icon: IconCheckCircle },
+      { key: "historial", label: "Historial", icon: IconActivity },
     ],
   },
   {
-    // Lo que se configura una vez y se toca de tarde en tarde: va plegado,
-    // para que el menú del día quepa de un vistazo.
-    titulo: "Configuración",
-    plegable: true,
+    titulo: "Finanzas",
     items: [
-      // La empresa va primero: es lo que hay que tener puesto antes de poder
-      // facturar nada.
-      { key: "empresa", label: "Mi empresa", icon: IconBuilding },
-      { key: "equipo", label: "Equipo", icon: IconUsersGroup },
-      { key: "empresas", label: "Empresas colaboradoras", icon: IconBuilding },
-      { key: "servicios", label: "Catálogo de servicios", icon: IconTag },
-      { key: "reglas", label: "Reglas de negocio", icon: IconSettings },
-      { key: "proteccion", label: "Protección de datos", icon: IconShield },
-      { key: "actividad", label: "Actividad", icon: IconActivity },
+      { key: "cobros", label: "Cobros", icon: IconArrowDown },
+      { key: "pagos", label: "Pagos", icon: IconArrowUp },
+      { key: "facturacion", label: "Facturación", icon: IconFile },
+      { key: "liquidaciones", label: "Liquidaciones", icon: IconReceipt },
+    ],
+  },
+  {
+    titulo: "Análisis",
+    items: [
+      { key: "ind_indicadores", label: "Indicadores", icon: IconChart },
+      { key: "ind_servicios", label: "Servicios", icon: IconTag },
+      { key: "ind_profesionales", label: "Profesionales", icon: IconUsers },
+      { key: "ind_ingresos", label: "Ingresos", icon: IconEuro },
+    ],
+  },
+  {
+    titulo: "Administración",
+    items: [
+      { key: "usuarios", label: "Usuarios", icon: IconIdCard },
+      { key: "permisos", label: "Permisos", icon: IconKey },
+      { key: "configuracion", label: "Configuración", icon: IconSettings },
     ],
   },
 ];
 
-// Para el título de la página en móvil y para el buscador: la lista plana
-// sigue haciendo falta aunque la navegación esté agrupada.
-const NAV = AREAS.flatMap((a) => a.items) as { key: Tab; label: string; icon: typeof IconHome }[];
+// El título de cada pantalla. No siempre es la etiqueta del menú: "Servicios"
+// aparece dos veces —en Operación y en Análisis— y a media pantalla hay que
+// saber en cuál de las dos estás.
+const TITULOS: Record<Tab, string> = {
+  escritorio: "Inicio",
+  solicitudes: "Solicitudes",
+  servicios: "Servicios",
+  visitas: "Visitas",
+  calendario: "Calendario",
+  personas: "Personas atendidas",
+  contactos: "Familiares y contactos",
+  profesionales: "Profesionales",
+  disponibilidad: "Disponibilidad",
+  cobertura: "Cobertura",
+  incidencias: "Incidencias",
+  verificacion: "Verificaciones",
+  historial: "Historial",
+  cobros: "Cobros",
+  pagos: "Pagos",
+  facturacion: "Facturación",
+  liquidaciones: "Liquidaciones",
+  ind_indicadores: "Análisis · Indicadores",
+  ind_servicios: "Análisis · Servicios",
+  ind_profesionales: "Análisis · Profesionales",
+  ind_ingresos: "Análisis · Ingresos",
+  usuarios: "Usuarios",
+  permisos: "Permisos",
+  configuracion: "Configuración",
+  bandeja: "Bandeja de trabajo",
+  personal: "Expediente del profesional",
+};
+
+// Lo que va en la barra de abajo del móvil: las cuatro cosas que se tocan
+// todos los días. El resto sigue estando en el cajón, a un toque de "Menú".
+const PESTANAS_MOVIL: ItemNav[] = [
+  { key: "escritorio", label: "Inicio", icon: IconHome },
+  { key: "calendario", label: "Agenda", icon: IconCalendar },
+  { key: "personas", label: "Personas", icon: IconUsers },
+  { key: "profesionales", label: "Pros", icon: IconUsersGroup },
+];
 
 // El filtro de la lista usa el mismo vocabulario que los badges y las
 // casillas de conteo (estadoUnificado.ts): una fase de trabajo, o bien el
 // corte transversal "tiene una incidencia abierta".
 type Filtro = null | ClaveEstado | "con_incidencia";
+
+// Qué fases entran en cada una de las dos entradas de Operación. No son dos
+// tablas distintas: es la misma cadena partida por donde de verdad cambia el
+// trabajo. Antes de que haya alguien confirmado, lo que se hace es gestionar
+// una petición; a partir de ahí, lo que se hace es vigilar un servicio en
+// marcha.
+const AMBITO: Record<"solicitudes" | "servicios", ClaveEstado[]> = {
+  solicitudes: ["nueva", "buscando", "por_confirmar", "cancelada"],
+  servicios: ["en_curso", "por_verificar", "finalizada"],
+};
 
 // De cuándo a cuándo va una solicitud. Un servicio sin fecha de fin es
 // indefinido y se dice así, no con una fecha inventada.
@@ -205,9 +279,14 @@ export function CoordinadorPage() {
   const [personaAbierta, setPersonaAbierta] = useState<string | null>(null);
   const [personasRefreshKey, setPersonasRefreshKey] = useState(0);
   const [riesgos, setRiesgos] = useState<RiesgosCobertura | null>(null);
+  // Sólo para las dos cifras de Finanzas del menú: cuántas facturas quedan
+  // por cobrar y cuántas liquidaciones por pagar.
+  const [cobrosPendientes, setCobrosPendientes] = useState(0);
+  const [pagosPendientes, setPagosPendientes] = useState(0);
+  const ranuraBuscador = useRanura(RANURA_BUSCADOR);
 
   async function cargar() {
-    const [sols, servs, incs, pers, necs, pros, ries] = await Promise.all([
+    const [sols, servs, incs, pers, necs, pros, ries, facs, liqs] = await Promise.all([
       api.get<Solicitud[]>("/solicitudes", token),
       api.get<Servicio[]>("/servicios", token),
       api.get<Incidencia[]>("/incidencias", token),
@@ -217,6 +296,8 @@ export function CoordinadorPage() {
       // El repaso de las jornadas que vienen: alimenta a la vez la cifra del
       // menú y la lista de Cobertura, para que no digan cosas distintas.
       api.get<RiesgosCobertura>("/cobertura/riesgos?dias=14", token).catch(() => null),
+      api.get<{ estado: string }[]>("/facturas", token).catch(() => []),
+      api.get<{ estado: string }[]>("/liquidaciones", token).catch(() => []),
     ]);
     setSolicitudes(sols);
     setServicios(servs);
@@ -225,6 +306,8 @@ export function CoordinadorPage() {
     setNecesidades(necs);
     setProfesionales(pros);
     setRiesgos(ries);
+    setCobrosPendientes(facs.filter((f) => ["EMITIDA", "IMPAGADA"].includes(f.estado)).length);
+    setPagosPendientes(liqs.filter((l) => l.estado !== "PAGADA").length);
   }
 
   useEffect(() => {
@@ -299,27 +382,59 @@ export function CoordinadorPage() {
     await cargar();
   }
 
+  // Las tres cifras del menú que no salen del listado de solicitudes: las
+  // jornadas de hoy y lo que queda por cobrar y por pagar.
+  const visitasDeHoy = useMemo(() => {
+    const hoy = new Date();
+    const iso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
+    return servicios.reduce((total, s) => total + (s.visitas ?? []).filter((v) => v.fecha.slice(0, 10) === iso).length, 0);
+  }, [servicios]);
+
   const conteoEstados = useMemo(() => {
     const conteo = { nueva: 0, buscando: 0, por_confirmar: 0, en_curso: 0, por_verificar: 0, finalizada: 0, cancelada: 0 } as Record<ClaveEstado, number>;
     for (const s of solicitudes) conteo[estadoDeSolicitud(s)]++;
     return conteo;
   }, [solicitudes]);
 
-  const conIncidenciaCount = useMemo(() => solicitudes.filter(tieneIncidencia).length, [solicitudes]);
 
-  const badges: Partial<Record<Tab, { valor: number; tono: "rose" | "amber" }>> = {
-    incidencias: { valor: incidencias.filter((i) => !["RESUELTA", "CERRADA"].includes(i.estado)).length, tono: "rose" },
-    // Lo que espera a coordinación en Solicitudes: lo nuevo sin revisar más
-    // lo terminado sin verificar.
-    solicitudes: { valor: conteoEstados.nueva + conteoEstados.por_verificar, tono: "amber" },
-    // Jornadas que, tal como están, no se van a poder prestar. Va en rojo
+  // Las cifras del menú. Cada una dice cuántas cosas hay ahí dentro
+  // esperando, no cuántas filas tiene la tabla: un número que no cambia
+  // nunca deja de leerse a la semana de estar puesto.
+  //
+  // El tono ámbar es para lo que ya va tarde; el verde, para lo que
+  // simplemente está ahí.
+  const badges: Partial<Record<Tab, BadgeNav>> = {
+    // Peticiones sin resolver: lo nuevo sin revisar y lo que busca
+    // profesional o espera que lo confirmen.
+    solicitudes: { valor: conteoEstados.nueva + conteoEstados.buscando + conteoEstados.por_confirmar, tono: "amber" },
+    // Servicios vivos.
+    servicios: { valor: conteoEstados.en_curso, tono: "verde" },
+    // Jornadas de hoy.
+    visitas: { valor: visitasDeHoy, tono: "verde" },
+    personas: { valor: personas.length, tono: "verde" },
+    profesionales: { valor: profesionales.filter((p) => p.estado === "ACTIVO").length, tono: "verde" },
+    // Jornadas que, tal como están, no se van a poder prestar. En rojo
     // porque cada una es una persona que se queda esperando en su casa.
     cobertura: { valor: riesgos?.bloquean ?? 0, tono: "rose" },
+    incidencias: { valor: incidencias.filter((i) => !["RESUELTA", "CERRADA"].includes(i.estado)).length, tono: "amber" },
+    verificacion: { valor: conteoEstados.por_verificar, tono: "verde" },
+    cobros: { valor: cobrosPendientes, tono: "amber" },
+    pagos: { valor: pagosPendientes, tono: "verde" },
   };
+
+  // Sólo las fases del ámbito que se está mirando. La cadena es una, pero
+  // "Solicitudes" y "Servicios" miran dos tramos distintos de ella.
+  const ambito: "solicitudes" | "servicios" = tab === "servicios" ? "servicios" : "solicitudes";
+  const delAmbito = useMemo(
+    () => solicitudes.filter((s) => AMBITO[ambito].includes(estadoDeSolicitud(s))),
+    [solicitudes, ambito],
+  );
+  const estadosDelAmbito = useMemo(() => ESTADOS.filter((e) => AMBITO[ambito].includes(e.clave)), [ambito]);
+  const conIncidenciaCount = useMemo(() => delAmbito.filter(tieneIncidencia).length, [delAmbito]);
 
   const solicitudesFiltradas = useMemo(() => {
     const q = busquedaSolicitudes.trim().toLowerCase();
-    return solicitudes.filter((s) => {
+    return delAmbito.filter((s) => {
       if (filtro === "con_incidencia" && !tieneIncidencia(s)) return false;
       if (filtro && filtro !== "con_incidencia" && estadoDeSolicitud(s) !== filtro) return false;
       
@@ -336,7 +451,7 @@ export function CoordinadorPage() {
       }
       return true;
     });
-  }, [solicitudes, filtro, tipoFiltro, profesionalFiltro, busquedaSolicitudes]);
+  }, [delAmbito, filtro, tipoFiltro, profesionalFiltro, busquedaSolicitudes]);
 
   const ordenSolicitudes = useOrdenacion(solicitudesFiltradas, {
     codigo: (s) => s.codigo,
@@ -402,78 +517,65 @@ export function CoordinadorPage() {
   }
 
 
-  const tituloTab = NAV.find((n) => n.key === tab)?.label ?? "";
+  const tituloTab = TITULOS[tab] ?? "";
+
+  // El buscador se pinta en la ranura de la cabecera: quien sabe qué hay que
+  // buscar es este panel, pero dónde se busca lo dice la cabecera.
+  const buscador = (
+    <GlobalSearch
+      personas={personas}
+      solicitudes={solicitudes}
+      onAbrirPersona={abrirPersona}
+      onAbrirSolicitud={(id) => {
+        setTab("solicitudes");
+        setFichaAbierta(id);
+      }}
+    />
+  );
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row">
+    <Panel
+      nav={
       <Navegacion
         areas={AREAS}
         activo={tab}
         onIr={irA}
         badges={badges}
+        pestanasMovil={PESTANAS_MOVIL}
         abierto={menuMovilAbierto}
+        onAbrir={() => setMenuMovilAbierto(true)}
         onCerrar={() => setMenuMovilAbierto(false)}
-        acciones={
-          // Lo que se crea, arriba del menú y siempre a la vista: dar de alta
-          // una solicitud es lo que más veces se hace en el día.
-          <div className="space-y-1.5">
-            <button
-              onClick={() => {
-                setMenuMovilAbierto(false);
-                void abrirNuevaSolicitud();
-              }}
-              className="flex w-full items-center justify-center gap-1.5 rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-800"
-            >
-              <IconPlus className="h-4 w-4" /> Nueva solicitud
-            </button>
-            <button
-              onClick={() => {
-                setMenuMovilAbierto(false);
-                setNuevoUsuario(true);
-              }}
-              className="flex w-full items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              <IconPlus className="h-4 w-4" /> Nuevo usuario
-            </button>
-          </div>
-        }
-        cabecera={
-          <GlobalSearch
-            personas={personas}
-            solicitudes={solicitudes}
-            onAbrirPersona={abrirPersona}
-            onAbrirSolicitud={(id) => {
-              setTab("solicitudes");
-              setFichaAbierta(id);
-            }}
-          />
-        }
+        cabecera={buscador}
       />
+      }
+    >
+      {/* En escritorio el buscador va en la cabecera de la aplicación. */}
+      {ranuraBuscador && createPortal(buscador, ranuraBuscador)}
 
-      {/* En móvil sólo queda el buscador: el botón de menú vive ahora en la
-          cabecera, que es donde la mano lo busca y donde no se va al
-          desplazar la página. */}
-      <div className="flex items-center gap-2 md:hidden">
-        <div className="min-w-0 flex-1">
-          <GlobalSearch
-            personas={personas}
-            solicitudes={solicitudes}
-            onAbrirPersona={abrirPersona}
-            onAbrirSolicitud={(id) => {
-              setTab("solicitudes");
-              setFichaAbierta(id);
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Contenido principal */}
       <div className="min-w-0 flex-1">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-800">{tab === "escritorio" ? "" : tituloTab}</h2>
+        {/* El título de la sección. El escritorio no lo lleva: su tarjeta de
+            saludo ya dice dónde estás. */}
+        {/* El título de la sección y, a su derecha, lo que se crea desde
+            aquí. Los dos botones estaban en la barra lateral: en la maqueta
+            la barra es sólo menú, y además "Nueva solicitud" pertenece a la
+            pantalla de solicitudes igual que "Nuevo usuario" pertenece a la
+            de personas. El escritorio no lleva título: su tarjeta de saludo
+            ya dice dónde estás. */}
+        {tab !== "escritorio" && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-xl font-semibold text-slate-800">{tituloTab}</h2>
+            {(tab === "solicitudes" || tab === "servicios") && (
+              <button onClick={() => void abrirNuevaSolicitud()} className="boton-verde px-4 py-2 text-xs">
+                <IconPlus className="h-4 w-4" /> Nueva solicitud
+              </button>
+            )}
+            {(tab === "personas" || tab === "contactos") && (
+              <button onClick={() => setNuevoUsuario(true)} className="boton-verde px-4 py-2 text-xs">
+                <IconPlus className="h-4 w-4" /> Nuevo usuario
+              </button>
+            )}
           </div>
-        </div>
+        )}
 
         {tab === "escritorio" && (
           <ResumenTab
@@ -491,21 +593,21 @@ export function CoordinadorPage() {
           />
         )}
 
-        {tab === "solicitudes" && (
+        {(tab === "solicitudes" || tab === "servicios") && (
           <div>
             {/* Las casillas son a la vez el resumen, la leyenda y el filtro:
                 mismo nombre y mismo color que el badge de cada fila, así no
                 hay dos vocabularios que aprender (sección "simplifica
                 estados de solicitudes, que sea más práctico y visual"). */}
-            <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+            <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
               <button
                 onClick={() => setFiltro(null)}
                 className={`rounded-lg border px-2.5 py-2 text-left transition ${!filtro ? "border-brand bg-brand-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
               >
-                <p className={`text-xl font-semibold leading-tight ${!filtro ? "text-brand-800" : "text-slate-800"}`}>{solicitudes.length}</p>
+                <p className={`text-xl font-semibold leading-tight ${!filtro ? "text-brand-800" : "text-slate-800"}`}>{delAmbito.length}</p>
                 <p className={`text-[11px] font-medium ${!filtro ? "text-brand-800" : "text-slate-500"}`}>Todas</p>
               </button>
-              {ESTADOS.map((e) => {
+              {estadosDelAmbito.map((e) => {
                 const activo = filtro === e.clave;
                 const valor = conteoEstados[e.clave];
                 return (
@@ -634,9 +736,9 @@ export function CoordinadorPage() {
                   onEliminar={eliminarSolicitudes}
                   etiquetaEliminar="Eliminar solicitudes"
                 />
-                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                <div className="overflow-x-auto tarjeta">
                 <table className="min-w-full divide-y divide-slate-100 text-sm">
-                  <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <thead className="bg-[#f1f7fa] text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                     <tr>
                       <th className="w-8 px-4 py-2.5">
                         <input type="checkbox" checked={seleccionSolicitudes.todasMarcadas} onChange={seleccionSolicitudes.toggleTodos} />
@@ -726,7 +828,7 @@ export function CoordinadorPage() {
           </div>
         )}
 
-        {tab === "verificacion" && (
+        {(tab === "verificacion" || tab === "visitas") && (
           <VerificacionTab
             solicitudes={solicitudes}
             servicios={servicios}
@@ -734,10 +836,9 @@ export function CoordinadorPage() {
             onFocoConsumido={() => setFoco(null)}
             onAbrirSolicitud={(id) => setFichaAbierta(id)}
             onCambiado={cargar}
+            pestanaInicial={tab === "visitas" ? "todas" : "pendientes"}
           />
         )}
-
-        {tab === "servicios" && <ServiciosTab />}
 
         {tab === "incidencias" && (
           <IncidenciasTab
@@ -751,7 +852,9 @@ export function CoordinadorPage() {
         )}
 
         {tab === "personas" && <PersonasTab onAbrirFicha={abrirPersona} refreshKey={personasRefreshKey} />}
+        {tab === "contactos" && <ContactosTab onAbrirPersona={abrirPersona} />}
         {tab === "profesionales" && <ProfesionalesTab />}
+        {tab === "disponibilidad" && <DisponibilidadTab />}
         {tab === "personal" && <PersonalTab focoProfesionalId={foco} onFocoConsumido={() => setFoco(null)} />}
         {tab === "cobertura" && (
           <CoberturaTab
@@ -762,11 +865,16 @@ export function CoordinadorPage() {
             riesgos={riesgos}
           />
         )}
-        {tab === "equipo" && <EquipoTab />}
-        {tab === "reglas" && <ReglasTab />}
-        {tab === "proteccion" && <ProteccionDatosTab />}
-        {tab === "empresa" && <EmpresaTab />}
-        {tab === "analisis" && <AnalisisTab />}
+        {tab === "usuarios" && <EquipoTab />}
+        {tab === "permisos" && <PermisosTab />}
+        {tab === "configuracion" && <ConfiguracionTab />}
+
+        {/* Las cuatro entradas de Análisis: los mismos datos, cada entrada
+            con lo que contesta su pregunta. */}
+        {tab === "ind_indicadores" && <AnalisisTab seccion="indicadores" />}
+        {tab === "ind_servicios" && <AnalisisTab seccion="servicios" />}
+        {tab === "ind_profesionales" && <AnalisisTab seccion="profesionales" />}
+        {tab === "ind_ingresos" && <AnalisisTab seccion="ingresos" />}
         {tab === "bandeja" && (
           <BandejaTab
             solicitudes={solicitudes}
@@ -781,17 +889,29 @@ export function CoordinadorPage() {
             onAbrirIncidencia={setIncidenciaFichaAbierta}
           />
         )}
-        {tab === "empresas" && <EmpresasTab />}
         {tab === "calendario" && <CalendarioTab onAbrirSolicitud={(id) => setFichaAbierta(id)} />}
-        {tab === "facturacion" && <FacturacionTab focoFacturaId={foco} onFocoConsumido={() => setFoco(null)} />}
-        {tab === "actividad" && <ActividadTab />}
+
+        {/* Las cuatro entradas de Finanzas: dos listas, enteras o sólo por
+            lo que queda pendiente. */}
+        {(tab === "facturacion" || tab === "cobros" || tab === "liquidaciones" || tab === "pagos") && (
+          <FacturacionTab focoFacturaId={foco} onFocoConsumido={() => setFoco(null)} vista={tab} onIrA={irA} />
+        )}
+
+        {tab === "historial" && <ActividadTab />}
 
         {nuevaSolicitud && (
           <SolicitudModal
             personas={personas}
             necesidades={necesidades}
             onClose={() => setNuevaSolicitud(false)}
-            onCreated={cargar}
+            onCreated={async (id) => {
+              await cargar();
+              // Y se abre su ficha: el alta deja la solicitud sin horas ni
+              // precio a propósito —eso se decide mirando la agenda—, así que
+              // lo siguiente siempre es abrirla. Hacerlo a mano obligaba a
+              // buscar en el listado la fila que se acababa de crear.
+              if (id) setFichaAbierta(id);
+            }}
           />
         )}
 
@@ -826,6 +946,6 @@ export function CoordinadorPage() {
           />
         )}
       </div>
-    </div>
+    </Panel>
   );
 }

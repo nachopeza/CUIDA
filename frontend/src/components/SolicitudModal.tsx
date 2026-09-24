@@ -27,7 +27,10 @@ interface Props {
   personaId?: string;
   personas?: Persona[];
   onClose: () => void;
-  onCreated: () => void;
+  // Recibe el id de la solicitud recién creada: lo siguiente que hay que
+  // hacer con ella —poner las horas y el precio— está en su ficha, y hasta
+  // ahora había que volver a buscarla en el listado.
+  onCreated: (solicitudId?: string) => void;
 }
 
 // Los cuatro pasos del alta, en orden. Uno a la vez: el formulario entero
@@ -172,7 +175,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
     setEnviando(true);
     setError(null);
     try {
-      await api.post(
+      const creada = await api.post<{ id?: string }>(
         "/solicitudes",
         {
           personaId: personaSel,
@@ -185,7 +188,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
         },
         token,
       );
-      onCreated();
+      onCreated(creada?.id);
       onClose();
     } catch (e) {
       // Antes un fallo de red dejaba el modal como si nada hubiera pasado y la
@@ -209,11 +212,31 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
 
             {paso === 0 && (
               <section>
-                {(personas?.length ?? 0) > 6 && (
-                  <SearchBox value={buscaPersona} onChange={setBuscaPersona} placeholder="Buscar por nombre o código…" className="mb-2 w-full sm:max-w-xs" />
-                )}
+                {/* El buscador va siempre, no a partir de cierto número de
+                    fichas: en todos los listados de la casa está ahí, y un
+                    campo que aparece y desaparece según cuántas personas
+                    haya es un campo que nadie busca cuando lo necesita. */}
+                <SearchBox
+                  value={buscaPersona}
+                  onChange={setBuscaPersona}
+                  placeholder="Buscar por nombre o código…"
+                  className="mb-2 w-full sm:max-w-xs"
+                  autoFocus
+                  // Si al escribir queda una sola, Enter la elige y pasa al
+                  // paso siguiente: teclear tres letras y seguir.
+                  alPulsarEnter={() => {
+                    if (personasFiltradas.length !== 1) return;
+                    setPersonaSel(personasFiltradas[0].id);
+                    setError(null);
+                    setPaso(1);
+                  }}
+                />
                 <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-200">
-                  {personasFiltradas.length === 0 && <p className="px-3 py-2 text-sm text-slate-400">Ninguna persona coincide.</p>}
+                  {personasFiltradas.length === 0 && (
+                    <p className="px-3 py-2 text-sm text-slate-400">
+                      Ninguna persona coincide con «{buscaPersona.trim()}». Compruébalo, o dala de alta antes desde Personas.
+                    </p>
+                  )}
                   {personasFiltradas.map((p) => (
                     <button
                       key={p.id}
@@ -335,7 +358,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
                 {/* Antes de crear nada, lo que se va a crear, en una frase. Es
                     la comprobación que evita la solicitud a la persona
                     equivocada o con la fecha del mes pasado. */}
-                <p className="rounded-lg border border-brand-green-200 bg-brand-green-50 px-3 py-2.5 text-sm text-brand-green-800">
+                <p className="rounded-xl border border-brand-green-200 bg-brand-green-50 px-3 py-2.5 text-sm text-brand-green-800">
                   {resumen}.
                 </p>
                 <label className="block text-xs font-medium text-slate-500">
@@ -465,7 +488,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
 
             <div>
               <label className="mb-1 block text-sm text-slate-500">¿Algo más que quieras contarnos? (opcional)</label>
-              <textarea value={nota} onChange={(e) => setNota(e.target.value)} rows={2} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+              <textarea value={nota} onChange={(e) => setNota(e.target.value)} rows={2} className="w-full campo" />
             </div>
           </>
         )}

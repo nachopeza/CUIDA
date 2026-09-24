@@ -8,8 +8,10 @@ import { esGestorOrganizacion, puedeVerImportes, filtrarEconomia, ocultarTarifaS
 import { ausenteEse, carenciasDe } from "../services/rrhh.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
-import { asegurarSesiones } from "../services/sesiones.js";
+import { anotarSiNoSeCreo, asegurarSesiones } from "../services/sesiones.js";
+import { candidatosParaServicio } from "../services/candidatos.js";
 import { calcularReparto, minutosEntre } from "../services/economia.js";
+import { reglasDe } from "../services/motorTiempo.js";
 
 export const serviciosRouter = Router();
 serviciosRouter.use(autenticar);
@@ -238,6 +240,30 @@ serviciosRouter.post("/:id/tarifa", requiereRol("COORDINADOR", "ORGANIZACION", "
       ? calcularReparto({ minutos: minutosPrevistos, precioHora, comisionPorcentaje, ivaPorcentaje })
       : null;
 
+  // El suelo por hora también aquí. Hasta ahora sólo lo comprobaba el
+  // catálogo de tarifas (POST /reglas/tarifas), pero el precio se puede fijar
+  // por los dos caminos y éste es el que se usa cuando no hay tarifa de
+  // catálogo: por el hueco entraba un servicio a 5 €/h que, quitada la
+  // comisión, dejaba al profesional en 4,25 €/h. Una tarifa mal puesta se
+  // convierte en nóminas mal pagadas durante meses.
+  //
+  // Un servicio voluntario no cobra ni paga, así que no tiene suelo que
+  // respetar; y si todavía no hay precio, no hay nada que comprobar.
+  if (reparto && reparto.minutos > 0) {
+    const reglas = await reglasDe(servicio.organizacionId);
+    const porHoraDelProfesional = reparto.importeProfesional / (reparto.minutos / 60);
+    const minimo = Number(reglas.salarioMinimoHora);
+    if (porHoraDelProfesional + 0.005 < minimo) {
+      const euros = (n: number) => n.toFixed(2).replace(".", ",");
+      return res.status(400).json({
+        error:
+          `Con ${euros(reparto.precioHora)} €/h y una comisión del ${reparto.comisionPorcentaje} %, al profesional le quedan ` +
+          `${euros(porHoraDelProfesional)} €/h, por debajo del mínimo configurado (${euros(minimo)} €/h). ` +
+          `Sube el precio, baja la comisión o cambia el mínimo en las reglas de la casa.`,
+      });
+    }
+  }
+
   const actualizado = await prisma.servicio.update({
     where: { id: servicio.id },
     data: {
@@ -284,6 +310,25 @@ const asignarSchema = z.object({ profesionalId: z.string().min(1) });
 
 // Motor de asignación P0: manual (sección 10). El coordinador ve candidatos
 // (vía GET /profesionales) y selecciona; el sistema registra el resultado.
+// Quién puede cubrir este servicio, con los tres filtros que de verdad
+// descartan —los papeles, lo que ha ofertado y lo que ya tiene en la agenda—
+// y el motivo escrito. Lo contesta el servidor porque es quien lo sabe: la
+// pantalla cruzaba sólo la disponibilidad declarada y dejaba asignar a quien
+// ya tenía otra jornada a esa hora.
+serviciosRouter.get("/:id/candidatos", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id }, select: { organizacionId: true } });
+  if (!servicio) return res.status(404).json({ error: "No encontrado" });
+  if (servicio.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+  // Se puede preguntar por unos días concretos —los de una baja— en vez de por
+  // los próximos: buscar reemplazo para el mes que viene mirando la agenda de
+  // esta semana daba por libre a quien no lo estaba.
+  const desde = typeof req.query.desde === "string" ? new Date(req.query.desde) : null;
+  const hasta = typeof req.query.hasta === "string" ? new Date(req.query.hasta) : null;
+  const ventana =
+    desde && hasta && !Number.isNaN(desde.getTime()) && !Number.isNaN(hasta.getTime()) && desde <= hasta ? { desde, hasta } : undefined;
+  res.json(await candidatosParaServicio(req.params.id, ventana));
+});
+
 serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
   const parsed = asignarSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -302,6 +347,36 @@ serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", 
   } catch (err) {
     if (err instanceof TransicionInvalidaError) return res.status(409).json({ error: err.message });
     throw err;
+  }
+
+  // Un servicio sin hora no se le puede proponer a nadie. Quien lo acepta se
+  // está comprometiendo a ir, y hay que decirle cuándo; además la jornada que
+  // se crea al confirmarlo saldría sin hora, y una jornada sin hora no se
+  // puede vigilar —no hay "va tarde"— ni facturar, porque el importe sale de
+  // la duración. Se comprueba aquí y no sólo en la pantalla, para que valga
+  // igual desde el listado de candidatos, desde el mercado y desde el
+  // desplegable de reasignar.
+  const planDelServicio = await prisma.plan.findFirst({
+    where: { solicitudId: servicio.solicitudId },
+    select: { horaInicio: true, horaFin: true },
+  });
+  if (!planDelServicio?.horaInicio || !planDelServicio?.horaFin) {
+    return res.status(409).json({
+      error: "Este servicio todavía no tiene hora de inicio y fin. Ponlas en «Qué se hace y cuándo» antes de proponérselo a nadie.",
+    });
+  }
+
+  // Y que de verdad pueda ese día. Decir que trabaja los martes por la tarde
+  // no quiere decir que este martes por la tarde esté libre: si ya tiene otra
+  // jornada a esa hora o está de ausencia, la asignación salía bien, el
+  // profesional la aceptaba y la jornada no se creaba nunca. La persona se
+  // quedaba con un servicio confirmado y nadie yendo a su casa.
+  const candidatos = await candidatosParaServicio(servicio.id);
+  const suPlaza = candidatos.find((c) => c.id === profesional.id);
+  if (suPlaza?.impide && !suPlaza.bloqueado) {
+    return res.status(409).json({
+      error: `No se puede asignar a ${profesional.nombre}: ${suPlaza.motivo.toLowerCase()}. Elige a otra persona o cambia el día o la hora.`,
+    });
   }
 
   // Nadie entra en casa de una persona mayor sin los papeles en regla. El
@@ -553,6 +628,32 @@ serviciosRouter.post("/:id/aceptar", requiereRol("PROFESIONAL"), async (req, res
     throw err;
   }
 
+  // Aceptar un servicio cuya jornada no cabe deja a la persona atendida con
+  // un servicio confirmado y nadie yendo a su casa: la jornada no se crea y
+  // el único rastro era una línea del historial. Así que no se acepta, y el
+  // aviso sube a coordinación, que es quien puede cambiar el día o la hora.
+  // Al profesional no se le deja con un "no puedes" sin salida: se le dice
+  // que coordinación ya lo sabe.
+  const puede = (await candidatosParaServicio(servicio.id)).find((c) => c.id === servicio.profesionalId);
+  if (puede?.impide) {
+    await registrarHistorial({
+      entidadTipo: "Servicio",
+      estadoAnterior: servicio.estado,
+      estadoNuevo: servicio.estado,
+      motivo: `No se ha podido aceptar: ${puede.motivo.toLowerCase()}`,
+      servicioId: servicio.id,
+    });
+    await notificarGestores(
+      servicio.organizacionId,
+      "servicio_sin_jornada",
+      `${puede.nombre} no ha podido aceptar ${servicio.codigo}: ${puede.motivo.toLowerCase()}. Cambia el día o la hora, o asigna a otra persona.`,
+      servicio.solicitudId,
+    ).catch(() => undefined);
+    return res.status(409).json({
+      error: `No puedes aceptarlo: ${puede.motivo.toLowerCase()}. Ya hemos avisado a coordinación para que lo cambie o se lo pase a otra persona.`,
+    });
+  }
+
   const actualizado = await prisma.servicio.update({ where: { id: servicio.id }, data: { estado: "CONFIRMADO" } });
 
   await registrarHistorial({
@@ -576,6 +677,10 @@ serviciosRouter.post("/:id/aceptar", requiereRol("PROFESIONAL"), async (req, res
       motivo: `Jornada ${sesiones.creadas.join(", ")} creada automáticamente desde el plan`,
       servicioId: servicio.id,
     });
+  } else {
+    // Y si no se pudo, que se sepa: un servicio confirmado sin nada en la
+    // agenda es una persona esperando a alguien que no tiene día.
+    await anotarSiNoSeCreo(servicio.id, sesiones);
   }
 
   await registrarAuditoria({
@@ -701,6 +806,8 @@ serviciosRouter.post("/:id/estado", async (req, res) => {
         motivo: `Jornada ${sesiones.creadas.join(", ")} creada automáticamente desde el plan`,
         servicioId: servicio.id,
       });
+    } else {
+      await anotarSiNoSeCreo(servicio.id, sesiones);
     }
   }
 

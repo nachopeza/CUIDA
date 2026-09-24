@@ -54,19 +54,19 @@ export function NotificationBell() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setAbierto((v) => !v)}
-        className="relative rounded-md border border-slate-300 px-2.5 py-1.5 text-slate-600 hover:bg-slate-100"
+        className="relative rounded-full p-2.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
         aria-label="Notificaciones"
       >
         <IconBell className="h-5 w-5" />
         {noLeidas > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand-green-500 px-1 text-[10px] font-semibold text-white ring-2 ring-white">
             {noLeidas}
           </span>
         )}
       </button>
 
       {abierto && (
-        <div className="absolute right-0 z-20 mt-2 w-80 rounded-lg border border-slate-200 bg-white shadow-lg">
+        <div className="absolute right-0 z-20 mt-2 w-80 tarjeta shadow-lg">
           <div className="max-h-96 overflow-y-auto">
             {notificaciones.length === 0 && <p className="p-4 text-sm text-slate-500">Sin notificaciones.</p>}
             {notificaciones.map((n) => (

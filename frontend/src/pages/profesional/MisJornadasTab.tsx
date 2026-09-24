@@ -67,20 +67,20 @@ export function MisJornadasTab({ visitas }: { visitas: Visita[] }) {
     <>
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <button onClick={() => setMesRef(new Date(mesRef.getFullYear(), mesRef.getMonth() - 1, 1))} aria-label="Mes anterior" className="rounded-md border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-50">
+        <button onClick={() => setMesRef(new Date(mesRef.getFullYear(), mesRef.getMonth() - 1, 1))} aria-label="Mes anterior" className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50">
           <IconChevronLeft className="h-4 w-4" />
         </button>
         <p className="text-sm font-semibold text-slate-700">
           {MESES[mesRef.getMonth()]} {mesRef.getFullYear()}
         </p>
-        <button onClick={() => setMesRef(new Date(mesRef.getFullYear(), mesRef.getMonth() + 1, 1))} aria-label="Mes siguiente" className="rounded-md border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-50">
+        <button onClick={() => setMesRef(new Date(mesRef.getFullYear(), mesRef.getMonth() + 1, 1))} aria-label="Mes siguiente" className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50">
           <IconChevronRight className="h-4 w-4" />
         </button>
       </div>
 
       {/* Lo que se ha trabajado y lo que sale de ahí. La cifra que abre es el
           dinero, porque es lo que se viene a mirar. */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="tarjeta p-4">
         <p className="text-xs text-slate-500">Vas a cobrar este mes</p>
         <p className="text-4xl font-semibold leading-tight text-slate-900">{euros(aCobrar)}</p>
         <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-xs">
@@ -99,7 +99,7 @@ export function MisJornadasTab({ visitas }: { visitas: Visita[] }) {
         </dl>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-2">
+      <div className="tarjeta p-2">
         <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-slate-400">
           {DIAS.map((d) => (
             <div key={d} className="py-1">
@@ -109,7 +109,7 @@ export function MisJornadasTab({ visitas }: { visitas: Visita[] }) {
         </div>
         <div className="grid grid-cols-7 gap-1">
           {Array.from({ length: offset }).map((_, i) => (
-            <div key={`h-${i}`} className="min-h-[46px] rounded-md bg-slate-50" />
+            <div key={`h-${i}`} className="min-h-[46px] rounded-xl bg-slate-50" />
           ))}
           {Array.from({ length: ultimoDia.getDate() }).map((_, i) => {
             const d = new Date(mesRef.getFullYear(), mesRef.getMonth(), i + 1);
@@ -155,14 +155,14 @@ export function MisJornadasTab({ visitas }: { visitas: Visita[] }) {
         />
 
         {delMes.length === 0 ? (
-          <p className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">No tienes jornadas este mes.</p>
+          <p className="tarjeta px-4 py-8 text-center text-sm text-slate-500">No tienes jornadas este mes.</p>
         ) : (
           <ul className="space-y-1.5">
             {delMes.map((v) => {
               const minutos = minutosFichados(v.horaInicioReal, v.horaFinReal);
               const pagada = v.servicio?.pagoProfesionalEstado === "PAGADO";
               return (
-                <li key={v.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+                <li key={v.id} className="flex flex-wrap items-center gap-3 tarjeta px-3 py-2.5">
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-1.5 text-sm font-medium text-slate-800">
                       <IconoNecesidad codigo={v.servicio?.solicitud.necesidad.codigo} className="h-4 w-4 shrink-0 text-slate-400" />
@@ -211,7 +211,7 @@ export function MisJornadasTab({ visitas }: { visitas: Visita[] }) {
       {/* Lo que la empresa ya ha cerrado contigo. Hasta ahora sólo se veía lo
           trabajado; si te habían liquidado o no, no se sabía. */}
       {liquidaciones.length > 0 && (
-        <section className="mt-4 rounded-lg border border-slate-200 bg-white p-3">
+        <section className="mt-4 tarjeta p-3">
           <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
             <IconEuro className="h-4 w-4 text-slate-400" /> Mis liquidaciones
           </h3>

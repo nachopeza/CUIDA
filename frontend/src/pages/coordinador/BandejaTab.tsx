@@ -3,7 +3,7 @@ import { api } from "../../lib/api.js";
 import { useAuth } from "../../lib/auth.js";
 import { exportarCSV } from "../../lib/csv.js";
 import { INFO_PRIORIDAD, calcularPendientes, hace, type Asunto, type Prioridad } from "../../lib/pendientes.js";
-import type { Factura, FichaProfesional, Incidencia, Persona, Servicio, Solicitud } from "../../lib/types.js";
+import type { Ausencia, Factura, FichaProfesional, Incidencia, Persona, Servicio, Solicitud } from "../../lib/types.js";
 import { SearchBox } from "../../components/SearchBox.js";
 import { IconArrowRight, IconCheckCircle, IconDownload, IconRefresh } from "../../components/icons.js";
 
@@ -41,24 +41,29 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const [persona, setPersona] = useState("");
   const [refrescando, setRefrescando] = useState(false);
   const [fichasPersona, setFichasPersona] = useState<Persona[]>([]);
+  // Los días pedidos sin contestar también esperan a alguien: si no salen
+  // aquí, no salen en ningún sitio.
+  const [ausencias, setAusencias] = useState<Ausencia[]>([]);
 
   async function cargar() {
-    const [facs, eq, pers] = await Promise.all([
+    const [facs, eq, pers, aus] = await Promise.all([
       api.get<Factura[]>("/facturas", token).catch(() => []),
       api.get<FichaProfesional[]>("/personal", token).catch(() => []),
       api.get<Persona[]>("/personas", token).catch(() => []),
+      api.get<Ausencia[]>("/personal/ausencias", token).catch(() => []),
     ]);
     setFacturas(facs);
     setPlantilla(eq);
     setFichasPersona(pers);
+    setAusencias(aus);
   }
   useEffect(() => {
     void cargar();
   }, [token]);
 
   const todos = useMemo(
-    () => calcularPendientes({ solicitudes, servicios, incidencias, facturas, plantilla, personas: fichasPersona }),
-    [solicitudes, servicios, incidencias, facturas, plantilla, fichasPersona],
+    () => calcularPendientes({ solicitudes, servicios, incidencias, facturas, plantilla, personas: fichasPersona, ausencias }),
+    [solicitudes, servicios, incidencias, facturas, plantilla, fichasPersona, ausencias],
   );
 
   // Los desplegables se llenan de lo que hay, no de una lista fija: un filtro
@@ -72,7 +77,7 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
       if (prioridad && a.prioridad !== prioridad) return false;
       if (tipo && a.tipo !== tipo) return false;
       if (persona && a.persona !== persona) return false;
-      if (q && !`${a.tipo} ${a.persona} ${a.detalle}`.toLowerCase().includes(q)) return false;
+      if (q && !`${a.tipo} ${a.persona} ${a.servicio ?? ""} ${a.detalle}`.toLowerCase().includes(q)) return false;
       return true;
     });
   }, [todos, busqueda, prioridad, tipo, persona]);
@@ -123,6 +128,8 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                   { encabezado: "Prioridad", valor: (a) => INFO_PRIORIDAD[a.prioridad].etiqueta },
                   { encabezado: "Asunto", valor: (a) => a.tipo },
                   { encabezado: "Persona", valor: (a) => a.persona },
+                  { encabezado: "Servicio", valor: (a) => a.servicio ?? "" },
+                  { encabezado: "Hora", valor: (a) => a.cuando ?? "" },
                   { encabezado: "Detalle", valor: (a) => a.detalle },
                   { encabezado: "Esperando", valor: (a) => hace(a.desde) },
                   { encabezado: "Acción", valor: (a) => a.accion },
@@ -201,19 +208,20 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
       </div>
 
       {visibles.length === 0 ? (
-        <p className="flex items-center justify-center gap-2 rounded-lg border border-brand-green-200 bg-brand-green-50 px-4 py-6 text-sm text-brand-green-700">
+        <p className="flex items-center justify-center gap-2 rounded-xl border border-brand-green-200 bg-brand-green-50 px-4 py-6 text-sm text-brand-green-700">
           <IconCheckCircle className="h-4 w-4 shrink-0" aria-hidden />
           {hayFiltro ? "Nada que hacer con estos filtros." : "No hay nada pendiente. Todo está al día."}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="overflow-x-auto tarjeta">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
                 <th className="px-3 py-2 font-medium">Prioridad</th>
                 <th className="px-3 py-2 font-medium">Asunto</th>
-                <th className="px-3 py-2 font-medium">Persona</th>
+                <th className="px-3 py-2 font-medium">Persona / Servicio</th>
                 <th className="px-3 py-2 font-medium">Qué pasa</th>
+                <th className="px-3 py-2 font-medium">Hora</th>
                 <th className="px-3 py-2 text-right font-medium">Esperando</th>
                 <th className="px-3 py-2" />
               </tr>
@@ -230,8 +238,12 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-700">{a.tipo}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-slate-600">{a.persona}</td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      <span className="block text-slate-700">{a.persona}</span>
+                      {a.servicio && <span className="block text-xs text-slate-400">{a.servicio}</span>}
+                    </td>
                     <td className="px-3 py-2 text-xs text-slate-500">{a.detalle}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-xs tabular-nums text-slate-500">{a.cuando ?? "—"}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right text-xs tabular-nums text-slate-500">
                       {a.desde > 0 ? hace(a.desde) : "—"}
                     </td>

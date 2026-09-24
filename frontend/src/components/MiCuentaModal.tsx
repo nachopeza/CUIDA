@@ -113,7 +113,7 @@ export function MiCuentaModal({ onClose }: { onClose: () => void }) {
             </p>
             <label className="text-xs text-slate-500">
               Nombre
-              <input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2" />
+              <input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} className="mt-0.5 w-full rounded-xl border border-slate-200 px-3 py-2" />
             </label>
             <label className="text-xs text-slate-500">
               Email de acceso
@@ -121,7 +121,7 @@ export function MiCuentaModal({ onClose }: { onClose: () => void }) {
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2"
+                className="mt-0.5 w-full rounded-xl border border-slate-200 px-3 py-2"
               />
             </label>
             <label className="text-xs text-slate-500">
@@ -131,7 +131,7 @@ export function MiCuentaModal({ onClose }: { onClose: () => void }) {
                 value={passwords.actual}
                 onChange={(e) => setPasswords((p) => ({ ...p, actual: e.target.value }))}
                 placeholder="Solo si cambias la contraseña"
-                className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2"
+                className="mt-0.5 w-full rounded-xl border border-slate-200 px-3 py-2"
               />
             </label>
             <label className="text-xs text-slate-500">
@@ -142,12 +142,12 @@ export function MiCuentaModal({ onClose }: { onClose: () => void }) {
                 value={passwords.nueva}
                 onChange={(e) => setPasswords((p) => ({ ...p, nueva: e.target.value }))}
                 placeholder="Mínimo 6 caracteres"
-                className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2"
+                className="mt-0.5 w-full rounded-xl border border-slate-200 px-3 py-2"
               />
             </label>
             {error && <p className="text-sm text-rose-600 sm:col-span-2">{error}</p>}
             {mensaje && <p className="text-sm text-brand-green-700 sm:col-span-2">{mensaje}</p>}
-            <button type="submit" disabled={guardando} className="rounded-md bg-brand px-4 py-2 font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2">
+            <button type="submit" disabled={guardando} className="rounded-xl bg-brand px-4 py-2 font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2">
               {guardando ? "Guardando…" : "Guardar cambios"}
             </button>
           </form>
@@ -162,7 +162,7 @@ export function MiCuentaModal({ onClose }: { onClose: () => void }) {
               </div>
 
               {creando && (
-                <form onSubmit={crearCoordinador} className="mb-3 grid grid-cols-1 gap-2 rounded-lg bg-slate-50 p-3 text-sm sm:grid-cols-3">
+                <form onSubmit={crearCoordinador} className="mb-3 grid grid-cols-1 gap-2 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-3">
                   <input required placeholder="Nombre" value={nuevo.nombre} onChange={(e) => setNuevo((n) => ({ ...n, nombre: e.target.value }))} className="rounded-md border border-slate-300 px-2 py-1.5" />
                   <input required type="email" placeholder="Email" value={nuevo.email} onChange={(e) => setNuevo((n) => ({ ...n, email: e.target.value }))} className="rounded-md border border-slate-300 px-2 py-1.5" />
                   <input
@@ -174,7 +174,7 @@ export function MiCuentaModal({ onClose }: { onClose: () => void }) {
                     onChange={(e) => setNuevo((n) => ({ ...n, password: e.target.value }))}
                     className="rounded-md border border-slate-300 px-2 py-1.5"
                   />
-                  <button type="submit" className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 sm:col-span-3">
+                  <button type="submit" className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 sm:col-span-3">
                     Crear cuenta de coordinación
                   </button>
                 </form>

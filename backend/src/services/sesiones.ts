@@ -1,5 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
+import { registrarHistorial } from "./estados.js";
+import { notificarGestores } from "./notificaciones.js";
 
 // Una jornada de trabajo es la unidad que se cronometra y se factura, pero
 // nadie tiene por qué pedirla: sale del plan del servicio. Un servicio puntual
@@ -32,8 +34,15 @@ function sinTildes(texto: string) {
 // días", "lunes y miércoles"), así que el lector es deliberadamente tolerante.
 // Si no reconoce nada, asume todos los días: es preferible proponer una
 // jornada de más, que coordinación mueve, a dejar el servicio sin agenda.
-export function diasDeRecurrencia(recurrencia: string | null | undefined): number[] {
-  if (!recurrencia) return TODOS;
+// Qué días de la semana toca. `diaDelPlan` es el día en que empieza el plan
+// y se usa cuando no se ha elegido ninguno: un servicio recurrente sin días
+// marcados quiere decir "cada semana, el día que empezó", que es lo que
+// cualquiera entiende y lo que dice la ficha ("Solo una vez" al lado de las
+// letras vacías). Antes quería decir "los siete días", y un servicio de los
+// siete días no lo puede cubrir nadie: la lista de candidatos se quedaba
+// vacía y no había forma de saber por qué.
+export function diasDeRecurrencia(recurrencia: string | null | undefined, diaDelPlan?: number): number[] {
+  if (!recurrencia) return diaDelPlan != null ? [diaDelPlan] : TODOS;
   const texto = sinTildes(recurrencia);
 
   if (/(diario|todos los dias|cada dia|a diario)/.test(texto)) return TODOS;
@@ -52,10 +61,10 @@ export function diasDeRecurrencia(recurrencia: string | null | undefined): numbe
     }
   }
 
-  return dias.size > 0 ? Array.from(dias).sort() : TODOS;
+  return dias.size > 0 ? Array.from(dias).sort() : diaDelPlan != null ? [diaDelPlan] : TODOS;
 }
 
-function aMedianoche(fecha: Date) {
+export function aMedianoche(fecha: Date) {
   const d = new Date(fecha);
   d.setHours(0, 0, 0, 0);
   return d;
@@ -72,6 +81,41 @@ export function siguienteDia(desde: Date, dias: number[]): Date | null {
   return null;
 }
 
+// Qué días tendría que ir alguien a este servicio entre dos fechas, según su
+// plan, haya o no jornada creada todavía. Hace falta porque un servicio
+// recurrente sólo lleva una jornada por delante: una baja del mes que viene no
+// solapa ninguna jornada existente y, sin esto, se aprobaba como si no dejara
+// a nadie sin cubrir. Los días que tocan son un hecho del plan, no de la
+// agenda ya montada.
+export async function diasPrevistosEntre(servicioId: string, desde: Date, hasta: Date): Promise<Date[]> {
+  const servicio = await prisma.servicio.findUnique({
+    where: { id: servicioId },
+    include: { solicitud: { include: { plan: true } } },
+  });
+  const plan = servicio?.solicitud.plan;
+  if (!servicio || !plan) return [];
+  if (!["CONFIRMADO", "EN_CURSO"].includes(servicio.estado)) return [];
+
+  const inicio = new Date(Math.max(aMedianoche(desde).getTime(), aMedianoche(plan.fechaInicio).getTime()));
+  const fin = plan.fechaFin ? new Date(Math.min(aMedianoche(hasta).getTime(), aMedianoche(plan.fechaFin).getTime())) : aMedianoche(hasta);
+  if (inicio > fin) return [];
+
+  // Un puntual sólo tiene un día: el del plan.
+  if (servicio.tipoServicio !== "RECURRENTE") {
+    const dia = aMedianoche(plan.fechaInicio);
+    return dia >= inicio && dia <= fin ? [dia] : [];
+  }
+
+  const dias = diasDeRecurrencia(plan.recurrencia, aMedianoche(plan.fechaInicio).getDay());
+  const previstos: Date[] = [];
+  // Tope de 60 días: una baja más larga que eso se tramita por contrato, no
+  // buscando reemplazo jornada a jornada.
+  for (let d = new Date(inicio), i = 0; d <= fin && i < 60; d.setDate(d.getDate() + 1), i += 1) {
+    if (dias.includes(d.getDay())) previstos.push(new Date(d));
+  }
+  return previstos;
+}
+
 function seSolapan(aInicio: string | null, aFin: string | null, bInicio: string | null, bFin: string | null): boolean {
   if (!aInicio || !aFin || !bInicio || !bFin) return true;
   return aInicio < bFin && bInicio < aFin;
@@ -79,12 +123,25 @@ function seSolapan(aInicio: string | null, aFin: string | null, bInicio: string 
 
 // ¿Tiene ya el profesional algo a esa hora ese día? Mismo criterio que el
 // alta manual: la agenda de una persona es una sola, no una por servicio.
-async function hayConflicto(profesionalId: string | null, fecha: Date, horaInicio: string | null, horaFin: string | null) {
+export async function hayConflicto(
+  profesionalId: string | null,
+  fecha: Date,
+  horaInicio: string | null,
+  horaFin: string | null,
+  // Las jornadas de este servicio no cuentan como conflicto consigo mismas:
+  // si no, quien ya lo lleva aparece siempre como "ocupado a esa hora" en su
+  // propio servicio.
+  exceptoServicioId?: string,
+) {
   if (!profesionalId) return false;
   const inicioDia = aMedianoche(fecha);
   const finDia = new Date(inicioDia.getTime() + 24 * 60 * 60 * 1000);
   const delDia = await prisma.visita.findMany({
-    where: { profesionalId, fecha: { gte: inicioDia, lt: finDia } },
+    where: {
+      profesionalId,
+      fecha: { gte: inicioDia, lt: finDia },
+      ...(exceptoServicioId ? { servicioId: { not: exceptoServicioId } } : {}),
+    },
   });
   return delDia.some((v) => seSolapan(v.horaInicioProg, v.horaFinProg, horaInicio, horaFin));
 }
@@ -92,7 +149,7 @@ async function hayConflicto(profesionalId: string | null, fecha: Date, horaInici
 // ¿Está de baja o de vacaciones ese día? Comprobarlo sólo al asignar no basta:
 // en un servicio recurrente la ausencia cae en una jornada que todavía no
 // existe, así que hay que mirarlo también al generarla.
-async function estaAusente(profesionalId: string | null, fecha: Date) {
+export async function estaAusente(profesionalId: string | null, fecha: Date) {
   if (!profesionalId) return false;
   const dia = aMedianoche(fecha);
   const solapa = await prisma.ausencia.findFirst({
@@ -183,7 +240,7 @@ export async function asegurarSesiones(servicioId: string): Promise<ResultadoSes
   // antes del comienzo del plan.
   const desde = new Date(Math.max(hoy.getTime(), aMedianoche(plan.fechaInicio).getTime(), ultima ? aMedianoche(ultima).getTime() + 86400000 : 0));
 
-  const dia = siguienteDia(desde, diasDeRecurrencia(plan.recurrencia));
+  const dia = siguienteDia(desde, diasDeRecurrencia(plan.recurrencia, aMedianoche(plan.fechaInicio).getDay()));
   if (!dia) return { creadas: [], motivo: "La recurrencia no señala ningún día" };
   // Un servicio indefinido (fechaFin null) nunca deja de generar jornadas;
   // uno con fecha de fin se para ahí solo.
@@ -191,6 +248,34 @@ export async function asegurarSesiones(servicioId: string): Promise<ResultadoSes
 
   const codigo = await crear(dia);
   return codigo ? { creadas: [codigo] } : { creadas: [], motivo: "Ese día el profesional no puede: ya tiene algo a esa hora o está de ausencia" };
+}
+
+// Cuando la jornada NO se ha podido crear, alguien tiene que enterarse. Hasta
+// ahora el motivo se calculaba y se tiraba: el servicio se quedaba confirmado
+// y sin nada en la agenda, en silencio, y no se sabía hasta que pasaba el día
+// y nadie había ido. Queda escrito en el historial del servicio y sale como
+// aviso para coordinación.
+export async function anotarSiNoSeCreo(servicioId: string, resultado: ResultadoSesiones): Promise<void> {
+  if (resultado.creadas.length > 0 || !resultado.motivo) return;
+  // Estos dos no son un problema: significan que la agenda ya está como tiene
+  // que estar.
+  if (resultado.motivo === "Ya tiene su jornada" || resultado.motivo === "Ya tiene una jornada por delante") return;
+
+  const servicio = await prisma.servicio.findUnique({
+    where: { id: servicioId },
+    include: { solicitud: { include: { persona: true } } },
+  });
+  if (!servicio) return;
+
+  const aviso = `${servicio.codigo} (${servicio.solicitud.persona.nombre} ${servicio.solicitud.persona.apellidos}) se ha quedado sin jornada en la agenda: ${resultado.motivo.toLowerCase()}.`;
+  await registrarHistorial({
+    entidadTipo: "Servicio",
+    estadoAnterior: servicio.estado,
+    estadoNuevo: servicio.estado,
+    motivo: aviso,
+    servicioId: servicio.id,
+  });
+  await notificarGestores(servicio.organizacionId, "servicio_sin_jornada", aviso, servicio.solicitudId).catch(() => undefined);
 }
 
 export interface ResultadoSincronizacion {
@@ -234,7 +319,7 @@ export async function sincronizarSesionesConPlan(servicioId: string): Promise<Re
 
   const resultado: ResultadoSincronizacion = { movidas: [], reprogramadas: [], retiradas: [], cambios: [] };
   const hoy = aMedianoche(new Date());
-  const dias = diasDeRecurrencia(plan.recurrencia);
+  const dias = diasDeRecurrencia(plan.recurrencia, aMedianoche(plan.fechaInicio).getDay());
 
   const tareasDelPlan = (plan.tareasPrevistas ?? "")
     .split(/[\n,;]+/)

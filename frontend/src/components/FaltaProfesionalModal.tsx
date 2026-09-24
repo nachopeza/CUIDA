@@ -85,7 +85,7 @@ export function FaltaProfesionalModal({
           value={detalle}
           onChange={(e) => setDetalle(e.target.value)}
           placeholder="Detalle (opcional): qué te han dicho"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="w-full campo"
         />
 
         {error && <p className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
@@ -98,7 +98,7 @@ export function FaltaProfesionalModal({
           >
             {guardando ? "Registrando…" : "Registrar y abrir incidencia"}
           </button>
-          <button onClick={onClose} className="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
+          <button onClick={onClose} className="campo hover:bg-slate-50">
             Cancelar
           </button>
         </div>

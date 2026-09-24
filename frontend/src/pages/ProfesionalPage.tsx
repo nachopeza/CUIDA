@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../lib/auth.js";
 import { useRegistrarMenuMovil } from "../lib/menuMovil.js";
 import { api } from "../lib/api.js";
-import { Card } from "../components/Layout.js";
+import { Card, Panel } from "../components/Layout.js";
 import { Novedades } from "../components/Novedades.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { Cronometro } from "../components/Cronometro.js";
@@ -64,6 +64,11 @@ export function ProfesionalPage() {
   const [notaTexto, setNotaTexto] = useState("");
   const [incidenciaAbierta, setIncidenciaAbierta] = useState<string | null>(null);
   const [incidenciaForm, setIncidenciaForm] = useState({ descripcion: "", prioridad: "MEDIA" as (typeof PRIORIDADES)[number] });
+  // Por qué no se ha podido hacer lo último que se pidió. Ninguna de estas
+  // acciones lo decía: si el servidor las rechazaba —y las rechaza por
+  // buenas razones— la promesa se rompía por dentro y en pantalla no pasaba
+  // nada. Quien está delante vuelve a pulsar, y otra vez.
+  const [error, setError] = useState<string | null>(null);
 
   async function cargar() {
     if (!usuario?.profesionalId) return;
@@ -77,17 +82,32 @@ export function ProfesionalPage() {
     setProfesional(propio);
   }
 
+  // Todo lo que le pide algo al servidor pasa por aquí: si sale mal, el
+  // motivo se lee arriba, con las palabras del servidor.
+  async function intentar(accion: () => Promise<void>) {
+    setError(null);
+    try {
+      await accion();
+    } catch (e) {
+      setError(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido hacer.");
+    }
+  }
+
   async function aceptar(servicioId: string) {
-    await api.post(`/servicios/${servicioId}/aceptar`, {}, token);
-    await cargar();
+    await intentar(async () => {
+      await api.post(`/servicios/${servicioId}/aceptar`, {}, token);
+      await cargar();
+    });
   }
 
   async function rechazar() {
     if (!rechazando) return;
-    await api.post(`/servicios/${rechazando.id}/rechazar`, { motivo: motivoRechazo.trim() || undefined }, token);
-    setRechazando(null);
-    setMotivoRechazo("");
-    await cargar();
+    await intentar(async () => {
+      await api.post(`/servicios/${rechazando!.id}/rechazar`, { motivo: motivoRechazo.trim() || undefined }, token);
+      setRechazando(null);
+      setMotivoRechazo("");
+      await cargar();
+    });
   }
 
   useEffect(() => {
@@ -96,13 +116,17 @@ export function ProfesionalPage() {
   }, [usuario?.profesionalId]);
 
   async function iniciar(id: string) {
-    await api.post(`/visitas/${id}/iniciar`, {}, token);
-    await cargar();
+    await intentar(async () => {
+      await api.post(`/visitas/${id}/iniciar`, {}, token);
+      await cargar();
+    });
   }
 
   async function finalizar(id: string, datos: { horaInicio: string; horaFin: string; observacion?: string }) {
-    await api.post(`/visitas/${id}/finalizar`, datos, token);
-    await cargar();
+    await intentar(async () => {
+      await api.post(`/visitas/${id}/finalizar`, datos, token);
+      await cargar();
+    });
   }
 
   async function toggleTarea(visitaId: string, tareaId: string, completada: boolean) {
@@ -112,18 +136,22 @@ export function ProfesionalPage() {
 
   async function enviarNota(visitaId: string) {
     if (!notaTexto.trim()) return;
-    await api.post(`/visitas/${visitaId}/actuaciones`, { descripcion: notaTexto.trim() }, token);
-    setNotaTexto("");
-    setNotaAbierta(null);
-    await cargar();
+    await intentar(async () => {
+      await api.post(`/visitas/${visitaId}/actuaciones`, { descripcion: notaTexto.trim() }, token);
+      setNotaTexto("");
+      setNotaAbierta(null);
+      await cargar();
+    });
   }
 
   async function enviarIncidencia(visitaId: string) {
     if (!incidenciaForm.descripcion.trim()) return;
-    await api.post("/incidencias", { visitaId, descripcion: incidenciaForm.descripcion.trim(), prioridad: incidenciaForm.prioridad }, token);
-    setIncidenciaForm({ descripcion: "", prioridad: "MEDIA" });
-    setIncidenciaAbierta(null);
-    await cargar();
+    await intentar(async () => {
+      await api.post("/incidencias", { visitaId, descripcion: incidenciaForm.descripcion.trim(), prioridad: incidenciaForm.prioridad }, token);
+      setIncidenciaForm({ descripcion: "", prioridad: "MEDIA" });
+      setIncidenciaAbierta(null);
+      await cargar();
+    });
   }
 
   // "Algo que diga Hola Carmen, próximamente tienes tal servicio": la
@@ -154,20 +182,38 @@ export function ProfesionalPage() {
     .reduce((acc, v) => acc + cobroDeJornada(v), 0);
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row">
-      <Navegacion
-        items={NAV}
-        activo={tab}
-        onIr={(k) => {
-          setTab(k as Tab);
-          setMenuAbierto(false);
-        }}
-        badges={{ proximos: propuestas.length > 0 ? { valor: propuestas.length, tono: "amber" } : undefined }}
-        abierto={menuAbierto}
-        onCerrar={() => setMenuAbierto(false)}
-      />
-
+    <Panel
+      nav={
+        <Navegacion
+          items={NAV}
+          activo={tab}
+          onIr={(k) => {
+            setTab(k as Tab);
+            setMenuAbierto(false);
+          }}
+          badges={{ proximos: propuestas.length > 0 ? { valor: propuestas.length, tono: "amber" } : undefined }}
+          // En el móvil del profesional caben las cuatro que usa a diario;
+          // "Mi perfil" queda en el cajón.
+          pestanasMovil={NAV.slice(0, 4)}
+          abierto={menuAbierto}
+          onAbrir={() => setMenuAbierto(true)}
+          onCerrar={() => setMenuAbierto(false)}
+        />
+      }
+    >
       <div className="min-w-0 flex-1">
+        {/* Por qué no se ha podido hacer lo último. Va arriba del todo y con
+            el motivo tal cual: "ya tienes otra jornada a esa hora" se
+            entiende; que no pase nada al pulsar, no. */}
+        {error && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5">
+            <IconAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" aria-hidden />
+            <p className="flex-1 text-sm text-rose-800">{error}</p>
+            <button onClick={() => setError(null)} className="shrink-0 text-xs font-medium text-rose-500 hover:text-rose-700">
+              Cerrar
+            </button>
+          </div>
+        )}
 
       {profesional && tab === "proximos" && (
         <div className="mb-4 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
@@ -190,19 +236,19 @@ export function ProfesionalPage() {
           pestaña: es la pregunta con la que se abre la app. */}
       {tab === "proximos" && (
         <div className="mb-4 grid grid-cols-3 gap-2">
-          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+          <div className="tarjeta px-3 py-2.5">
             <p className="text-xs text-slate-500">Este mes</p>
             <p className="text-xl font-semibold leading-tight text-slate-900">{duracion(minutosDelMes)}</p>
             <p className="text-[11px] text-slate-400">{fichadasDelMes.length} jornada{fichadasDelMes.length === 1 ? "" : "s"}</p>
           </div>
-          <div className="rounded-lg border border-brand-green-200 bg-brand-green-50 px-3 py-2.5">
+          <div className="rounded-xl border border-brand-green-200 bg-brand-green-50 px-3 py-2.5">
             <p className="text-xs text-brand-green-700">Vas a cobrar</p>
             <p className="text-xl font-semibold leading-tight text-brand-green-800">{euros(cobroDelMes)}</p>
             {cobroPendienteMes > 0 && <p className="text-[11px] text-brand-green-700">+{euros(cobroPendienteMes)} por delante</p>}
           </div>
           <button
             onClick={() => setTab("jornadas")}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:bg-slate-50"
+            className="tarjeta px-3 py-2.5 text-left transition hover:bg-slate-50"
           >
             <p className="text-xs text-slate-500">Por hacer</p>
             <p className="text-xl font-semibold leading-tight text-slate-900">{visitasProximas.length}</p>
@@ -233,7 +279,7 @@ export function ProfesionalPage() {
                   const minutos = plan ? minutosEntre(plan.horaInicio, plan.horaFin) : null;
                   const cobro = Number(s.importeProfesional ?? 0);
                   return (
-                    <li key={s.id} className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                    <li key={s.id} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="flex items-center gap-1.5 font-medium text-slate-800">
@@ -297,12 +343,12 @@ export function ProfesionalPage() {
                       </dl>
 
                       <div className="mt-3 flex gap-2">
-                        <button onClick={() => aceptar(s.id)} className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
+                        <button onClick={() => aceptar(s.id)} className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
                           Aceptar
                         </button>
                         <button
                           onClick={() => setRechazando(s)}
-                          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                         >
                           No me encaja
                         </button>
@@ -399,7 +445,7 @@ export function ProfesionalPage() {
                 )}
 
                 {perfilAbierto === v.id && persona && (
-                  <dl className="mb-3 grid grid-cols-1 gap-x-4 gap-y-1 rounded-lg bg-slate-50 p-3 text-xs text-slate-600 sm:grid-cols-2">
+                  <dl className="mb-3 grid grid-cols-1 gap-x-4 gap-y-1 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 sm:grid-cols-2">
                     <div>
                       <dt className="text-slate-400">Teléfono</dt>
                       <dd>{persona.telefono || "—"}</dd>
@@ -435,16 +481,16 @@ export function ProfesionalPage() {
                       placeholder="Escribe una nota sobre esta visita…"
                       value={notaTexto}
                       onChange={(e) => setNotaTexto(e.target.value)}
-                      className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                      className="flex-1 campo py-2"
                     />
-                    <button onClick={() => enviarNota(v.id)} className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
+                    <button onClick={() => enviarNota(v.id)} className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
                       Guardar
                     </button>
                   </div>
                 )}
 
                 {incidenciaAbierta === v.id && (
-                  <div className="mb-3 space-y-2 rounded-lg border border-rose-200 bg-rose-50 p-3">
+                  <div className="mb-3 space-y-2 rounded-xl border border-rose-200 bg-rose-50 p-3">
                     <textarea
                       autoFocus
                       placeholder="¿Qué ha pasado?"
@@ -473,7 +519,7 @@ export function ProfesionalPage() {
                 )}
 
                 {v.actuaciones && v.actuaciones.length > 0 && (
-                  <ul className="mb-3 space-y-1 rounded-lg bg-slate-50 p-2">
+                  <ul className="mb-3 space-y-1 rounded-xl bg-slate-50 p-2">
                     {v.actuaciones.map((a) => (
                       <li key={a.id} className="text-xs text-slate-600">
                         <IconNote className="mr-1 inline h-3.5 w-3.5 align-text-bottom text-slate-400" />
@@ -501,7 +547,7 @@ export function ProfesionalPage() {
 
                 <div className="flex items-center gap-2">
                   {(v.estado === "PROGRAMADA" || v.estado === "CONFIRMADA") && (
-                    <button onClick={() => iniciar(v.id)} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800">
+                    <button onClick={() => iniciar(v.id)} className="rounded-xl bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800">
                       <IconPlay className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" />
                       He llegado — empezar a contar
                     </button>
@@ -541,7 +587,7 @@ export function ProfesionalPage() {
                 onChange={(e) => setMotivoRechazo(e.target.value)}
                 rows={2}
                 placeholder="Me pilla lejos, ese día ya tengo otro servicio…"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full campo"
               />
             </label>
             <div className="flex justify-end gap-2">
@@ -570,6 +616,6 @@ export function ProfesionalPage() {
           onClose={() => setCerrando(null)}
         />
       )}
-    </div>
+    </Panel>
   );
 }

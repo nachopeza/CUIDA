@@ -57,7 +57,7 @@ export function BuscarSolicitudesTab() {
           const indefinido = plan != null && !plan.fechaFin;
           const tarifaPorHora = porHora(s.importeProfesional, minutosEntre(plan?.horaInicio, plan?.horaFin) ?? s.minutosPrevistos);
           return (
-            <div key={s.id} className="rounded-lg border border-slate-200 p-3">
+            <div key={s.id} className="rounded-xl border border-slate-200 p-3">
               <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="font-medium text-slate-800">
@@ -72,7 +72,7 @@ export function BuscarSolicitudesTab() {
                 {interesados.has(s.id) ? (
                   <span className="rounded-full bg-brand-green-50 px-3 py-1 text-xs font-medium text-brand-green-700">Avisado a coordinación</span>
                 ) : (
-                  <button onClick={() => proponerse(s.id)} className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
+                  <button onClick={() => proponerse(s.id)} className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
                     Me interesa
                   </button>
                 )}

@@ -4,6 +4,7 @@ import { api } from "../../lib/api.js";
 import { ArchivoUpload, ArchivoEnlace, type ArchivoSubido } from "../../components/ArchivoUpload.js";
 import { Modal } from "../../components/Modal.js";
 import { SearchBox } from "../../components/SearchBox.js";
+import { LoQueDeja } from "./LoQueDeja.js";
 import { exportarCSV } from "../../lib/csv.js";
 import { duracion } from "../../lib/economia.js";
 import {
@@ -148,7 +149,7 @@ export function PersonalTab({ focoProfesionalId, onFocoConsumido }: PropsPersona
       {vista === "plantilla" && (
         <>
           {bloqueados.length > 0 && (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5">
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5">
               <p className="flex items-center gap-1.5 text-sm font-semibold text-rose-800">
                 <IconAlert className="h-4 w-4" />
                 {bloqueados.length} {bloqueados.length === 1 ? "persona no puede" : "personas no pueden"} trabajar
@@ -159,7 +160,7 @@ export function PersonalTab({ focoProfesionalId, onFocoConsumido }: PropsPersona
             </div>
           )}
           {porRenovar.length > 0 && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
               <p className="flex items-center gap-1.5 text-sm font-medium text-amber-800">
                 <IconClock className="h-4 w-4" />
                 {porRenovar.length} con documentación a punto de caducar
@@ -222,18 +223,18 @@ export function PersonalTab({ focoProfesionalId, onFocoConsumido }: PropsPersona
       {vista === "ausencias" && (
         <>
           {pendientes.length > 0 && (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
               {pendientes.length} petición{pendientes.length === 1 ? "" : "es"} esperando tu respuesta.
             </p>
           )}
           {ausencias.length === 0 ? (
-            <p className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
+            <p className="tarjeta px-4 py-8 text-center text-sm text-slate-400">
               No hay ausencias registradas.
             </p>
           ) : (
             <ul className="space-y-2">
               {ausencias.map((a) => (
-                <li key={a.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                <li key={a.id} className="tarjeta p-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-800">
@@ -247,6 +248,7 @@ export function PersonalTab({ focoProfesionalId, onFocoConsumido }: PropsPersona
                         {a.motivo && ` · ${a.motivo}`}
                       </p>
                       {a.respuesta && <p className="mt-0.5 text-xs text-slate-400">Respuesta: {a.respuesta}</p>}
+                      {a.estado === "SOLICITADA" && <LoQueDeja ausenciaId={a.id} token={token} />}
                     </div>
                     {a.estado === "SOLICITADA" && (
                       <div className="flex shrink-0 gap-1.5">
@@ -280,7 +282,7 @@ export function PersonalTab({ focoProfesionalId, onFocoConsumido }: PropsPersona
       {/* ---------------------------------------------------- REGISTRO 34.9 */}
       {vista === "jornada" && (
         <>
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
+          <div className="tarjeta p-3">
             <p className="mb-2 text-xs text-slate-500">
               El registro diario de jornada es obligatorio (Art. 34.9 del Estatuto de los Trabajadores) y debe conservarse
               cuatro años a disposición de la Inspección. Cerrar el mes congela el detalle día a día para que no cambie
@@ -294,7 +296,7 @@ export function PersonalTab({ focoProfesionalId, onFocoConsumido }: PropsPersona
               <button
                 onClick={() => accion("cerrar", () => api.post("/personal/registros/cerrar", { mes }, token), "Mes cerrado")}
                 disabled={ocupado === "cerrar"}
-                className="flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
               >
                 <IconFile className="h-3.5 w-3.5" />
                 {ocupado === "cerrar" ? "Cerrando…" : "Cerrar el mes"}
@@ -329,7 +331,7 @@ export function PersonalTab({ focoProfesionalId, onFocoConsumido }: PropsPersona
           </div>
 
           {registros.length === 0 ? (
-            <p className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
+            <p className="tarjeta px-4 py-8 text-center text-sm text-slate-400">
               Todavía no has cerrado ningún mes.
             </p>
           ) : (
@@ -337,7 +339,7 @@ export function PersonalTab({ focoProfesionalId, onFocoConsumido }: PropsPersona
               {registros.map((r) => {
                 const exceso = r.minutosContrato != null ? r.minutosTrabajados - r.minutosContrato : null;
                 return (
-                  <li key={r.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                  <li key={r.id} className="tarjeta p-3">
                     <button onClick={() => setRegistroAbierto(r)} className="flex w-full flex-wrap items-start justify-between gap-3 text-left">
                       <div className="min-w-0">
                         <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-800 hover:underline">
@@ -453,7 +455,7 @@ export function RegistroDetalle({ registro }: { registro: RegistroJornada }) {
         </tbody>
       </table>
 
-      {registro.conformeNota && <p className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">Nota: {registro.conformeNota}</p>}
+      {registro.conformeNota && <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">Nota: {registro.conformeNota}</p>}
     </div>
   );
 }
@@ -545,7 +547,7 @@ function ExpedienteModal({
   return (
     <Modal title={`${miembro.nombre} ${miembro.apellidos}`} onClose={onClose} size="lg">
       <div className="space-y-4">
-        <div className="flex flex-wrap gap-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <div className="flex flex-wrap gap-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
           <span>{miembro.tipoRelacion === "LABORAL" ? "En nómina" : "Autónoma"}</span>
           {miembro.tipoContrato && <span>· {ETIQUETA_CONTRATO[miembro.tipoContrato]}</span>}
           {miembro.horasSemanales ? <span>· {miembro.horasSemanales} h/semana</span> : null}
@@ -564,7 +566,7 @@ function ExpedienteModal({
             <IconFile className="h-3.5 w-3.5" /> Expediente
           </p>
           {miembro.documentos.length === 0 ? (
-            <p className="rounded-md bg-slate-50 px-3 py-3 text-center text-xs text-slate-400">Sin documentos.</p>
+            <p className="rounded-xl bg-slate-50 px-3 py-3 text-center text-xs text-slate-400">Sin documentos.</p>
           ) : (
             <ul className="divide-y divide-slate-100">
               {miembro.documentos.map((d) => (
@@ -645,7 +647,7 @@ function ExpedienteModal({
             <button
               onClick={anadir}
               disabled={guardando || !form.nombre.trim()}
-              className="flex items-center justify-center gap-1.5 rounded-md bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2"
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2"
             >
               <IconPlus className="h-3.5 w-3.5" /> {guardando ? "Guardando…" : "Añadir al expediente"}
             </button>
@@ -657,7 +659,7 @@ function ExpedienteModal({
             <IconCalendar className="h-3.5 w-3.5" /> Ausencias
           </p>
           {miembro.ausencias.length === 0 ? (
-            <p className="rounded-md bg-slate-50 px-3 py-3 text-center text-xs text-slate-400">Ninguna prevista.</p>
+            <p className="rounded-xl bg-slate-50 px-3 py-3 text-center text-xs text-slate-400">Ninguna prevista.</p>
           ) : (
             <ul className="divide-y divide-slate-100 text-sm">
               {miembro.ausencias.map((a) => (
@@ -689,7 +691,7 @@ function ExpedienteModal({
             <button
               onClick={registrarAusencia}
               disabled={!nuevaAusencia.desde || !nuevaAusencia.hasta}
-              className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
             >
               Anotar ausencia
             </button>

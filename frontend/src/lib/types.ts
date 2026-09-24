@@ -147,6 +147,25 @@ export interface Actuacion {
   createdAt: string;
 }
 
+// Lo que cuesta aprobar unas vacaciones, calculado antes de aprobarlas: qué
+// servicios se quedan sin cubrir esos días y quién podría ir. Se pide a
+// /personal/ausencias/:id/impacto.
+export interface ImpactoAusencia {
+  jornadas: number;
+  servicios: {
+    id: string;
+    codigo: string;
+    persona: string;
+    necesidad: string;
+    dias: string[];
+    puedenCubrirlo: string[];
+    noPueden: { quien: string; motivo: string }[];
+  }[];
+  // Las personas que se quedarían sin nadie. Si la lista no está vacía, hay
+  // que hablar con alguien antes de contestar.
+  sinCubrir: string[];
+}
+
 export interface Incidencia {
   id: string;
   codigo: string;
@@ -171,6 +190,11 @@ export interface Incidencia {
   // Quién abrió el aviso: sin esto la ficha contaba el caso pero no de quién
   // venía, y no se sabía a quién llamar para preguntar.
   creadoPor?: { id: string; email: string; nombre?: string | null; rol?: string } | null;
+  // Días que hay que cubrir, cuando la incidencia la abrió una ausencia
+  // aprobada. Con ventana, el reemplazo cubre esos días y el servicio sigue
+  // siendo de quien lo lleva; sin ventana, el relevo es definitivo.
+  cubrirDesde?: string | null;
+  cubrirHasta?: string | null;
   estadoHistorial?: EstadoHistorialEntry[];
 }
 
@@ -472,6 +496,12 @@ export interface FamiliarRelacion {
   puedeVerHistorial: boolean;
   puedeVerImportes: boolean;
   usuario?: CuentaResumen;
+  // Los tres siguientes sólo vienen cuando el vínculo se pide suelto (el
+  // listado de Familiares y contactos); dentro de la ficha de una persona
+  // sobran, porque la persona ya la sabes.
+  createdAt?: string;
+  revocadoAt?: string | null;
+  persona?: { id: string; nombre: string; apellidos: string; telefono: string | null };
 }
 
 export interface PersonaConFamiliares extends Persona {
@@ -634,4 +664,42 @@ export interface RiesgosCobertura {
   bloquean: number;
   avisan: number;
   riesgos: RiesgoCobertura[];
+}
+
+// Una tarifa de la casa: lo que se le cobra a la familia y lo que se le paga
+// al profesional por hora, con su vigencia. De aquí sale el precio que la
+// ficha propone, para no teclearlo servicio a servicio.
+export interface TarifaVigente {
+  id: string;
+  nombre: string;
+  necesidadId: string | null;
+  necesidad?: { id: string; nombre: string } | null;
+  precioHoraCliente: number;
+  precioHoraProfesional: number;
+  comisionHora: number;
+  vigenteDesde: string;
+  vigenteHasta: string | null;
+  activa: boolean;
+}
+
+// Quién puede cubrir un servicio, según el servidor: los papeles, lo que ha
+// ofertado y lo que ya tiene en la agenda, con el motivo escrito. La pantalla
+// no lo recalcula — lo calculaba distinto y dejaba asignar a quien ya estaba
+// ocupado a esa hora.
+export interface Candidato {
+  id: string;
+  codigo: string;
+  nombre: string;
+  apellidos: string;
+  zona: string | null;
+  comunidad: string | null;
+  municipio: string | null;
+  vehiculoPropio: boolean;
+  titulacion: Titulacion | null;
+  foto: string | null;
+  encaja: boolean;
+  bloqueado: boolean;
+  impide: boolean;
+  motivo: string;
+  orden: number;
 }

@@ -36,7 +36,7 @@ export function CargaTrabajo({ solicitudes }: { solicitudes: Solicitud[] }) {
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
+    <div className="tarjeta p-3">
       <div className="mb-1 flex items-baseline justify-between">
         <h3 className="text-sm font-semibold text-slate-700">Carga de trabajo</h3>
         <p className="text-xs text-slate-400">{totalPeriodo} solicitudes en 14 días</p>

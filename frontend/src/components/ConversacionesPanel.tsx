@@ -29,7 +29,7 @@ export function ConversacionesPanel({ verNombrePersona }: { verNombrePersona?: b
   if (conversaciones.length === 0) return null;
 
   return (
-    <div className="mb-4 rounded-lg border border-slate-200 bg-white">
+    <div className="mb-4 tarjeta">
       <div className="flex items-center gap-1.5 border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700">
         <IconChat className="h-4 w-4 text-slate-400" /> Mensajes
       </div>

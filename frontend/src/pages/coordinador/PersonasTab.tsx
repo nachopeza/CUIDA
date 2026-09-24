@@ -135,9 +135,9 @@ export function PersonasTab({ onAbrirFicha, refreshKey }: { onAbrirFicha: (id: s
             onEliminar={eliminarSeleccionados}
             etiquetaEliminar="Eliminar usuarios"
           />
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="overflow-x-auto tarjeta">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <thead className="bg-[#f1f7fa] text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 <tr>
                   <th className="w-8 px-4 py-2.5">
                     <input type="checkbox" checked={seleccion.todasMarcadas} onChange={seleccion.toggleTodos} />

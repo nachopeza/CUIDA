@@ -124,7 +124,7 @@ export function DesgloseVisitaModal({ visitaId, onClose, onCambio }: { visitaId:
               <Tiempo clave="liquidables" minutos={d.tiempos.liquidables} destacado />
             </div>
 
-            <p className="mt-2 flex gap-1.5 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            <p className="mt-2 flex gap-1.5 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
               <IconHelp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
               <span>{d.tiempos.explicacion}</span>
             </p>
@@ -206,7 +206,7 @@ export function DesgloseVisitaModal({ visitaId, onClose, onCambio }: { visitaId:
           )}
 
           {d.ajuste.estado === "APROBADO" || d.ajuste.estado === "RECHAZADO" ? (
-            <p className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            <p className="flex items-center gap-1.5 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
               <IconCheck className="h-3.5 w-3.5 text-slate-400" aria-hidden />
               Tiempo adicional {d.ajuste.estado === "APROBADO" ? "aprobado" : "rechazado"}
               {d.ajuste.motivo && ` · ${MOTIVOS_DESVIACION.find((m) => m.valor === d.ajuste.motivo)?.etiqueta ?? d.ajuste.motivo}`}
@@ -220,7 +220,7 @@ export function DesgloseVisitaModal({ visitaId, onClose, onCambio }: { visitaId:
               <IconEuro className="h-3.5 w-3.5" aria-hidden /> Dinero
             </p>
             {!d.economia ? (
-              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
                 Esta jornada todavía no tiene precio: fija la tarifa del servicio o crea una tarifa vigente.
               </p>
             ) : (
@@ -272,7 +272,7 @@ export function DesgloseVisitaModal({ visitaId, onClose, onCambio }: { visitaId:
               </p>
               <ul className="space-y-1">
                 {d.correcciones.map((c, i) => (
-                  <li key={i} className="rounded-md bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600">
+                  <li key={i} className="rounded-xl bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600">
                     <span className="font-medium text-slate-700">{c.campo === "horaInicioReal" ? "Entrada" : "Salida"}</span>{" "}
                     {c.valorAnterior ? hora(c.valorAnterior) : "sin fichar"} → {hora(c.valorNuevo)} · {c.motivo}
                     <span className="block text-[11px] text-slate-400">

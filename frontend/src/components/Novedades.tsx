@@ -74,7 +74,7 @@ export function Novedades({ onAbrir, limite = 5 }: Props) {
   }
 
   return (
-    <section className="mb-4 rounded-lg border border-slate-200 bg-white p-3">
+    <section className="mb-4 tarjeta p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
           <IconBell className="h-4 w-4 text-slate-400" /> Novedades

@@ -8,6 +8,8 @@ import { esGestorOrganizacion, ocultarTarifaSiProcede } from "../services/permis
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
 import { motivoParaNoAsignar } from "../services/asignacion.js";
+import { candidatosParaServicio } from "../services/candidatos.js";
+import { aMedianoche, diasPrevistosEntre, estaAusente, hayConflicto } from "../services/sesiones.js";
 
 export const incidenciasRouter = Router();
 incidenciasRouter.use(autenticar);
@@ -446,20 +448,100 @@ incidenciasRouter.post("/:id/reemplazo", async (req, res) => {
   const impedimento = await motivoParaNoAsignar(parsed.data.profesionalId, organizacionId, fechaRecuperacion);
   if (impedimento) return res.status(409).json({ error: impedimento });
 
+  // Y que quepa en su agenda, con el mismo criterio que al asignar por
+  // primera vez: un reemplazo que no puede ir deja a la persona igual de
+  // descubierta que la baja que lo provocó.
+  const ventana =
+    incidencia.cubrirDesde && incidencia.cubrirHasta ? { desde: incidencia.cubrirDesde, hasta: incidencia.cubrirHasta } : undefined;
+  const suPlaza = (await candidatosParaServicio(servicio.id, ventana)).find((c) => c.id === parsed.data.profesionalId);
+  if (suPlaza?.impide && !suPlaza.bloqueado) {
+    return res.status(409).json({
+      error: `No se puede pasar el servicio a ${suPlaza.nombre}: ${suPlaza.motivo.toLowerCase()}. Elige a otra persona.`,
+    });
+  }
+
   const nuevo = await prisma.profesional.findUnique({ where: { id: parsed.data.profesionalId }, include: { usuario: true } });
   if (!nuevo) return res.status(400).json({ error: "Profesional no válido" });
 
-  // El servicio pasa al sustituto, y con él las jornadas que todavía no han
-  // empezado. Las ya trabajadas siguen contando para quien las hizo: su
-  // liquidación no se toca.
-  await prisma.servicio.update({
-    where: { id: servicio.id },
-    data: { profesionalId: nuevo.id, empresaColaboradoraId: nuevo.empresaColaboradoraId ?? servicio.empresaColaboradoraId ?? undefined },
-  });
-  const traspasadas = await prisma.visita.updateMany({
-    where: { servicioId: servicio.id, estado: { in: ["PROGRAMADA", "CONFIRMADA"] }, horaInicioReal: null },
-    data: { profesionalId: nuevo.id },
-  });
+  // Dos cosas distintas con el mismo botón, y la diferencia la dice la propia
+  // incidencia:
+  //
+  //  - Si trae días que cubrir (viene de una ausencia aprobada), se cubren
+  //    esos días y nada más: el servicio sigue siendo de quien lo lleva y
+  //    vuelve a él en cuanto se reincorpora. Una tarde libre no traspasa un
+  //    servicio para siempre.
+  //  - Si no los trae, el relevo es definitivo: el servicio pasa al sustituto
+  //    con todas las jornadas que aún no han empezado.
+  //
+  // En los dos casos, las jornadas ya trabajadas siguen contando para quien
+  // las hizo: su liquidación no se toca.
+  const soloEstosDias = incidencia.cubrirDesde != null && incidencia.cubrirHasta != null;
+  let traspasadas = { count: 0 };
+  const cubiertas: string[] = [];
+  const sinCubrir: Date[] = [];
+
+  if (soloEstosDias) {
+    const desde = aMedianoche(incidencia.cubrirDesde!);
+    const hasta = new Date(aMedianoche(incidencia.cubrirHasta!).getTime() + 86399000);
+
+    // Las jornadas de esos días que ya están en la agenda pasan al sustituto.
+    const dentro = await prisma.visita.updateMany({
+      where: {
+        servicioId: servicio.id,
+        fecha: { gte: desde, lte: hasta },
+        estado: { in: ["PROGRAMADA", "CONFIRMADA"] },
+        horaInicioReal: null,
+      },
+      data: { profesionalId: nuevo.id },
+    });
+    traspasadas = { count: dentro.count };
+
+    // Y las que el plan señala y todavía no existen se crean ya a nombre del
+    // sustituto: un servicio recurrente sólo lleva una jornada por delante, así
+    // que sin esto los días de la baja se quedaban sin nadie aunque hubiera
+    // reemplazo.
+    const yaHay = await prisma.visita.findMany({
+      where: { servicioId: servicio.id, fecha: { gte: desde, lte: hasta } },
+      select: { fecha: true },
+    });
+    const ocupados = new Set(yaHay.map((v) => aMedianoche(v.fecha).getTime()));
+    const plan = servicio.solicitud.plan;
+    for (const dia of await diasPrevistosEntre(servicio.id, desde, hasta)) {
+      if (ocupados.has(dia.getTime())) continue;
+      // Ese día puede tener ya otra casa o estar él de ausencia: se salta y se
+      // dice cuál, en vez de doblarle la agenda en silencio.
+      if (await hayConflicto(nuevo.id, dia, plan?.horaInicio ?? null, plan?.horaFin ?? null, servicio.id)) {
+        sinCubrir.push(dia);
+        continue;
+      }
+      if (await estaAusente(nuevo.id, dia)) {
+        sinCubrir.push(dia);
+        continue;
+      }
+      const creada = await prisma.visita.create({
+        data: {
+          codigo: await generarCodigo("visita"),
+          fecha: dia,
+          horaInicioProg: plan?.horaInicio ?? null,
+          horaFinProg: plan?.horaFin ?? null,
+          estado: "PROGRAMADA",
+          servicioId: servicio.id,
+          profesionalId: nuevo.id,
+        },
+      });
+      cubiertas.push(creada.codigo);
+    }
+  } else {
+    await prisma.servicio.update({
+      where: { id: servicio.id },
+      data: { profesionalId: nuevo.id, empresaColaboradoraId: nuevo.empresaColaboradoraId ?? servicio.empresaColaboradoraId ?? undefined },
+    });
+    const movidas = await prisma.visita.updateMany({
+      where: { servicioId: servicio.id, estado: { in: ["PROGRAMADA", "CONFIRMADA"] }, horaInicioReal: null },
+      data: { profesionalId: nuevo.id },
+    });
+    traspasadas = { count: movidas.count };
+  }
 
   // Recuperar la jornada perdida es crear una nueva, no reescribir la que no
   // se hizo: aquel día no fue nadie y eso queda como pasó.
@@ -480,9 +562,18 @@ incidenciasRouter.post("/:id/reemplazo", async (req, res) => {
     recuperada = { codigo: creada.codigo, fecha: creada.fecha };
   }
 
+  const comoDia = (f: Date) => f.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+  const movidas = traspasadas.count + cubiertas.length;
   const resumen =
     `Reemplazo: ${anterior ? `${anterior.nombre} ${anterior.apellidos}` : "sin asignar"} → ${nuevo.nombre} ${nuevo.apellidos}` +
-    (traspasadas.count > 0 ? ` · ${traspasadas.count} jornada(s) sin empezar pasan al sustituto` : "") +
+    (soloEstosDias
+      ? ` · cubre del ${comoDia(incidencia.cubrirDesde!)} al ${comoDia(incidencia.cubrirHasta!)}` +
+        (movidas > 0 ? ` (${movidas} jornada(s))` : "") +
+        `, el servicio sigue siendo de ${anterior ? anterior.nombre : "quien lo lleva"}`
+      : movidas > 0
+        ? ` · ${movidas} jornada(s) sin empezar pasan al sustituto`
+        : "") +
+    (sinCubrir.length > 0 ? ` · sigue sin cubrir el ${sinCubrir.map(comoDia).join(", ")} (ese día tampoco puede)` : "") +
     (recuperada ? ` · jornada recuperada ${recuperada.codigo} el ${recuperada.fecha.toLocaleDateString("es-ES")}` : "") +
     (parsed.data.nota ? ` · ${parsed.data.nota}` : "");
 
@@ -516,10 +607,17 @@ incidenciasRouter.post("/:id/reemplazo", async (req, res) => {
     await notificarUsuario(
       nuevo.usuario.id,
       "propuesta_servicio",
-      `Te han asignado el servicio de ${servicio.solicitud.persona.nombre} como reemplazo${recuperada ? ` y una jornada el ${recuperada.fecha.toLocaleDateString("es-ES")}` : ""}. Revísalo.`,
+      `Te han asignado el servicio de ${servicio.solicitud.persona.nombre} como reemplazo${soloEstosDias ? ` del ${comoDia(incidencia.cubrirDesde!)} al ${comoDia(incidencia.cubrirHasta!)}` : ""}${recuperada ? ` y una jornada el ${recuperada.fecha.toLocaleDateString("es-ES")}` : ""}. Revísalo.`,
       servicio.solicitudId,
     );
   }
 
-  res.json({ incidencia: actualizada, resumen, traspasadas: traspasadas.count, recuperada });
+  res.json({
+    incidencia: actualizada,
+    resumen,
+    traspasadas: traspasadas.count + cubiertas.length,
+    soloEstosDias,
+    sinCubrir: sinCubrir.map(comoDia),
+    recuperada,
+  });
 });

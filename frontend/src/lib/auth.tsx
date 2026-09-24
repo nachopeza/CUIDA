@@ -4,6 +4,9 @@ import { api } from "./api.js";
 export interface Usuario {
   id: string;
   email: string;
+  // Cómo se llama de verdad. La cabecera y el saludo del escritorio lo
+  // prefieren al correo; si la cuenta no lo tiene, se cae al correo.
+  nombre?: string | null;
   rol: "PERSONA" | "FAMILIAR" | "PROFESIONAL" | "COORDINADOR" | "ORGANIZACION" | "ADMIN" | "SUPERADMIN";
   organizacionId: string | null;
   personaId: string | null;

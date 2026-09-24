@@ -1,7 +1,8 @@
 import type { SVGProps } from "react";
 
 // Set mínimo de iconos en línea (sin depender de una librería externa):
-// trazo simple, 1.75px, currentColor — coherente en toda la barra lateral
+// trazo simple de 2px con remates redondos, currentColor — el mismo grosor
+// que los iconos de la maqueta — coherente en toda la barra lateral
 // del panel de coordinación.
 function Icon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -9,7 +10,7 @@ function Icon(props: SVGProps<SVGSVGElement>) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.75}
+      strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
       {...props}

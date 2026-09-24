@@ -8,6 +8,8 @@ import { esGestorOrganizacion } from "../services/permisos.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
 import { minutosFichados } from "../services/economia.js";
 import { carenciasDe, diasEntre, minutosDeContratoDelMes } from "../services/rrhh.js";
+import { diasPrevistosEntre } from "../services/sesiones.js";
+import { candidatosParaServicio } from "../services/candidatos.js";
 
 // La parte laboral de los PROFESIONALES: quienes hacen los servicios en casa
 // de las personas, sean trabajadores de la empresa o independientes. Su
@@ -249,6 +251,92 @@ personalRouter.post("/:profesionalId/ausencias", async (req, res) => {
   res.status(201).json({ ...ausencia, jornadasEnConflicto: choques });
 });
 
+// Lo que va a costar decir sí, antes de decirlo.
+//
+// Hasta ahora se aprobaba a ciegas: se pulsaba Aprobar y sólo entonces salían
+// las incidencias diciendo que tres servicios se habían quedado descubiertos y
+// que no había nadie con el perfil para cubrirlos. Con diez días de vacaciones
+// eso es justo lo que hay que saber ANTES de contestar, porque a lo mejor la
+// respuesta es "sí, pero moviendo dos días" o "no, esa semana no puede ser".
+//
+// Es la misma maquinaria que se usa al aprobar y al buscar reemplazo, sólo
+// consultada antes: los días que el plan señala dentro de la ausencia, y quién
+// podría cubrirlos. Nada se crea ni se cambia; sólo se cuenta.
+personalRouter.get("/ausencias/:id/impacto", soloGestion, async (req, res) => {
+  const ausencia = await prisma.ausencia.findUnique({
+    where: { id: req.params.id },
+    include: { profesional: true },
+  });
+  if (!ausencia) return res.status(404).json({ error: "No encontrada" });
+  if (ausencia.profesional.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+
+  const desde = new Date(ausencia.desde);
+  desde.setHours(0, 0, 0, 0);
+  const hasta = new Date(ausencia.hasta);
+  hasta.setHours(23, 59, 59, 999);
+
+  const suyos = await prisma.servicio.findMany({
+    where: {
+      organizacionId: ausencia.profesional.organizacionId,
+      profesionalId: ausencia.profesionalId,
+      estado: { in: ["CONFIRMADO", "EN_CURSO"] },
+    },
+    include: { solicitud: { include: { persona: true, necesidad: true } } },
+  });
+
+  const comoDia = (f: Date) => f.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+  const servicios = [];
+  let jornadas = 0;
+
+  for (const servicio of suyos) {
+    // Los días que tocan según el plan, más los que ya están en la agenda: un
+    // servicio recurrente sólo lleva una jornada por delante, así que mirar
+    // sólo la agenda diría que no hay nada que cubrir.
+    const dias = new Map<string, Date>();
+    for (const f of await diasPrevistosEntre(servicio.id, desde, hasta)) dias.set(comoDia(f), f);
+    const yaEnAgenda = await prisma.visita.findMany({
+      where: {
+        servicioId: servicio.id,
+        fecha: { gte: desde, lte: hasta },
+        estado: { in: ["PROGRAMADA", "CONFIRMADA"] },
+      },
+      select: { fecha: true },
+    });
+    for (const v of yaEnAgenda) dias.set(comoDia(v.fecha), v.fecha);
+    if (dias.size === 0) continue;
+
+    // Y quién podría ir esos días. Se pregunta por la ventana de la ausencia,
+    // no por los próximos días: quien está libre esta semana puede no estarlo
+    // el mes que viene.
+    const candidatos = (await candidatosParaServicio(servicio.id, { desde, hasta })).filter(
+      (c) => c.id !== ausencia.profesionalId,
+    );
+
+    jornadas += dias.size;
+    servicios.push({
+      id: servicio.id,
+      codigo: servicio.codigo,
+      persona: `${servicio.solicitud.persona.nombre} ${servicio.solicitud.persona.apellidos}`,
+      necesidad: servicio.solicitud.necesidad.nombre,
+      dias: Array.from(dias.values())
+        .sort((a, b) => a.getTime() - b.getTime())
+        .map(comoDia),
+      // Quien puede ir, y quien no con su motivo: si nadie puede, hay que
+      // poder leer por qué sin salir de aquí.
+      puedenCubrirlo: candidatos.filter((c) => c.encaja).map((c) => `${c.nombre} ${c.apellidos}`),
+      noPueden: candidatos.filter((c) => !c.encaja).map((c) => ({ quien: `${c.nombre} ${c.apellidos}`, motivo: c.motivo })),
+    });
+  }
+
+  res.json({
+    jornadas,
+    servicios,
+    // El resumen de una línea: lo que decide si se aprueba tal cual o hay que
+    // hablar antes con alguien.
+    sinCubrir: servicios.filter((s) => s.puedenCubrirlo.length === 0).map((s) => s.persona),
+  });
+});
+
 const resolverSchema = z.object({ estado: z.enum(["APROBADA", "RECHAZADA", "CANCELADA"]), respuesta: z.string().optional() });
 
 personalRouter.post("/ausencias/:id/estado", soloGestion, async (req, res) => {
@@ -303,9 +391,40 @@ personalRouter.post("/ausencias/:id/estado", soloGestion, async (req, res) => {
       porServicio.set(v.servicioId, [...(porServicio.get(v.servicioId) ?? []), v]);
     }
 
-    for (const [servicioId, visitas] of porServicio) {
-      const primera = visitas[0];
-      const dias = visitas.map((v) => v.fecha.toLocaleDateString("es-ES", { day: "numeric", month: "short" })).join(", ");
+    // Un servicio recurrente sólo lleva una jornada por delante en la agenda,
+    // así que una baja del mes que viene no solapaba ninguna y se aprobaba en
+    // silencio, como si no dejara a nadie sin cubrir. Los días que toca ir son
+    // un hecho del plan, no de la agenda: se cuentan igual.
+    const susServicios = await prisma.servicio.findMany({
+      where: {
+        organizacionId: ausencia.profesional.organizacionId,
+        profesionalId: ausencia.profesionalId,
+        estado: { in: ["CONFIRMADO", "EN_CURSO"] },
+      },
+      include: { solicitud: { include: { persona: true, necesidad: true } } },
+    });
+    const previstosPorServicio = new Map<string, Date[]>();
+    for (const s of susServicios) {
+      const dias = await diasPrevistosEntre(s.id, desde, hasta);
+      if (dias.length > 0) previstosPorServicio.set(s.id, dias);
+    }
+
+    const afectados = new Set([...porServicio.keys(), ...previstosPorServicio.keys()]);
+    const comoDia = (f: Date) => f.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+
+    for (const servicioId of afectados) {
+      const visitas = porServicio.get(servicioId) ?? [];
+      const cabecera = visitas[0]?.servicio ?? susServicios.find((s) => s.id === servicioId);
+      if (!cabecera) continue;
+
+      // Los días a cubrir: los de las jornadas ya creadas más los que el plan
+      // señala y todavía no están en la agenda, sin repetir ninguno.
+      const dias = new Map<string, Date>();
+      for (const v of visitas) dias.set(comoDia(v.fecha), v.fecha);
+      for (const f of previstosPorServicio.get(servicioId) ?? []) dias.set(comoDia(f), f);
+      const ordenados = Array.from(dias.values()).sort((a, b) => a.getTime() - b.getTime());
+      const cuantos = ordenados.length;
+
       const incidencia = await prisma.incidencia.create({
         data: {
           codigo: await generarCodigo("incidencia"),
@@ -316,12 +435,16 @@ personalRouter.post("/ausencias/:id/estado", soloGestion, async (req, res) => {
           descripcion:
             `${ausencia.profesional.nombre} ${ausencia.profesional.apellidos} está de ${COMO_SE_DICE[ausencia.tipo] ?? ausencia.tipo.toLowerCase().replace(/_/g, " ")} ` +
             `del ${ausencia.desde.toLocaleDateString("es-ES")} al ${ausencia.hasta.toLocaleDateString("es-ES")}. ` +
-            `${visitas.length === 1 ? "Queda sin cubrir 1 jornada" : `Quedan sin cubrir ${visitas.length} jornadas`} de ` +
-            `${primera.servicio.solicitud.necesidad.nombre} con ${primera.servicio.solicitud.persona.nombre} ` +
-            `${primera.servicio.solicitud.persona.apellidos} (${dias}). Busca reemplazo.`,
+            `${cuantos === 1 ? "Queda sin cubrir 1 jornada" : `Quedan sin cubrir ${cuantos} jornadas`} de ` +
+            `${cabecera.solicitud.necesidad.nombre} con ${cabecera.solicitud.persona.nombre} ` +
+            `${cabecera.solicitud.persona.apellidos} (${ordenados.map(comoDia).join(", ")}). Busca reemplazo.`,
           servicioId,
-          visitaId: primera.id,
+          visitaId: visitas[0]?.id,
           creadoPorUsuarioId: req.usuario!.sub,
+          // La ventana a cubrir es la de la ausencia: al buscar reemplazo se
+          // cubren esos días y el servicio sigue siendo de quien lo lleva.
+          cubrirDesde: desde,
+          cubrirHasta: hasta,
         },
       });
       incidenciasAbiertas.push(incidencia.codigo);

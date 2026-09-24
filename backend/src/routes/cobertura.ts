@@ -133,6 +133,71 @@ coberturaRouter.get("/riesgos", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
     });
   }
 
+  // Y los servicios vivos que no tienen NINGUNA jornada por delante. No salen
+  // del recorrido de arriba porque ahí no hay jornada que mirar, y son el caso
+  // más silencioso de todos: el servicio está confirmado, la familia lo da por
+  // hecho, y en la agenda no hay nada. Pasa cuando el plan se agotó, cuando la
+  // recurrencia no señala ningún día o cuando la jornada no se pudo crear
+  // porque el profesional ya tenía algo a esa hora.
+  const vivos = await prisma.servicio.findMany({
+    where: { organizacionId, estado: { in: ["CONFIRMADO", "EN_CURSO"] } },
+    select: {
+      id: true,
+      codigo: true,
+      estado: true,
+      tipoServicio: true,
+      profesional: { select: { id: true, nombre: true, apellidos: true } },
+      solicitud: {
+        select: {
+          id: true,
+          persona: { select: { nombre: true, apellidos: true } },
+          necesidad: { select: { nombre: true } },
+          plan: { select: { fechaFin: true, recurrencia: true } },
+        },
+      },
+      // Todas, no sólo las de por delante: hacen falta las dos cuentas para
+      // distinguir "no hay nada programado" de "ya se hizo".
+      visitas: { select: { id: true, fecha: true, estado: true } },
+    },
+  });
+
+  const porDelante = (v: { fecha: Date; estado: string }) => v.fecha >= desde && ["PROGRAMADA", "CONFIRMADA", "EN_CURSO"].includes(v.estado);
+
+  for (const s of vivos) {
+    // Un servicio puntual es una sola jornada: en cuanto existe, no hay nada
+    // más que programar. Que esté hecha y sin verificar no es un problema de
+    // cobertura —de eso se ocupa Verificación—, así que sólo cuenta si no
+    // llegó a crearse ninguna. Un recurrente, en cambio, tiene que tener
+    // siempre una por delante.
+    const enRiesgo = s.tipoServicio === "RECURRENTE" ? !s.visitas.some(porDelante) : s.visitas.length === 0;
+    if (!enRiesgo) continue;
+    const plan = s.solicitud.plan;
+    const acabado = plan?.fechaFin != null && plan.fechaFin < desde;
+    riesgos.push({
+      visitaId: `servicio:${s.id}`,
+      codigo: s.codigo,
+      fecha: desde,
+      horaInicioProg: null,
+      horaFinProg: null,
+      estado: s.estado,
+      gravedad: "BLOQUEA" as Gravedad,
+      motivo: acabado
+        ? "El servicio sigue en curso pero su plan llegó a la fecha de fin: no hay más jornadas que hacer."
+        : "El servicio está confirmado y no tiene ninguna jornada en la agenda.",
+      servicio: { id: s.id, codigo: s.codigo, estado: s.estado },
+      solicitudId: s.solicitud.id,
+      persona: `${s.solicitud.persona.nombre} ${s.solicitud.persona.apellidos}`,
+      necesidad: s.solicitud.necesidad.nombre,
+      profesional: s.profesional ? { id: s.profesional.id, nombre: `${s.profesional.nombre} ${s.profesional.apellidos}` } : null,
+      // Puede no haber ninguna: el mapa se armó con las incidencias de los
+      // servicios que sí tienen jornadas.
+      incidencia: (() => {
+        const i = porServicio.get(s.id);
+        return i ? { id: i.id, codigo: i.codigo, estado: i.estado } : null;
+      })(),
+    });
+  }
+
   res.json({
     desde: aISO(desde),
     hasta: aISO(hasta),

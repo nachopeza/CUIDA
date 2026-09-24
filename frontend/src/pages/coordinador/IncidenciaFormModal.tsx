@@ -84,7 +84,7 @@ export function IncidenciaFormModal({
           <select
             value={servicioId}
             onChange={(e) => setServicioId(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800"
+            className="mt-1 w-full campo text-slate-800"
           >
             <option value="">Elige un servicio…</option>
             {abiertos.map((s) => (
@@ -141,7 +141,7 @@ export function IncidenciaFormModal({
             onChange={(e) => setDescripcion(e.target.value)}
             rows={3}
             placeholder="Cuéntalo como se lo contarías a quien lo va a resolver…"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 w-full campo"
           />
         </label>
 
@@ -154,7 +154,7 @@ export function IncidenciaFormModal({
           <button
             onClick={crear}
             disabled={guardando || !servicioId || !descripcion.trim()}
-            className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+            className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
           >
             {guardando ? "Creando…" : "Abrir incidencia"}
           </button>

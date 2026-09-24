@@ -3,10 +3,66 @@
 @tailwind utilities;
 
 body {
-  @apply bg-slate-50 text-slate-900;
+  @apply bg-lienzo text-slate-900 antialiased;
 }
 
 @layer components {
+  /* ---------------------------------------------------------------------
+     Las piezas de las que está hecha la interfaz. Están aquí y no repetidas
+     en cada pantalla para que "tarjeta" quiera decir lo mismo en las veinte
+     secciones: mismo radio, mismo borde, misma sombra.
+     --------------------------------------------------------------------- */
+
+  /* La caja blanca sobre el lienzo. Borde casi invisible y sombra larga y
+     suave: lo que separa una tarjeta de la siguiente es el aire, no la raya. */
+  .tarjeta {
+    @apply rounded-tarjeta border border-slate-200/70 bg-white shadow-tarjeta;
+  }
+
+  /* Una etiqueta de estado o de prioridad. Siempre en píldora, siempre con
+     el texto en su color, nunca sólo color. */
+  .pastilla {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+
+  /* Rótulo de sección: el texto pequeño en versales que ordena una columna. */
+  .rotulo {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-slate-400;
+  }
+
+  /* Los tres botones de la maqueta, con su radio de 8 px: el relleno teal
+     oscuro para lo que hay que hacer, el blanco con borde para lo demás y el
+     verde para crear. Ni uno más. */
+  .boton-principal {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .boton-secundario {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .boton-verde {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-green-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-green-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-300 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Los dos tamaños pequeños, los de dentro de una fila de tabla. */
+  .boton-principal-sm {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .boton-secundario-sm {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .boton-verde-sm {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-green-500 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-brand-green-600 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Campos de formulario: uno solo para toda la app. */
+  .campo {
+    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition placeholder:text-slate-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-100;
+  }
+
   /* Un folio A4 de verdad: 210 × 297 mm con sus márgenes. Se ve así en
      pantalla —para que lo que se revisa sea lo que se va a entregar— y se
      imprime con esas mismas medidas. En pantallas estrechas se encoge para
@@ -80,5 +136,27 @@ body {
   .hoja-a4 .evitar-corte {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+}
+
+/* La barra de desplazamiento del cajón oscuro y de los listados largos: fina y
+   discreta, para que no parta la pieza en dos. */
+.barra-fina::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.barra-fina::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 9999px;
+}
+.barra-fina::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* En móvil la aplicación tiene una barra de pestañas fija abajo: el contenido
+   necesita ese hueco para que la última fila no quede debajo. */
+@media (max-width: 767px) {
+  body.con-pestanas main {
+    padding-bottom: 5.5rem;
   }
 }

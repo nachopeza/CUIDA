@@ -48,7 +48,7 @@ export function DocumentosProfesional({ profesionalId }: { profesionalId: string
       {documentos.length > 0 && (
         <ul className="mb-2 space-y-1">
           {documentos.map((d) => (
-            <li key={d.id} className="flex items-center justify-between rounded-md bg-slate-50 px-2.5 py-1.5 text-xs">
+            <li key={d.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-2.5 py-1.5 text-xs">
               <a href={d.url} target="_blank" rel="noreferrer" className="text-brand hover:underline">
                 <IconFile className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
                       {d.nombre}
@@ -68,7 +68,7 @@ export function DocumentosProfesional({ profesionalId }: { profesionalId: string
           className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-xs"
         />
         <input placeholder="URL" value={url} onChange={(e) => setUrl(e.target.value)} className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-xs" />
-        <button onClick={añadir} disabled={guardando || !nombre.trim() || !url.trim()} className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50">
+        <button onClick={añadir} disabled={guardando || !nombre.trim() || !url.trim()} className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50">
           Añadir
         </button>
       </div>

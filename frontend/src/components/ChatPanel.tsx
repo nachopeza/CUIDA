@@ -62,7 +62,7 @@ export function ChatPanel({ profesionalId, personaId, compacto }: { profesionalI
     : [];
 
   return (
-    <div className={compacto ? "" : "rounded-lg border border-slate-200 bg-white"}>
+    <div className={compacto ? "" : "tarjeta"}>
       {conQuien && (
         <p className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
           {lectores.length > 0 ? (

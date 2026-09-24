@@ -10,7 +10,15 @@ import { LiquidacionDocumento } from "../../components/LiquidacionDocumento.js";
 import { IconAlert, IconCheck, IconDownload, IconEuro, IconFile, IconPlus } from "../../components/icons.js";
 import type { Factura, Liquidacion, Persona, Remesa } from "../../lib/types.js";
 
-type Vista = "cobrar" | "pagar" | "remesas";
+// Las cuatro entradas de Finanzas de la maqueta. No son cuatro pantallas:
+// son dos listas —lo que se cobra y lo que se paga— miradas enteras o
+// miradas sólo por lo que queda pendiente.
+//
+//   Facturación  → todas las facturas: emitir, rectificar, consultar.
+//   Cobros       → sólo las que faltan por cobrar, con las remesas al banco.
+//   Liquidaciones→ todas las liquidaciones del mes.
+//   Pagos        → sólo las que faltan por pagar.
+export type VistaFinanzas = "facturacion" | "cobros" | "liquidaciones" | "pagos";
 
 const ESTADO_FACTURA: Record<string, { etiqueta: string; clase: string }> = {
   BORRADOR: { etiqueta: "Borrador", clase: "bg-slate-200 text-slate-700" },
@@ -59,11 +67,20 @@ interface PropsFacturacion {
   // "recibo devuelto"), para abrirla sin buscarla en la lista del mes.
   focoFacturaId?: string | null;
   onFocoConsumido?: () => void;
+  // Cuál de las cuatro entradas de Finanzas se ha pulsado en el menú.
+  vista?: VistaFinanzas;
+  // Para llevar a donde se resuelve lo que impide facturar. El motivo por el
+  // que no se puede cerrar el mes casi siempre está en otra pantalla, y
+  // decirlo sin decir dónde deja a quien lo lee buscándolo a mano.
+  onIrA?: (tab: string) => void;
 }
 
-export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturacion = {}) {
+export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "facturacion", onIrA }: PropsFacturacion = {}) {
   const { token } = useAuth();
-  const [vista, setVista] = useState<Vista>("cobrar");
+  // De qué lista se trata y si se enseña entera o sólo lo que queda por
+  // resolver. Es lo único que distingue a las cuatro entradas.
+  const lista: "facturas" | "liquidaciones" = vista === "facturacion" || vista === "cobros" ? "facturas" : "liquidaciones";
+  const soloPendiente = vista === "cobros" || vista === "pagos";
   const [mes, setMes] = useState(mesActualISO());
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [liquidaciones, setLiquidaciones] = useState<Liquidacion[]>([]);
@@ -103,7 +120,6 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
     if (!focoFacturaId) return;
     const factura = facturas.find((f) => f.id === focoFacturaId);
     if (!factura) return;
-    setVista("cobrar");
     setFacturaAbierta(factura);
     onFocoConsumido?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -160,22 +176,28 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
   const q = busqueda.trim().toLowerCase();
   const facturasVisibles = useMemo(
     () =>
-      facturas.filter((f) =>
-        !q
+      facturas.filter((f) => {
+        // En "Cobros" sólo lo que falta por cobrar: un borrador todavía no
+        // se cobra y una cobrada ya no es asunto de nadie.
+        if (soloPendiente && !["EMITIDA", "IMPAGADA"].includes(f.estado)) return false;
+        return !q
           ? true
           : [f.codigo, referenciaFactura(f), `${f.persona.nombre} ${f.persona.apellidos}`, f.titularNombre ?? "", f.mes]
               .join(" ")
               .toLowerCase()
-              .includes(q),
-      ),
-    [facturas, q],
+              .includes(q);
+      }),
+    [facturas, q, soloPendiente],
   );
   const liquidacionesVisibles = useMemo(
     () =>
-      liquidaciones.filter((l) =>
-        !q ? true : [l.codigo, `${l.profesional.nombre} ${l.profesional.apellidos}`, l.mes].join(" ").toLowerCase().includes(q),
-      ),
-    [liquidaciones, q],
+      liquidaciones.filter((l) => {
+        if (soloPendiente && l.estado === "PAGADA") return false;
+        return !q
+          ? true
+          : [l.codigo, `${l.profesional.nombre} ${l.profesional.apellidos}`, l.mes].join(" ").toLowerCase().includes(q);
+      }),
+    [liquidaciones, q, soloPendiente],
   );
 
   const totales = useMemo(() => {
@@ -194,30 +216,33 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-1.5">
-        {([
-          ["cobrar", "A cobrar", facturas.length],
-          ["pagar", "A pagar", liquidaciones.length],
-          ["remesas", "Remesas", remesas.length],
-        ] as const).map(([clave, etiqueta, valor]) => (
-          <button
-            key={clave}
-            onClick={() => setVista(clave)}
-            className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
-              vista === clave ? "border-brand bg-brand text-white" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            {etiqueta} ({valor})
-          </button>
-        ))}
-        <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar…" className="ml-auto w-full sm:w-56" />
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="min-w-0 flex-1 text-sm text-slate-500">
+          {vista === "facturacion" && "Todas las facturas de la casa: emitir, rectificar y consultar."}
+          {vista === "cobros" && "Lo que falta por cobrar, y la remesa que se le manda al banco."}
+          {vista === "liquidaciones" && "Lo que se le liquida a cada profesional, mes a mes."}
+          {vista === "pagos" && "Lo que falta por pagar a los profesionales."}
+        </p>
+        <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar…" className="w-full sm:w-56" />
       </div>
 
-      {error && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
+      {error && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          <span className="min-w-0 flex-1">{error}</span>
+          {/* Lo que más veces impide cerrar el mes es tiempo de más sin
+              decidir, y se decide en Verificaciones. Un atajo, en vez de
+              nombrar las jornadas y dejar que las busque. */}
+          {/sin aprobar|sin decidir|desglose/i.test(error) && onIrA && (
+            <button onClick={() => onIrA("verificacion")} className="boton-secundario-sm shrink-0">
+              Ir a decidir ese tiempo
+            </button>
+          )}
+        </div>
+      )}
       {aviso && <p className="rounded-md border border-brand-green-200 bg-brand-green-50 px-3 py-2 text-xs text-brand-green-700">{aviso}</p>}
 
-      {/* ------------------------------------------------------------ COBRAR */}
-      {vista === "cobrar" && (
+      {/* ------------------------------ FACTURAS: facturación y cobros ---- */}
+      {lista === "facturas" && (
         <>
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             <Cifra etiqueta="Por cobrar" valor={euros(totales.porCobrar)} />
@@ -230,7 +255,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
             />
           </div>
 
-          <div className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3">
+          <div className="flex flex-wrap items-end gap-2 tarjeta p-3">
             <label className="text-xs text-slate-500">
               Mes
               <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="mt-0.5 block rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
@@ -251,7 +276,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
                 accion("generar", () => api.post("/facturas/generar", { personaId: personaNueva, mes }, token), "Factura creada en borrador")
               }
               disabled={!personaNueva || ocupado === "generar"}
-              className="flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
             >
               <IconPlus className="h-3.5 w-3.5" />
               {ocupado === "generar" ? "Creando…" : "Crear factura del mes"}
@@ -291,7 +316,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
           </div>
 
           {facturasVisibles.length === 0 ? (
-            <p className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
+            <p className="tarjeta px-4 py-8 text-center text-sm text-slate-400">
               Todavía no hay ninguna factura.
             </p>
           ) : (
@@ -325,7 +350,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
                             <button
                               onClick={() => accion(f.id, () => api.post(`/facturas/${f.id}/emitir`, {}, token), "Factura emitida")}
                               disabled={ocupado === f.id}
-                              className="rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+                              className="rounded-xl bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
                             >
                               {ocupado === f.id ? "…" : "Emitir"}
                             </button>
@@ -374,8 +399,8 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
         </>
       )}
 
-      {/* ------------------------------------------------------------- PAGAR */}
-      {vista === "pagar" && (
+      {/* --------------------- LIQUIDACIONES: liquidaciones y pagos ------- */}
+      {lista === "liquidaciones" && (
         <>
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             <Cifra etiqueta="Por pagar" valor={euros(totales.porPagar)} tono={totales.porPagar > 0 ? "rojo" : undefined} />
@@ -384,7 +409,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
             <Cifra etiqueta="Autónomas" valor={String(liquidaciones.filter((l) => l.tipoRelacion === "AUTONOMO").length)} />
           </div>
 
-          <div className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3">
+          <div className="flex flex-wrap items-end gap-2 tarjeta p-3">
             <label className="text-xs text-slate-500">
               Mes
               <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="mt-0.5 block rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
@@ -392,7 +417,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
             <button
               onClick={() => accion("liq", () => api.post("/liquidaciones/generar", { mes }, token), "Liquidaciones calculadas")}
               disabled={ocupado === "liq"}
-              className="flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
             >
               <IconEuro className="h-3.5 w-3.5" />
               {ocupado === "liq" ? "Calculando…" : "Calcular el mes"}
@@ -428,7 +453,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
           </div>
 
           {liquidacionesVisibles.length === 0 ? (
-            <p className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
+            <p className="tarjeta px-4 py-8 text-center text-sm text-slate-400">
               Todavía no hay liquidaciones. Elige un mes y pulsa «Calcular el mes».
             </p>
           ) : (
@@ -436,7 +461,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
               {liquidacionesVisibles.map((l) => {
                 const info = ESTADO_LIQUIDACION[l.estado] ?? { etiqueta: l.estado, clase: "bg-slate-200 text-slate-700" };
                 return (
-                  <li key={l.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                  <li key={l.id} className="tarjeta p-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <button onClick={() => setLiquidacionAbierta(l)} className="min-w-0 flex-1 text-left">
                         <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-800 hover:underline">
@@ -458,7 +483,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
                             <button
                               onClick={() => accion(l.id, () => api.post(`/liquidaciones/${l.id}/aprobar`, {}, token), "Liquidación aprobada")}
                               disabled={ocupado === l.id}
-                              className="rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+                              className="rounded-xl bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
                             >
                               {ocupado === l.id ? "…" : "Aprobar"}
                             </button>
@@ -483,10 +508,11 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
         </>
       )}
 
-      {/* ----------------------------------------------------------- REMESAS */}
-      {vista === "remesas" && (
+      {/* Las remesas viven dentro de Cobros: son la forma de cobrar, no una
+          sección aparte. */}
+      {vista === "cobros" && (
         <>
-          <div className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3">
+          <div className="flex flex-wrap items-end gap-2 tarjeta p-3">
             <label className="text-xs text-slate-500">
               Mes
               <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="mt-0.5 block rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
@@ -494,7 +520,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
             <button
               onClick={() => accion("rem", () => api.post("/cobros/remesas", { mes }, token), "Remesa generada")}
               disabled={ocupado === "rem"}
-              className="flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
             >
               <IconFile className="h-3.5 w-3.5" />
               {ocupado === "rem" ? "Generando…" : "Generar remesa del mes"}
@@ -503,13 +529,13 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
           </div>
 
           {remesas.length === 0 ? (
-            <p className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
+            <p className="tarjeta px-4 py-8 text-center text-sm text-slate-400">
               Todavía no has generado ninguna remesa.
             </p>
           ) : (
             <ul className="space-y-2">
               {remesas.map((r) => (
-                <li key={r.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                <li key={r.id} className="tarjeta p-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-slate-800">
@@ -607,11 +633,11 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
               value={motivoRectificacion}
               onChange={(e) => setMotivoRectificacion(e.target.value)}
               placeholder="Se facturaron horas que no se hicieron"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case"
+              className="mt-1 w-full campo font-normal normal-case"
             />
           </label>
           <div className="mt-4 flex justify-end gap-2">
-            <button onClick={() => setRectificando(null)} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+            <button onClick={() => setRectificando(null)} className="campo py-2 text-slate-600 hover:bg-slate-50">
               Cancelar
             </button>
             <button
@@ -621,7 +647,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido }: PropsFacturac
                 accion(f.id, () => api.post(`/facturas/${f.id}/rectificar`, { motivo: motivoRectificacion }, token), "Rectificativa emitida");
               }}
               disabled={!motivoRectificacion.trim()}
-              className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              className="rounded-xl bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
             >
               Emitir rectificativa
             </button>

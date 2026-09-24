@@ -76,7 +76,7 @@ export function MiPerfilTab() {
           que los familiares también acepten y vean las cualidades"):
           visible para coordinación y familia al elegir o confirmar
           profesional, no solo un nombre en una lista. */}
-      {mensaje && <div className="mb-3 rounded-lg border border-brand-green-200 bg-brand-green-50 px-3 py-2 text-sm text-brand-green-700">{mensaje}</div>}
+      {mensaje && <div className="mb-3 rounded-xl border border-brand-green-200 bg-brand-green-50 px-3 py-2 text-sm text-brand-green-700">{mensaje}</div>}
 
       <form onSubmit={guardar} className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
         <label className="text-xs text-slate-500 sm:col-span-2">
@@ -86,28 +86,28 @@ export function MiPerfilTab() {
             onChange={(e) => setForm((f) => ({ ...f, biografia: e.target.value }))}
             rows={4}
             placeholder="Experiencia, formación, idiomas, especialidades…"
-            className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="mt-0.5 w-full rounded-xl border border-slate-200 px-3 py-2"
           />
         </label>
         <label className="text-xs text-slate-500">
           Teléfono
-          <input value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2" />
+          <input value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} className="mt-0.5 w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
         <label className="text-xs text-slate-500">
           Zona
-          <input value={form.zona} onChange={(e) => setForm((f) => ({ ...f, zona: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2" />
+          <input value={form.zona} onChange={(e) => setForm((f) => ({ ...f, zona: e.target.value }))} className="mt-0.5 w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
         <label className="text-xs text-slate-500">
           DNI / carné
-          <input value={form.dni} onChange={(e) => setForm((f) => ({ ...f, dni: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2" />
+          <input value={form.dni} onChange={(e) => setForm((f) => ({ ...f, dni: e.target.value }))} className="mt-0.5 w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
         <label className="text-xs text-slate-500">
           Número de cuenta (IBAN)
-          <input value={form.numeroCuenta} onChange={(e) => setForm((f) => ({ ...f, numeroCuenta: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2" />
+          <input value={form.numeroCuenta} onChange={(e) => setForm((f) => ({ ...f, numeroCuenta: e.target.value }))} className="mt-0.5 w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
         <label className="text-xs text-slate-500 sm:col-span-2">
           Bizum
-          <input value={form.bizum} onChange={(e) => setForm((f) => ({ ...f, bizum: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-3 py-2" />
+          <input value={form.bizum} onChange={(e) => setForm((f) => ({ ...f, bizum: e.target.value }))} className="mt-0.5 w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
         <label className="text-xs text-slate-500 sm:col-span-2">
           Disponibilidad
@@ -115,7 +115,7 @@ export function MiPerfilTab() {
             <DisponibilidadPicker value={disponibilidad} onChange={setDisponibilidad} />
           </div>
         </label>
-        <button type="submit" disabled={guardando} className="rounded-md bg-brand px-4 py-2 font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2">
+        <button type="submit" disabled={guardando} className="rounded-xl bg-brand px-4 py-2 font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2">
           {guardando ? "Guardando…" : "Guardar cambios"}
         </button>
       </form>

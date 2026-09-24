@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
+import { Avatar } from "../../components/Avatar.js";
 import { Pagination, usePaginacion } from "../../components/Pagination.js";
 import { ThOrdenable } from "../../components/ThOrdenable.js";
 import { useOrdenacion } from "../../lib/useOrdenacion.js";
@@ -99,7 +100,7 @@ export function ProfesionalesTab() {
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre, código o zona…" className="flex-1 sm:max-w-xs" />
-        <select value={empresaFiltro} onChange={(e) => setEmpresaFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-2 text-sm">
+        <select value={empresaFiltro} onChange={(e) => setEmpresaFiltro(e.target.value)} className="campo">
           <option value="">Todas las empresas</option>
           <option value="__independiente__">Independientes</option>
           {empresas.map((emp) => (
@@ -108,7 +109,7 @@ export function ProfesionalesTab() {
             </option>
           ))}
         </select>
-        <button onClick={() => setNuevoAbierto(true)} className="ml-auto flex items-center gap-1 rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-800">
+        <button onClick={() => setNuevoAbierto(true)} className="ml-auto flex items-center gap-1 rounded-xl bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-800">
           <IconPlus className="h-4 w-4" /> Nuevo profesional
         </button>
       </div>
@@ -126,9 +127,9 @@ export function ProfesionalesTab() {
             onEliminar={eliminarSeleccionados}
             etiquetaEliminar="Eliminar profesionales"
           />
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="overflow-x-auto tarjeta">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <thead className="bg-[#f1f7fa] text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 <tr>
                   <th className="w-8 px-4 py-2.5">
                     <input type="checkbox" checked={seleccion.todasMarcadas} onChange={seleccion.toggleTodos} />
@@ -159,14 +160,7 @@ export function ProfesionalesTab() {
                     </td>
                     <td className="px-4 py-2.5 font-medium text-slate-800">
                       <div className="flex items-center gap-2">
-                        {p.foto ? (
-                          <img src={p.foto} alt="" className="h-7 w-7 rounded-full object-cover" />
-                        ) : (
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-500">
-                            {p.nombre[0]}
-                            {p.apellidos[0]}
-                          </div>
-                        )}
+                        <Avatar foto={p.foto} nombre={p.nombre} apellidos={p.apellidos} />
                         {p.nombre} {p.apellidos}
                       </div>
                     </td>

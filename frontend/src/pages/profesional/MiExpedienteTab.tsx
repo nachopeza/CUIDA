@@ -89,7 +89,7 @@ export function MiExpedienteTab({ profesionalId }: { profesionalId: string }) {
       {aviso && <p className="rounded-md border border-brand-green-200 bg-brand-green-50 px-3 py-2 text-xs text-brand-green-700">{aviso}</p>}
 
       {caducando.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
           <p className="flex items-center gap-1.5 text-sm font-medium text-amber-800">
             <IconAlert className="h-4 w-4" /> Tienes documentación que renovar
           </p>
@@ -179,7 +179,7 @@ export function MiExpedienteTab({ profesionalId }: { profesionalId: string }) {
           <button
             onClick={pedirAusencia}
             disabled={pidiendo || !form.desde || !form.hasta}
-            className="flex items-center justify-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
           >
             <IconCalendar className="h-3.5 w-3.5" /> {pidiendo ? "Enviando…" : "Pedir días"}
           </button>

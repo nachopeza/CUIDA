@@ -153,14 +153,14 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
             </dl>
           ) : (
             <form onSubmit={guardarEdicion} className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-              <input placeholder="Teléfono" value={form.telefono ?? ""} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2" />
-              <input placeholder="Dirección" value={form.direccion ?? ""} onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2" />
-              <input placeholder="Medicación" value={form.medicacion ?? ""} onChange={(e) => setForm((f) => ({ ...f, medicacion: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2" />
-              <input placeholder="Médico" value={form.medico ?? ""} onChange={(e) => setForm((f) => ({ ...f, medico: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2" />
-              <input placeholder="Contactos de emergencia" value={form.contactos ?? ""} onChange={(e) => setForm((f) => ({ ...f, contactos: e.target.value }))} className="rounded-md border border-slate-300 px-3 py-2 sm:col-span-2" />
-              <textarea placeholder="Recomendaciones" value={form.recomendaciones ?? ""} onChange={(e) => setForm((f) => ({ ...f, recomendaciones: e.target.value }))} rows={2} className="rounded-md border border-slate-300 px-3 py-2 sm:col-span-2" />
+              <input placeholder="Teléfono" value={form.telefono ?? ""} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2" />
+              <input placeholder="Dirección" value={form.direccion ?? ""} onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2" />
+              <input placeholder="Medicación" value={form.medicacion ?? ""} onChange={(e) => setForm((f) => ({ ...f, medicacion: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2" />
+              <input placeholder="Médico" value={form.medico ?? ""} onChange={(e) => setForm((f) => ({ ...f, medico: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2" />
+              <input placeholder="Contactos de emergencia" value={form.contactos ?? ""} onChange={(e) => setForm((f) => ({ ...f, contactos: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 sm:col-span-2" />
+              <textarea placeholder="Recomendaciones" value={form.recomendaciones ?? ""} onChange={(e) => setForm((f) => ({ ...f, recomendaciones: e.target.value }))} rows={2} className="rounded-xl border border-slate-200 px-3 py-2 sm:col-span-2" />
               <div className="flex gap-2 sm:col-span-2">
-                <button type="submit" className="rounded-md bg-brand px-4 py-2 font-medium text-white hover:bg-brand-800">Guardar</button>
+                <button type="submit" className="rounded-xl bg-brand px-4 py-2 font-medium text-white hover:bg-brand-800">Guardar</button>
                 <button type="button" onClick={() => setEditando(false)} className="rounded-md border border-slate-300 px-4 py-2 hover:bg-slate-50">Cancelar</button>
               </div>
             </form>
@@ -174,7 +174,7 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
         <div className="border-t border-slate-100 pt-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Cuentas de acceso</p>
 
-          <div className="mb-2 rounded-lg border border-slate-200 p-3">
+          <div className="mb-2 rounded-xl border border-slate-200 p-3">
             <p className="text-sm font-medium text-slate-700">Cuenta de la persona <span className="font-normal text-slate-400">— acceso simple y directo</span></p>
             {persona.usuario ? (
               <div>
@@ -194,7 +194,7 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
             ) : creandoCuenta ? (
               <form onSubmit={crearCuenta} className="mt-2 flex flex-wrap gap-2">
                 <input required type="email" placeholder="Email" value={cuenta.email} onChange={(e) => setCuenta((c) => ({ ...c, email: e.target.value }))} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-                <button type="submit" className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">Crear acceso</button>
+                <button type="submit" className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">Crear acceso</button>
                 <button type="button" onClick={() => setCreandoCuenta(false)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50">Cancelar</button>
               </form>
             ) : (
@@ -205,7 +205,7 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
           </div>
 
           {persona.familiares.map((f) => (
-            <div key={f.id} className="mb-2 rounded-lg border border-slate-200 p-3">
+            <div key={f.id} className="mb-2 rounded-xl border border-slate-200 p-3">
               <p className="text-sm font-medium text-slate-700">
                 {f.usuario?.nombre ?? "Familiar"} <span className="font-normal text-slate-400">— {f.parentesco} · más opciones de gestión</span>
               </p>
@@ -225,7 +225,7 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
           )}
 
           {vinculandoFamiliar ? (
-            <form onSubmit={vincularFamiliar} className="grid grid-cols-1 gap-2 rounded-lg bg-slate-50 p-3 text-sm sm:grid-cols-2">
+            <form onSubmit={vincularFamiliar} className="grid grid-cols-1 gap-2 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-2">
               <input required placeholder="Nombre" value={familiar.nombre} onChange={(e) => setFamiliar((f) => ({ ...f, nombre: e.target.value }))} className="rounded-md border border-slate-300 px-2 py-1.5" />
               <input required placeholder="Parentesco (ej. Hija)" value={familiar.parentesco} onChange={(e) => setFamiliar((f) => ({ ...f, parentesco: e.target.value }))} className="rounded-md border border-slate-300 px-2 py-1.5" />
               <input required type="email" placeholder="Email" value={familiar.email} onChange={(e) => setFamiliar((f) => ({ ...f, email: e.target.value }))} className="rounded-md border border-slate-300 px-2 py-1.5 sm:col-span-2" />
@@ -234,7 +234,7 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
                 Puede ver importes/tarifas
               </label>
               <div className="flex gap-2 sm:col-span-2">
-                <button type="submit" className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">Vincular</button>
+                <button type="submit" className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">Vincular</button>
                 <button type="button" onClick={() => setVinculandoFamiliar(false)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-100">Cancelar</button>
               </div>
             </form>

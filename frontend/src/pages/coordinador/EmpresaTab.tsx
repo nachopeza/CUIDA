@@ -65,7 +65,7 @@ interface Respuesta {
 
 function Bloque({ titulo, ayuda, icono: Icono, children }: { titulo: string; ayuda: string; icono: typeof IconBuilding; children: React.ReactNode }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4">
+    <section className="tarjeta p-4">
       <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
         <Icono className="h-4 w-4 text-slate-400" aria-hidden /> {titulo}
       </h3>
@@ -162,7 +162,7 @@ export function EmpresaTab() {
       {/* Lo primero, qué está roto. No al final del formulario: arriba, donde
           se ve sin desplazarse. */}
       {d.bloqueantes.length > 0 && (
-        <section className="rounded-lg border border-rose-200 bg-rose-50 p-3">
+        <section className="rounded-xl border border-rose-200 bg-rose-50 p-3">
           <p className="flex items-center gap-1.5 text-sm font-medium text-rose-800">
             <IconAlert className="h-4 w-4 shrink-0" aria-hidden />
             {d.bloqueantes.length === 1 ? "Falta un dato y hay cosas que no se pueden hacer" : `Faltan ${d.bloqueantes.length} datos y hay cosas que no se pueden hacer`}
@@ -185,7 +185,7 @@ export function EmpresaTab() {
       ))}
 
       {d.bloqueantes.length === 0 && (
-        <p className="flex items-center gap-2 rounded-lg border border-brand-green-200 bg-brand-green-50 px-3 py-2 text-xs text-brand-green-700">
+        <p className="flex items-center gap-2 rounded-xl border border-brand-green-200 bg-brand-green-50 px-3 py-2 text-xs text-brand-green-700">
           <IconCheckCircle className="h-4 w-4 shrink-0" aria-hidden />
           La empresa está en condiciones de facturar y de generar remesas para el banco.
         </p>
@@ -293,7 +293,7 @@ export function EmpresaTab() {
       <button
         onClick={guardar}
         disabled={guardando}
-        className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+        className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
       >
         {guardando ? "Guardando…" : "Guardar los datos de la empresa"}
       </button>

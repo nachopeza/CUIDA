@@ -174,7 +174,7 @@ export function CalendarioTab({ onAbrirSolicitud }: { onAbrirSolicitud: (solicit
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex rounded-md border border-slate-300 bg-white p-0.5">
+        <div className="flex rounded-xl border border-slate-200 bg-white p-0.5">
           {VISTAS.map((v) => (
             <button
               key={v.clave}
@@ -187,13 +187,13 @@ export function CalendarioTab({ onAbrirSolicitud }: { onAbrirSolicitud: (solicit
         </div>
 
         <div className="flex items-center gap-1">
-          <button onClick={() => mover(-1)} aria-label="Anterior" className="rounded-md border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-50">
+          <button onClick={() => mover(-1)} aria-label="Anterior" className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50">
             <IconChevronLeft className="h-4 w-4" />
           </button>
-          <button onClick={() => setReferencia(new Date())} className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+          <button onClick={() => setReferencia(new Date())} className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
             Hoy
           </button>
-          <button onClick={() => mover(1)} aria-label="Siguiente" className="rounded-md border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-50">
+          <button onClick={() => mover(1)} aria-label="Siguiente" className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50">
             <IconChevronRight className="h-4 w-4" />
           </button>
         </div>
@@ -240,7 +240,7 @@ export function CalendarioTab({ onAbrirSolicitud }: { onAbrirSolicitud: (solicit
       />
 
       {delRango.length === 0 && vista !== "mes" && (
-        <p className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">No hay nada en la agenda en este periodo.</p>
+        <p className="tarjeta px-4 py-8 text-center text-sm text-slate-500">No hay nada en la agenda en este periodo.</p>
       )}
 
       {vista === "dia" && delRango.length > 0 && (
@@ -273,7 +273,7 @@ export function CalendarioTab({ onAbrirSolicitud }: { onAbrirSolicitud: (solicit
       )}
 
       {vista === "mes" && (
-        <div className="rounded-lg border border-slate-200 bg-white p-2">
+        <div className="tarjeta p-2">
           <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-slate-400">
             {DIAS_SEMANA.map((d) => (
               <div key={d} className="py-1">
@@ -283,7 +283,7 @@ export function CalendarioTab({ onAbrirSolicitud }: { onAbrirSolicitud: (solicit
           </div>
           <div className="grid grid-cols-7 gap-1">
             {Array.from({ length: (new Date(referencia.getFullYear(), referencia.getMonth(), 1).getDay() + 6) % 7 }).map((_, i) => (
-              <div key={`hueco-${i}`} className="min-h-[72px] rounded-md bg-slate-50" />
+              <div key={`hueco-${i}`} className="min-h-[72px] rounded-xl bg-slate-50" />
             ))}
             {diasDelRango.map((d) => {
               const k = clave(d);
@@ -311,9 +311,9 @@ export function CalendarioTab({ onAbrirSolicitud }: { onAbrirSolicitud: (solicit
       {/* Escaleta: la cuadrícula de quién trabaja qué días, que es lo que se
           imprime o se manda. Una fila por profesional, una columna por día. */}
       {vista === "escaleta" && (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="overflow-x-auto tarjeta">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-slate-500">
+            <thead className="bg-[#f1f7fa] text-[11px] font-semibold uppercase tracking-wider text-slate-400">
               <tr>
                 <th className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left font-semibold">Profesional</th>
                 {diasDelRango.map((d) => (

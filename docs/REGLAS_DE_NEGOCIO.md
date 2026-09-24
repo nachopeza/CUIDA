@@ -82,6 +82,8 @@ ejecución; el tiempo es lo que genera dinero.
 | 28 | Error de fichaje | Corrección auditada, con el valor original conservado |
 | 29 | Servicio incompleto | Incidencia sobre la jornada; coordinación decide al verificar |
 | 30 | Sustitución | Reemplazo de profesional; las jornadas ya hechas conservan su profesional para que la liquidación de cada uno siga siendo correcta |
+| 30 quater | Alcance del reemplazo | Si viene de una ausencia, cubre sólo sus días y el servicio vuelve a su titular; si no, el relevo es definitivo |
+| 30 quinquies | Ausencia solicitada | No bloquea ni abre incidencias, pero antes de aprobarla se dice qué jornadas deja sin cubrir y quién podría ir |
 
 ## Cuando no va nadie
 
@@ -106,25 +108,99 @@ esperar al día: al aprobarla se abre una incidencia por cada servicio que deja
 sin cubrir, diciendo cuántas jornadas son y de quién, para que coordinación
 busque reemplazo antes de que llegue la fecha.
 
+### Antes de decir sí
+
+Una ausencia **solicitada** no bloquea nada: quien la pide sigue saliendo como
+disponible y no se abre ninguna incidencia, porque unas vacaciones que quizá se
+denieguen no pueden dejar a nadie fuera del cuadrante ni generar trabajo que
+luego habría que deshacer. Lo único que aparece es en la bandeja de coordinación
+—**Días por responder**—, porque quien lo pide está haciendo planes.
+
+Pero se aprueba **sabiendo lo que cuesta**. Junto a cada petición, antes de los
+botones de aprobar y rechazar, se dice qué se va a quedar sin cubrir: *"deja 8
+jornadas sin cubrir · Manuel Prats Soler · Acompañamiento (22 oct … 1 nov) —
+pueden cubrirlo Lucía Fernández Lastra"*, o en rojo *"nadie puede: Lucía (de
+ausencia el 22 oct), Carmen (no trabaja sábado, domingo), Javier (le falta
+certificado de delitos sexuales)"*. Es la misma maquinaria que se usa al aprobar
+y al buscar reemplazo, sólo consultada antes; no crea ni cambia nada.
+
+Sin eso se aprobaba a ciegas: se pulsaba Aprobar y sólo entonces salían las
+incidencias diciendo que tres servicios estaban descubiertos y que no había
+nadie con el perfil para cubrirlos. Con diez días de vacaciones eso es justo lo
+que hay que saber antes de contestar, porque a lo mejor la respuesta es "sí,
+pero moviendo dos días" o "esa semana no puede ser".
+
+La respuesta se da **donde la bandeja te lleva**, en Disponibilidad. Antes el
+aviso decía "Responder" y llevaba a una pantalla que sólo contaba cuántas
+peticiones había: para contestarlas había que entrar en el expediente de cada
+persona, que no está en el menú.
+
+Los días que cuentan como descubiertos **son los que el plan señala**, no sólo
+los que ya están en la agenda. Un servicio recurrente lleva una sola jornada
+por delante, así que una baja del mes que viene no solapaba ninguna y se
+aprobaba en silencio, como si no dejara a nadie sin cubrir. Ahora se recorre el
+plan dentro de las fechas de la ausencia —hasta 60 días; una baja más larga se
+tramita por contrato, no jornada a jornada— y se cuentan todos.
+
+### Quién puede cubrir un servicio
+
+La pregunta se contesta **en un solo sitio, en el servidor**, con tres filtros
+en el orden en que descartan: los **papeles** (sin certificado de delitos
+sexuales no se entra en casa de nadie), **lo que ha ofertado** (qué días y en
+qué franja dice que trabaja) y **la agenda de verdad** (decir que trabaja los
+martes por la tarde no quiere decir que este martes esté libre). Cada persona
+sale con su motivo escrito, y quien no puede ni siquiera se puede elegir.
+
+Antes esto se contestaba en dos sitios a la vez y con criterios distintos: la
+pantalla cruzaba la disponibilidad declarada y el servidor comprobaba los
+papeles al asignar. Por el hueco de en medio se colaba lo peor: asignar a
+alguien que ya tenía otra jornada a esa hora. La asignación salía bien, el
+profesional la aceptaba, y la jornada no se creaba nunca.
+
+Cuando se busca reemplazo para unos días concretos, **se pregunta por esos
+días**, no por los próximos: dar por libre a quien lo está esta semana pero no
+el mes que viene es exactamente el error que esto viene a evitar.
+
 ### Tramitar el reemplazo
 
-Desde la ficha de la incidencia se pone a otra persona en el servicio, y de ahí
-salen cuatro consecuencias:
+Desde la ficha de la incidencia se pone a otra persona, y el mismo botón hace
+**dos cosas distintas** según lo que diga la incidencia:
 
-1. El **servicio** pasa al sustituto, y con él las jornadas que todavía no han
-   empezado. Las ya trabajadas no se tocan: siguen contando para quien las hizo,
-   y su liquidación sigue siendo correcta.
+- **Reemplazo temporal.** Si la incidencia trae días que cubrir —viene de una
+  ausencia aprobada—, se cubren **esos días y nada más**: las jornadas de esas
+  fechas pasan al sustituto, las que el plan señala y todavía no existen se
+  crean ya a su nombre, y **el servicio sigue siendo de quien lo lleva**, que lo
+  recupera al reincorporarse. Que alguien se coja una tarde libre no puede
+  traspasarle el servicio a otra persona para siempre.
+- **Relevo definitivo.** Si no los trae, el servicio pasa al sustituto con todas
+  las jornadas que aún no han empezado.
+
+La ficha dice cuál de las dos va a hacer **antes** de pulsar, con las fechas
+escritas.
+
+En los dos casos:
+
+1. Las **jornadas ya trabajadas no se tocan**: siguen contando para quien las
+   hizo, y su liquidación sigue siendo correcta.
 2. La **jornada perdida** se puede recuperar otro día. Recuperarla es **crear
    una jornada nueva**, nunca reescribir la que no se hizo: aquel día no fue
    nadie y eso queda registrado como pasó.
 3. Al sustituto se le aplican **las mismas comprobaciones que a cualquier
-   asignación** —documentos obligatorios al día (certificado de delitos
-   sexuales incluido), contrato de encargo de tratamiento firmado si viene de
-   una empresa colaboradora, y ninguna ausencia aprobada ese día—. Un reemplazo
-   de urgencia es justo cuando más fácil es saltárselas, así que se comprueban
-   igual y el motivo del rechazo se dice por escrito.
+   asignación** —documentos obligatorios al día, contrato de encargo de
+   tratamiento firmado si viene de una empresa colaboradora, y su agenda libre
+   esos días—. Un reemplazo de urgencia es justo cuando más fácil es
+   saltárselas, así que se comprueban igual y el motivo del rechazo se dice por
+   escrito. Si aun así hay un día que tampoco puede, se crea lo que se pueda y
+   **se dice qué día sigue sin cubrir** en vez de doblarle la agenda en
+   silencio.
 4. La incidencia queda **en resolución, no cerrada**: todavía falta avisar a la
    familia, y eso lo da por hecho una persona cuando lo ha hecho.
+
+Cuando **no queda nadie** a quien pasárselo, la ficha lo dice con todas las
+letras —a quién le faltan papeles, quién no trabaja esos días, quién ya está
+ocupado— en vez de dejar un desplegable de opciones grises sin explicación. Eso
+no es un fallo de la aplicación: es un problema de plantilla, y hay que poder
+leerlo como tal.
 
 
 ### El repaso de lo que viene
@@ -314,3 +390,53 @@ Tres reglas sostienen ese caso:
 
 El desglose de la jornada avisa antes de decidir: "esta jornada ya está en la
 factura A/2026/0002; la diferencia entrará como regularización en la siguiente".
+
+## Lo que no se puede mandar a medias
+
+Un servicio que llega al profesional sin horas o sin precio no es un servicio:
+él no sabe cuándo ir ni cuánto va a cobrar, y al facturar no sale ningún
+importe porque no hay de dónde sacarlo. La ficha lo dice mientras está a
+tiempo, con el botón que lo arregla al lado.
+
+Las horas no se piden dos veces. La franja —mañana, tarde, todo el día— es un
+atajo que pone la horquilla habitual de la casa (09:00–13:00, 16:00–20:00,
+09:00–17:00) en Hora inicio y Hora fin; lo que vale es lo que quede en esas
+dos casillas, que es de donde salen la duración y el importe.
+
+El precio tampoco se teclea de memoria: la tarifa vigente para ese tipo de
+servicio está en Configuración y la ficha la propone con un botón, diciendo de
+cuál se trata y qué queda para CUIDA. Se puede cambiar, pero por defecto dos
+servicios iguales cuestan lo mismo.
+
+Y "1 día" es un día. El último día del plan es el de inicio más los días que
+quedan por delante: una solicitud de una semana genera siete jornadas, no
+ocho.
+
+## Quién puede cubrir un servicio
+
+La pregunta la contesta el servidor, una vez, con tres filtros en el orden en
+que descartan:
+
+1. **Los papeles.** Sin el certificado de delitos sexuales y el DNI en regla no
+   se entra en casa de nadie. Es un no que no se puede saltar.
+2. **Lo que ha ofertado.** Los días de la semana y la franja que el profesional
+   tiene puestos en su disponibilidad.
+3. **La agenda de verdad.** Decir que trabaja los martes por la tarde no quiere
+   decir que este martes por la tarde esté libre: si ya tiene otra jornada a
+   esa hora o está de ausencia, tampoco puede. También es un no que no se puede
+   saltar, porque asignar igualmente no crea la jornada: el servicio se queda
+   confirmado y nadie va a esa casa.
+
+Lo que sale en la lista es el motivo, escrito: «Le encaja», «Ocupado el 24 sept
+a esa hora», «Solo por la mañana», «Le falta certificado de delitos sexuales».
+Los dos noes duros no se pueden pulsar; los blandos sí, porque a veces se
+asigna igual y se llama por teléfono.
+
+Y un servicio sin hora de inicio y fin no se le propone a nadie: quien lo
+acepta se compromete a ir y hay que decirle cuándo.
+
+## Un recurrente sin días marcados
+
+Quiere decir «cada semana, el día que empezó». Antes quería decir «los siete
+días», y un servicio de los siete días no lo puede cubrir nadie: la lista de
+candidatos salía vacía sin explicar por qué.
