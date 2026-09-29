@@ -944,6 +944,7 @@ export function CoordinadorPage() {
               setFichaAbierta(id);
             }}
             onAbrirIncidencia={setIncidenciaFichaAbierta}
+            onCambiado={cargar}
           />
         )}
         {tab === "calendario" && <CalendarioTab onAbrirSolicitud={(id) => setFichaAbierta(id)} />}

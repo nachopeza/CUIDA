@@ -124,6 +124,9 @@ export interface Servicio {
   interesados?: ServicioInteres[];
   // Sólo en las vistas del profesional: si ya se apuntó a este servicio, qué
   // dijo al apuntarse y en qué ha quedado su candidatura.
+  // Cuántos profesionales se han apuntado a un servicio sin cubrir. Sólo lo
+  // recibe coordinación.
+  nInteresados?: number;
   meInteresa?: boolean;
   miMensaje?: string | null;
   meApunteEl?: string | null;

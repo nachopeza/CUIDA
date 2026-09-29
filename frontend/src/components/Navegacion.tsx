@@ -195,8 +195,10 @@ function Lista({ items, areas, activo, onIr, badges }: Pick<Props, "items" | "ar
   if (areas && areas.length > 0) {
     return (
       <nav className="space-y-3">
-        {areas.map((area) => (
-          <Area key={area.titulo} area={area} activo={activo} onIr={onIr} badges={badges} />
+        {/* Hay áreas sin rótulo (Inicio y Análisis), así que el título solo no
+            identifica a ninguna: React se quejaba de claves repetidas. */}
+        {areas.map((area, i) => (
+          <Area key={`${i}-${area.titulo}`} area={area} activo={activo} onIr={onIr} badges={badges} />
         ))}
       </nav>
     );

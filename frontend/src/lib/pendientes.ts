@@ -1,7 +1,6 @@
 import type { Ausencia, Factura, FichaProfesional, Incidencia, Persona, Servicio, Solicitud, Visita } from "./types.js";
 
 type PersonaConCarencias = Persona;
-import { duracion, minutosFichados } from "./economia.js";
 
 // Qué requiere una decisión de Olga ahora mismo, en un único sitio y con un
 // único criterio de prioridad.
@@ -19,6 +18,13 @@ export interface Asunto {
   // La categoría, para poder filtrar: "Visita no iniciada", "Servicio sin
   // cubrir"…
   tipo: string;
+  // De qué familia de trabajo es, para las vistas de la bandeja: lo que tiene
+  // que ver con incidencias, con solicitudes sin gestionar del todo, o el resto.
+  grupo: "incidencias" | "solicitudes" | "otros";
+  // Sólo en las incidencias: si la lleva quien mira la bandeja. Una incidencia
+  // sin nadie al frente no es de nadie, y por eso se cuenta aparte.
+  mia?: boolean;
+  sinResponsable?: boolean;
   persona: string;
   // El servicio del que se trata, para leerlo debajo del nombre: "Herminia
   // Ruiz / Acompañamiento". El nombre solo no distingue dos servicios de la
@@ -132,9 +138,11 @@ export function calcularPendientes(datos: {
   plantilla: FichaProfesional[];
   personas?: PersonaConCarencias[];
   ausencias?: Ausencia[];
+  // Quién mira la bandeja: sirve para saber qué incidencias lleva.
+  yo?: string | null;
 }): Asunto[] {
-  const { solicitudes, servicios, incidencias, facturas, plantilla, personas = [], ausencias = [] } = datos;
-  const asuntos: Asunto[] = [];
+  const { solicitudes, servicios, incidencias, facturas, plantilla, personas = [], ausencias = [], yo } = datos;
+  const asuntos: Omit<Asunto, "grupo">[] = [];
   const hoy = new Date().toISOString().slice(0, 10);
   const porServicio = new Map(solicitudes.filter((s) => s.servicio).map((s) => [s.servicio!.id, s]));
 
@@ -178,29 +186,11 @@ export function calcularPendientes(datos: {
         }
       }
 
-      // Atención: trabajo hecho que todavía no se ha dado por bueno. Hasta
-      // que no se verifica no se le paga a nadie ni se factura.
-      if (visita.estado === "FINALIZADA") {
-        const fichados = minutosFichados(visita.horaInicioReal, visita.horaFinReal);
-        asuntos.push({
-          id: `verificar-${visita.id}`,
-          prioridad: "atencion",
-          tipo: "Pendiente de verificar",
-          persona,
-          servicio: queServicio,
-          cuando: reloj(visita.fecha, visita.horaFinProg ?? visita.horaInicioProg),
-          detalle:
-            fichados == null
-              ? "Cerrada sin fichaje"
-              // "3 h 18 min", no "3.3 h": el mismo vocabulario de duración que
-              // el resto de la aplicación. Las horas decimales solo existen
-              // dentro de los cálculos.
-              : `${new Date(visita.fecha).toLocaleDateString("es-ES", { day: "numeric", month: "short" })} · ${duracion(fichados)} fichadas`,
-          desde: Math.max(0, Math.floor((Date.now() - new Date(visita.fecha).getTime()) / 60000)),
-          accion: "Verificar",
-          destino: { tipo: "tab", tab: "verificacion", foco: visita.id },
-        });
-      }
+      // El trabajo terminado que espera verificación no sale aquí: tiene su
+      // propio apartado, con el fichaje al lado de lo acordado, y el aviso de
+      // "Pendiente de verificar" en la bandeja era una segunda lista de lo mismo
+      // que tapaba lo que de verdad hay que resolver. Cuando lo fichado no
+      // cuadra sí sale, como incidencia o como tiempo sin decidir.
     }
 
     // Crítico: una jornada abierta desde hace horas. Casi nunca son horas de
@@ -260,9 +250,12 @@ export function calcularPendientes(datos: {
         persona,
         servicio: queServicio,
         cuando: proxima ? reloj(proxima.fecha, proxima.horaInicioProg) : undefined,
-        detalle: `${solicitud?.necesidad.nombre ?? servicio.codigo} · sin profesional asignado`,
+        detalle: `${solicitud?.necesidad.nombre ?? servicio.codigo} · sin profesional asignado${
+          servicio.nInteresados ? ` · ${servicio.nInteresados} ${servicio.nInteresados === 1 ? "persona apuntada" : "personas apuntadas"}` : ""
+        }`,
         desde: Math.floor((Date.now() - new Date(servicio.createdAt ?? Date.now()).getTime()) / 60000),
-        accion: "Asignar",
+        // Con gente apuntada la decisión es elegir; sin nadie, buscar.
+        accion: servicio.nInteresados ? "Elegir" : "Asignar",
         destino: solicitud ? { tipo: "solicitud", id: solicitud.id } : { tipo: "tab", tab: "solicitudes" },
       });
     }
@@ -342,6 +335,8 @@ export function calcularPendientes(datos: {
       desde: incidencia.createdAt ? Math.floor((Date.now() - new Date(incidencia.createdAt).getTime()) / 60000) : 0,
       accion: esCancelacion ? "Corroborar" : "Revisar",
       destino: { tipo: "incidencia", id: incidencia.id },
+      mia: Boolean(yo && incidencia.responsable?.email === yo),
+      sinResponsable: !incidencia.responsable,
     });
   }
 
@@ -432,9 +427,20 @@ export function calcularPendientes(datos: {
     });
   }
 
+  // La familia de cada asunto, para las vistas de la bandeja. Se decide aquí,
+  // en un solo sitio, y no en cada punto donde se crea el asunto.
+  const GRUPOS: Record<string, Asunto["grupo"]> = {
+    "Incidencia abierta": "incidencias",
+    "Cancelación pedida": "incidencias",
+    "Solicitud por revisar": "solicitudes",
+    "Servicio sin cubrir": "solicitudes",
+    "Sin confirmar": "solicitudes",
+  };
+  const conGrupo: Asunto[] = asuntos.map((a) => ({ ...a, grupo: GRUPOS[a.tipo] ?? "otros" }));
+
   // Primero lo crítico; dentro de cada nivel, lo que lleva más tiempo
   // esperando.
-  return asuntos.sort(
+  return conGrupo.sort(
     (a, b) => INFO_PRIORIDAD[a.prioridad].orden - INFO_PRIORIDAD[b.prioridad].orden || b.desde - a.desde,
   );
 }

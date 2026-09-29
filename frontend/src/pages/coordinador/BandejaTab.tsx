@@ -28,12 +28,20 @@ interface Props {
   onAbrirSolicitud: (solicitudId: string) => void;
   onAbrirIncidencia: (incidenciaId: string) => void;
   onAbrirPersona: (personaId: string) => void;
+  // Recargar lo de fuera (servicios, jornadas, incidencias) cuando aquí se
+  // resuelve algo. Sin esto la fila resuelta seguía en la lista hasta que
+  // alguien recargaba la página, y parecía que "Resolver" no había hecho nada.
+  onCambiado: () => void;
 }
+
+type Vista = "todo" | "incidencias" | "solicitudes";
 
 const PRIORIDADES: Prioridad[] = ["critico", "atencion", "informativa"];
 
-export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrirSolicitud, onAbrirIncidencia, onAbrirPersona }: Props) {
-  const { token } = useAuth();
+export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrirSolicitud, onAbrirIncidencia, onAbrirPersona, onCambiado }: Props) {
+  const { token, usuario } = useAuth();
+  const [vista, setVista] = useState<Vista>("todo");
+  const [soloMias, setSoloMias] = useState(false);
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [plantilla, setPlantilla] = useState<FichaProfesional[]>([]);
   const [busqueda, setBusqueda] = useState("");
@@ -63,8 +71,8 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   }, [token]);
 
   const todos = useMemo(
-    () => calcularPendientes({ solicitudes, servicios, incidencias, facturas, plantilla, personas: fichasPersona, ausencias }),
-    [solicitudes, servicios, incidencias, facturas, plantilla, fichasPersona, ausencias],
+    () => calcularPendientes({ solicitudes, servicios, incidencias, facturas, plantilla, personas: fichasPersona, ausencias, yo: usuario?.email }),
+    [solicitudes, servicios, incidencias, facturas, plantilla, fichasPersona, ausencias, usuario?.email],
   );
 
   // Los desplegables se llenan de lo que hay, no de una lista fija: un filtro
@@ -75,13 +83,16 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const visibles = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return todos.filter((a) => {
+      if (vista === "incidencias" && a.grupo !== "incidencias") return false;
+      if (vista === "incidencias" && soloMias && !a.mia) return false;
+      if (vista === "solicitudes" && a.grupo !== "solicitudes") return false;
       if (prioridad && a.prioridad !== prioridad) return false;
       if (tipo && a.tipo !== tipo) return false;
       if (persona && a.persona !== persona) return false;
       if (q && !`${a.tipo} ${a.persona} ${a.servicio ?? ""} ${a.detalle}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [todos, busqueda, prioridad, tipo, persona]);
+  }, [todos, busqueda, prioridad, tipo, persona, vista, soloMias]);
 
   const conteo = useMemo(() => {
     const c: Record<Prioridad, number> = { critico: 0, atencion: 0, informativa: 0 };
@@ -89,27 +100,40 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
     return c;
   }, [todos]);
 
-  const [jornada, setJornada] = useState<Extract<Asunto["destino"], { tipo: "jornada" }> | null>(null);
+  const cuentaVista = useMemo(
+    () => ({
+      todo: todos.length,
+      incidencias: todos.filter((a) => a.grupo === "incidencias").length,
+      solicitudes: todos.filter((a) => a.grupo === "solicitudes").length,
+      mias: todos.filter((a) => a.mia).length,
+      sinResponsable: todos.filter((a) => a.sinResponsable).length,
+    }),
+    [todos],
+  );
+
+  const [jornada, setJornada] = useState<(Extract<Asunto["destino"], { tipo: "jornada" }> & { persona: string }) | null>(null);
 
   function abrir(a: Asunto) {
     // Una jornada atascada se resuelve aquí mismo, sin salir de la bandeja:
     // es el caso en que navegar a otra pantalla no servía de nada porque allí
     // no había ninguna acción que arreglase el problema.
-    if (a.destino.tipo === "jornada") setJornada(a.destino);
+    // Se guarda el nombre ahora: al resolverla el asunto desaparece de la lista
+    // y el modal, que sigue abierto con el resultado, ya no lo encontraría.
+    if (a.destino.tipo === "jornada") setJornada({ ...a.destino, persona: a.persona });
     else if (a.destino.tipo === "solicitud") onAbrirSolicitud(a.destino.id);
     else if (a.destino.tipo === "incidencia") onAbrirIncidencia(a.destino.id);
     else if (a.destino.tipo === "persona") onAbrirPersona(a.destino.id);
     else onIrA(a.destino.tab, undefined, a.destino.foco);
   }
 
-  const hayFiltro = Boolean(busqueda || prioridad || tipo || persona);
+  const hayFiltro = Boolean(busqueda || prioridad || tipo || persona || vista !== "todo");
 
   return (
     <div className="space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-800">Bandeja de trabajo</h2>
-          <p className="mt-0.5 max-w-2xl text-sm text-slate-500">
+          {/* El título ya lo pone la pantalla; repetirlo aquí lo duplicaba. */}
+          <p className="max-w-2xl text-sm text-slate-500">
             Todo lo que espera a alguien, de toda la aplicación, con la acción al lado. El escritorio enseña lo más urgente; esto
             es la lista completa.
           </p>
@@ -151,6 +175,37 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
           </button>
         </div>
       </header>
+
+      {/* Las tres preguntas con las que se abre la bandeja: qué hay en general,
+          qué incidencias tengo, y qué solicitudes siguen sin resolverse del
+          todo (sin revisar, sin profesional, o sin que nadie haya aceptado). */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {(
+          [
+            { clave: "todo", etiqueta: "Todo", n: cuentaVista.todo },
+            { clave: "incidencias", etiqueta: "Incidencias", n: cuentaVista.incidencias },
+            { clave: "solicitudes", etiqueta: "Solicitudes sin gestionar", n: cuentaVista.solicitudes },
+          ] as const
+        ).map((v) => (
+          <button
+            key={v.clave}
+            onClick={() => setVista(v.clave)}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+              vista === v.clave ? "border-brand bg-brand text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            {v.etiqueta}
+            <span className={`ml-1.5 tabular-nums ${vista === v.clave ? "text-white/70" : "text-slate-400"}`}>{v.n}</span>
+          </button>
+        ))}
+        {vista === "incidencias" && (
+          <label className="ml-2 flex items-center gap-1.5 text-xs text-slate-600">
+            <input type="checkbox" checked={soloMias} onChange={(e) => setSoloMias(e.target.checked)} />
+            Sólo las mías <span className="text-slate-400">({cuentaVista.mias})</span>
+            {cuentaVista.sinResponsable > 0 && <span className="text-amber-700">· {cuentaVista.sinResponsable} sin responsable</span>}
+          </label>
+        )}
+      </div>
 
       {/* Casillas de conteo que además filtran. Punto y palabra, no sólo
           color: impreso en gris o para quien no distingue el ámbar del rojo,
@@ -206,6 +261,8 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
               setPrioridad("");
               setTipo("");
               setPersona("");
+              setVista("todo");
+              setSoloMias(false);
             }}
             className="text-xs font-medium text-slate-500 hover:text-slate-700"
           >
@@ -244,7 +301,11 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                         {info.etiqueta}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-700">{a.tipo}</td>
+                    <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-700">
+                      {a.tipo}
+                      {a.mia && <span className="ml-1.5 rounded-full bg-brand-50 px-1.5 py-0.5 text-[10px] font-medium text-brand-800">Mía</span>}
+                      {a.sinResponsable && <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Sin responsable</span>}
+                    </td>
                     <td className="whitespace-nowrap px-3 py-2">
                       <span className="block text-slate-700">{a.persona}</span>
                       {a.servicio && <span className="block text-xs text-slate-400">{a.servicio}</span>}
@@ -282,12 +343,15 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
         <ResolverJornadaModal
           visitaId={jornada.visitaId}
           codigo={jornada.codigo}
-          persona={todos.find((a) => a.destino.tipo === "jornada" && a.destino.visitaId === jornada.visitaId)?.persona ?? "la persona"}
+          persona={jornada.persona}
           profesional={jornada.profesional}
           horaInicioProg={jornada.horaInicioProg}
           horaFinProg={jornada.horaFinProg}
           onClose={() => setJornada(null)}
-          onResuelta={() => void cargar()}
+          onResuelta={() => {
+            void cargar();
+            onCambiado();
+          }}
         />
       )}
     </div>

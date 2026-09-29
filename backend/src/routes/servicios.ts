@@ -93,6 +93,19 @@ serviciosRouter.get("/", async (req, res) => {
     return filtrarEconomia(s, usuario, visible);
   });
 
+  // A coordinación le importa, en un servicio sin cubrir, si ya hay gente
+  // apuntada: "sin profesional" no es lo mismo con tres candidatas esperando
+  // respuesta que con ninguna. A nadie más se le cuenta.
+  if (esGestorOrganizacion(usuario) && servicios.length > 0) {
+    const cuentas = await prisma.servicioInteres.groupBy({
+      by: ["servicioId"],
+      where: { servicioId: { in: servicios.map((s) => s.id) } },
+      _count: { _all: true },
+    });
+    const porServicio = new Map(cuentas.map((c) => [c.servicioId, c._count._all]));
+    return res.json(resultado.map((r) => ({ ...(r as Record<string, unknown>), nInteresados: porServicio.get((r as { id: string }).id) ?? 0 })));
+  }
+
   res.json(resultado);
 });
 

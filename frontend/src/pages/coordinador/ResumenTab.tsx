@@ -531,13 +531,15 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   // corta de "y luego esto".
   const proximasAcciones = pendientes.slice(6, 11);
 
-  const [jornada, setJornada] = useState<Extract<Asunto["destino"], { tipo: "jornada" }> | null>(null);
+  const [jornada, setJornada] = useState<(Extract<Asunto["destino"], { tipo: "jornada" }> & { persona: string }) | null>(null);
 
   function irAsunto(a: Asunto) {
     // Una jornada atascada se resuelve aquí mismo, sin salir de la bandeja:
     // es el caso en que navegar a otra pantalla no servía de nada porque allí
     // no había ninguna acción que arreglase el problema.
-    if (a.destino.tipo === "jornada") setJornada(a.destino);
+    // Se guarda el nombre ahora: al resolverla el asunto desaparece de la lista
+    // y el modal, que sigue abierto con el resultado, ya no lo encontraría.
+    if (a.destino.tipo === "jornada") setJornada({ ...a.destino, persona: a.persona });
     else if (a.destino.tipo === "solicitud") onAbrirSolicitud(a.destino.id);
     else if (a.destino.tipo === "incidencia") onAbrirIncidencia(a.destino.id);
     else if (a.destino.tipo === "persona") onAbrirPersona(a.destino.id);
@@ -1219,7 +1221,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
         <ResolverJornadaModal
           visitaId={jornada.visitaId}
           codigo={jornada.codigo}
-          persona={pendientes.find((a) => a.destino.tipo === "jornada" && a.destino.visitaId === jornada.visitaId)?.persona ?? "la persona"}
+          persona={jornada.persona}
           profesional={jornada.profesional}
           horaInicioProg={jornada.horaInicioProg}
           horaFinProg={jornada.horaFinProg}
