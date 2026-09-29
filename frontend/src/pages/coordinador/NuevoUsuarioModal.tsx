@@ -8,6 +8,13 @@ const PERSONA_VACIA = {
   apellidos: "",
   telefono: "",
   direccion: "",
+  // El municipio va aparte del portal, y no por gusto de formulario: es lo
+  // único del domicilio que se le puede enseñar a quien todavía no tiene el
+  // trabajo asignado. Si aquí no se rellena, en el mercado de solicitudes la
+  // profesional no sabe ni si le pilla cerca.
+  municipio: "Santander",
+  comunidad: "Cantabria",
+  zona: "",
   medicacion: "",
   medico: "",
   contactos: "",
@@ -122,7 +129,9 @@ export function NuevoUsuarioModal({ onClose, onCreated }: { onClose: () => void;
             <input required placeholder="Nombre" value={persona.nombre} onChange={(e) => setPersona((p) => ({ ...p, nombre: e.target.value }))} className="campo" />
             <input required placeholder="Apellidos" value={persona.apellidos} onChange={(e) => setPersona((p) => ({ ...p, apellidos: e.target.value }))} className="campo" />
             <input placeholder="Teléfono" value={persona.telefono} onChange={(e) => setPersona((p) => ({ ...p, telefono: e.target.value }))} className="campo" />
-            <input placeholder="Dirección" value={persona.direccion} onChange={(e) => setPersona((p) => ({ ...p, direccion: e.target.value }))} className="campo sm:col-span-2" />
+            <input placeholder="Dirección (calle y número)" value={persona.direccion} onChange={(e) => setPersona((p) => ({ ...p, direccion: e.target.value }))} className="campo sm:col-span-2" />
+            <input required placeholder="Municipio" value={persona.municipio} onChange={(e) => setPersona((p) => ({ ...p, municipio: e.target.value }))} className="campo" />
+            <input placeholder="Barrio o zona (opcional)" value={persona.zona} onChange={(e) => setPersona((p) => ({ ...p, zona: e.target.value }))} className="campo" />
             <input placeholder="Medicación" value={persona.medicacion} onChange={(e) => setPersona((p) => ({ ...p, medicacion: e.target.value }))} className="campo" />
             <input placeholder="Médico / centro de referencia" value={persona.medico} onChange={(e) => setPersona((p) => ({ ...p, medico: e.target.value }))} className="campo sm:col-span-2" />
             <input placeholder="Contactos de emergencia" value={persona.contactos} onChange={(e) => setPersona((p) => ({ ...p, contactos: e.target.value }))} className="campo sm:col-span-3" />

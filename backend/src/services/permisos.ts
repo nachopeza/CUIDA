@@ -136,6 +136,64 @@ export function soloLoQueCobraElProfesional<T extends Record<string, unknown>>(s
   return limpiarRecursivo(servicio, CAMPOS_SOLO_DE_COORDINACION) as T;
 }
 
+// ---------------------------------------------------------------------------
+// Quién es la persona, y dónde vive
+//
+// Mientras un servicio está publicado y sin asignar, lo ve toda la plantilla:
+// cualquiera que entre en el mercado de solicitudes. Enseñar ahí el nombre y
+// la dirección exacta de una persona mayor es repartir datos de salud y
+// domicilio entre gente que a lo mejor nunca va a ir a esa casa.
+//
+// Para decidir si el trabajo le encaja, a quien mira le basta con el
+// municipio, la zona, los días, las horas y qué hay que hacer. El nombre y el
+// portal aparecen en cuanto el servicio es suyo, que es cuando los necesita y
+// cuando existe una razón para tratarlos (art. 5.1.c RGPD, minimización).
+// ---------------------------------------------------------------------------
+function inicialesDe(nombre?: unknown, apellidos?: unknown): string {
+  const n = typeof nombre === "string" ? nombre.trim() : "";
+  const a = typeof apellidos === "string" ? apellidos.trim() : "";
+  const letras = `${n[0] ?? ""}${a[0] ?? ""}`.toUpperCase();
+  return letras || "—";
+}
+
+export function sinIdentificarALaPersona<T extends Record<string, unknown>>(servicio: T | null | undefined): T | null | undefined {
+  if (!servicio) return servicio;
+  const copia: Record<string, unknown> = { ...servicio };
+  const solicitud = copia.solicitud as Record<string, unknown> | undefined;
+  if (!solicitud) return copia as T;
+
+  const persona = solicitud.persona as Record<string, unknown> | undefined;
+  const nuevaSolicitud: Record<string, unknown> = { ...solicitud };
+  if (persona) {
+    nuevaSolicitud.persona = {
+      // Se queda lo que hace falta para decidir si el trabajo encaja.
+      id: persona.id,
+      municipio: persona.municipio,
+      comunidad: persona.comunidad,
+      zona: persona.zona,
+      // Y en vez del nombre, las iniciales: sirven para referirse al caso
+      // ("el servicio de H. R.") sin decir quién es.
+      iniciales: inicialesDe(persona.nombre, persona.apellidos),
+      nombre: null,
+      apellidos: null,
+      direccion: null,
+      telefono: null,
+      email: null,
+      fechaNacimiento: null,
+      dni: null,
+      notasSalud: null,
+      // Que quien mira sepa por qué ve tan poco, en vez de creer que faltan
+      // datos.
+      identidadReservada: true,
+    };
+  }
+  // Lo que la familia escribió puede llevar el nombre dentro ("mi madre
+  // Herminia…"), así que tampoco sale hasta que el servicio esté asignado.
+  nuevaSolicitud.descripcionLibre = null;
+  copia.solicitud = nuevaSolicitud;
+  return copia as T;
+}
+
 export function scopeOrganizacion(usuario: TokenPayload): { organizacionId: string } | {} {
   if (usuario.rol === "SUPERADMIN") return {};
   return { organizacionId: usuario.organizacionId ?? "__none__" };

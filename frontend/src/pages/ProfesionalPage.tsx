@@ -6,7 +6,7 @@ import { Card, Panel } from "../components/Layout.js";
 import { Novedades } from "../components/Novedades.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { Cronometro } from "../components/Cronometro.js";
-import { IconAlert, IconCalendar, IconChat, IconClock, IconFlag, IconHome, IconNote, IconPin, IconPlay, IconSearch, IconStop, IconUsers, IconIdCard } from "../components/icons.js";
+import { IconAlert, IconCalendar, IconChat, IconClock, IconFlag, IconHome, IconLock, IconNote, IconPin, IconPlay, IconSearch, IconStop, IconUsers, IconIdCard } from "../components/icons.js";
 import { IconoNecesidad } from "../lib/necesidadIconos.js";
 import { cobroDeJornada, duracion, euros, minutosEntre, minutosFichados, porHora } from "../lib/economia.js";
 import { Modal } from "../components/Modal.js";
@@ -288,8 +288,13 @@ export function ProfesionalPage() {
                             <IconoNecesidad codigo={s.solicitud?.necesidad.codigo} className="h-4 w-4 shrink-0 text-slate-500" />
                             {s.solicitud?.necesidad.nombre}
                           </p>
+                          {/* Una propuesta todavía se puede rechazar, así que
+                              tampoco lleva nombre: van las iniciales y el
+                              municipio, y el resto aparece al aceptar. */}
                           <p className="text-sm text-slate-600">
-                            con {s.solicitud?.persona.nombre} {s.solicitud?.persona.apellidos}
+                            {s.solicitud?.persona.identidadReservada
+                              ? `con ${s.solicitud.persona.iniciales ?? "—"}`
+                              : `con ${s.solicitud?.persona.nombre ?? ""} ${s.solicitud?.persona.apellidos ?? ""}`.trimEnd()}
                           </p>
                         </div>
                         {cobro > 0 && (
@@ -329,10 +334,14 @@ export function ProfesionalPage() {
                             </dd>
                           </div>
                         )}
-                        {s.solicitud?.persona.direccion && (
+                        {(s.solicitud?.persona.direccion || s.solicitud?.persona.municipio) && (
                           <div className="flex items-center gap-1.5">
                             <IconPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                            <dd>{s.solicitud.persona.direccion}</dd>
+                            <dd>
+                              {s.solicitud?.persona.identidadReservada
+                                ? [s.solicitud.persona.zona, s.solicitud.persona.municipio].filter(Boolean).join(" · ")
+                                : s.solicitud?.persona.direccion}
+                            </dd>
                           </div>
                         )}
                         {plan?.tareasPrevistas && (
@@ -343,6 +352,13 @@ export function ProfesionalPage() {
                         )}
                         {s.solicitud?.descripcionLibre && <p className="pt-1 italic text-slate-500">"{s.solicitud.descripcionLibre}"</p>}
                       </dl>
+
+                      {s.solicitud?.persona.identidadReservada && (
+                        <p className="mt-2 flex items-start gap-1.5 text-[11px] text-slate-400">
+                          <IconLock className="mt-0.5 h-3 w-3 shrink-0" />
+                          En cuanto aceptes verás el nombre, la dirección y la ficha completa de la persona.
+                        </p>
+                      )}
 
                       <div className="mt-3 flex gap-2">
                         <button onClick={() => aceptar(s.id)} className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
@@ -580,7 +596,8 @@ export function ProfesionalPage() {
         <Modal title="No me encaja" onClose={() => setRechazando(null)}>
           <div className="space-y-3">
             <p className="text-sm text-slate-600">
-              {rechazando.solicitud?.necesidad.nombre} con {rechazando.solicitud?.persona.nombre}. Volverá a coordinación para buscar a otra persona.
+              {rechazando.solicitud?.necesidad.nombre} en{" "}
+              {rechazando.solicitud?.persona.municipio ?? "la zona"}. Volverá a coordinación para buscar a otra persona.
             </p>
             <label className="block text-xs font-medium text-slate-500">
               ¿Por qué? (opcional, pero ayuda)

@@ -200,6 +200,14 @@ model Persona {
   fechaNacimiento DateTime?
   telefono        String?
   direccion       String?
+  // Dónde vive, en dos niveles. La dirección exacta sólo la ve quien tiene el
+  // servicio asignado; el municipio y la zona los ve toda la plantilla en el
+  // mercado de solicitudes, porque sin saber dónde cae el trabajo no se puede
+  // decidir si encaja. Separarlos es lo que permite enseñar una cosa y no la
+  // otra (art. 5.1.c RGPD, minimización).
+  municipio       String?
+  comunidad       String?
+  zona            String? // barrio o distrito, cuando el municipio es grande
   preferencias    String?
   // Perfil completo (sección "Usuarios" del coordinador): información
   // operativa que necesita quien presta el servicio, nunca una historia

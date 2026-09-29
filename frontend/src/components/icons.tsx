@@ -451,6 +451,15 @@ export const IconShield = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+// Candado: lo que hay detrás está reservado. Se usa donde se explica por qué
+// no se ve un dato, que es distinto de que el dato falte.
+export const IconLock = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <rect x="4" y="10.5" width="16" height="10" rx="2" />
+    <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+  </Icon>
+);
+
 export const IconList = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <path d="M9 6h11M9 12h11M9 18h11" />

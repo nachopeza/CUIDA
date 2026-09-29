@@ -235,6 +235,9 @@ async function main() {
       apellidos: "Ruiz Campos",
       telefono: "600 111 222",
       direccion: "Domicilio particular (demo)",
+      municipio: "Santander",
+      comunidad: "Cantabria",
+      zona: "Centro",
       preferencias: "Prefiere visitas por la mañana",
       medicacion: "Enalapril 10mg (mañana), Omeprazol 20mg (antes de comer)",
       medico: "Dr. Alonso — Centro de Salud Sant Fruitós",
@@ -457,6 +460,9 @@ async function main() {
     apellidos: string;
     telefono: string;
     direccion: string;
+    municipio?: string;
+    comunidad?: string;
+    zona?: string;
     preferencias: string;
     recomendaciones: string;
     email: string;
@@ -469,6 +475,9 @@ async function main() {
         apellidos: datos.apellidos,
         telefono: datos.telefono,
         direccion: datos.direccion,
+        municipio: datos.municipio ?? "Santander",
+        comunidad: datos.comunidad ?? "Cantabria",
+        zona: datos.zona,
         preferencias: datos.preferencias,
         recomendaciones: datos.recomendaciones,
         estado: "ACTIVA",
@@ -502,6 +511,9 @@ async function main() {
     apellidos: "Prats Soler",
     telefono: "600 444 555",
     direccion: "Domicilio particular (demo) — Zona Norte",
+    municipio: "Santander",
+    comunidad: "Cantabria",
+    zona: "Puertochico",
     preferencias: "Prefiere las tardes; ve la televisión a las 20:00 y no quiere que le interrumpan",
     recomendaciones: "Camina con andador. No dejar alfombras sueltas en el pasillo",
     email: "manuel@cuida.demo",
@@ -513,6 +525,9 @@ async function main() {
     apellidos: "Aguirre Vega",
     telefono: "600 666 777",
     direccion: "Domicilio particular (demo) — Zona Sur",
+    municipio: "Camargo",
+    comunidad: "Cantabria",
+    zona: "Muriedas",
     preferencias: "Mañanas temprano. Le gusta que le lean el periódico",
     recomendaciones: "Diabética: cuidado con la merienda. Tiene un perro muy ladrador pero inofensivo",
     email: "dolores@cuida.demo",

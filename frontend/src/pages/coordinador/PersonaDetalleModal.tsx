@@ -7,7 +7,7 @@ import { SolicitudFichaModal } from "../../components/SolicitudFichaModal.js";
 import { ConsentimientosPersona } from "../../components/ConsentimientosPersona.js";
 import type { PersonaConFamiliares, Solicitud } from "../../lib/types.js";
 
-const PERFIL_CAMPOS = ["telefono", "direccion", "medicacion", "medico", "contactos", "recomendaciones"] as const;
+const PERFIL_CAMPOS = ["telefono", "direccion", "municipio", "zona", "medicacion", "medico", "contactos", "recomendaciones"] as const;
 
 const CUENTA_VACIA = { email: "", password: "" };
 const FAMILIAR_VACIO = { nombre: "", parentesco: "", email: "", puedeVerImportes: true };
@@ -146,6 +146,15 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
             <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm text-slate-600 sm:grid-cols-2">
               <div><dt className="text-xs text-slate-400">Teléfono</dt><dd>{persona.telefono || "—"}</dd></div>
               <div><dt className="text-xs text-slate-400">Dirección</dt><dd>{persona.direccion || "—"}</dd></div>
+              {/* El municipio es lo que ve una profesional que todavía no tiene
+                  el trabajo asignado, así que se enseña aquí aparte: sin él,
+                  su solicitud sale al mercado sin decir ni dónde es. */}
+              <div>
+                <dt className="text-xs text-slate-400">Municipio</dt>
+                <dd>
+                  {[persona.zona, persona.municipio].filter(Boolean).join(" · ") || <span className="text-amber-700">sin rellenar</span>}
+                </dd>
+              </div>
               <div><dt className="text-xs text-slate-400">Medicación</dt><dd>{persona.medicacion || "—"}</dd></div>
               <div><dt className="text-xs text-slate-400">Médico</dt><dd>{persona.medico || "—"}</dd></div>
               <div className="sm:col-span-2"><dt className="text-xs text-slate-400">Contactos de emergencia</dt><dd>{persona.contactos || "—"}</dd></div>
@@ -154,7 +163,9 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
           ) : (
             <form onSubmit={guardarEdicion} className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
               <input placeholder="Teléfono" value={form.telefono ?? ""} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2" />
-              <input placeholder="Dirección" value={form.direccion ?? ""} onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2" />
+              <input placeholder="Dirección (calle y número)" value={form.direccion ?? ""} onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2" />
+              <input placeholder="Municipio" value={form.municipio ?? ""} onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2" />
+              <input placeholder="Barrio o zona (opcional)" value={form.zona ?? ""} onChange={(e) => setForm((f) => ({ ...f, zona: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2" />
               <input placeholder="Medicación" value={form.medicacion ?? ""} onChange={(e) => setForm((f) => ({ ...f, medicacion: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2" />
               <input placeholder="Médico" value={form.medico ?? ""} onChange={(e) => setForm((f) => ({ ...f, medico: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2" />
               <input placeholder="Contactos de emergencia" value={form.contactos ?? ""} onChange={(e) => setForm((f) => ({ ...f, contactos: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 sm:col-span-2" />

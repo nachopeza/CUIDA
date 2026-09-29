@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
 import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
-import { esGestorOrganizacion, puedeVerImportes, filtrarEconomia, ocultarTarifaSiProcede, soloLoQueCobraElProfesional } from "../services/permisos.js";
+import { esGestorOrganizacion, puedeVerImportes, filtrarEconomia, ocultarTarifaSiProcede, sinIdentificarALaPersona, soloLoQueCobraElProfesional } from "../services/permisos.js";
 import { ausenteEse, carenciasDe } from "../services/rrhh.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
@@ -71,7 +71,20 @@ serviciosRouter.get("/", async (req, res) => {
     // Al profesional se le aplicaba el mismo filtro que a la familia sin
     // permiso, y ese borra también lo que él cobra: por eso una propuesta le
     // llegaba sin importe y no podía saber qué le ofrecían.
-    if (usuario.rol === "PROFESIONAL") return soloLoQueCobraElProfesional(s);
+    if (usuario.rol === "PROFESIONAL") {
+      // Quién es la persona y dónde vive sólo cuando el servicio es suyo. Si
+      // se lo han propuesto y aún no lo ha aceptado, tampoco: un servicio que
+      // puede rechazar no le da derecho a la dirección de nadie.
+      // ASIGNADO es "te lo hemos propuesto", no "es tuyo": todavía puede
+      // rechazarlo. Los datos aparecen al aceptar, que es cuando hay un
+      // encargo de verdad detrás.
+      const esSuyo =
+        s.profesionalId != null &&
+        s.profesionalId === usuario.profesionalId &&
+        !["PENDIENTE", "ASIGNADO"].includes(s.estado);
+      const filtrado = soloLoQueCobraElProfesional(s);
+      return esSuyo ? filtrado : sinIdentificarALaPersona(filtrado);
+    }
     const visible = esGestorOrganizacion(usuario)
       ? true
       : usuario.rol === "FAMILIAR"
@@ -107,7 +120,73 @@ serviciosRouter.get("/disponibles", requiereRol("PROFESIONAL"), async (req, res)
   // Se usa el mismo filtro que en el resto de sus vistas: la lista escrita a
   // mano que había aquí se había quedado sin precioHora ni comisionPorcentaje,
   // y con esos dos se reconstruye lo que paga la familia y el margen.
-  const resultado = servicios.map(soloLoQueCobraElProfesional);
+  //
+  // Y lo que NO ve: quién es la persona y dónde vive. Mientras el servicio
+  // está publicado lo mira toda la plantilla, y para decidir si encaja basta
+  // con el municipio, los días, las horas y qué hay que hacer. El nombre y el
+  // portal aparecen cuando el servicio es suyo.
+  //
+  // Se dice además si ya se apuntó: sin esto el botón "Me interesa" volvía a
+  // salir sin marcar en cuanto se recargaba la página, y no había forma de
+  // saber a qué te habías apuntado.
+  const mios = await prisma.servicioInteres.findMany({
+    where: { profesionalId: usuario.profesionalId ?? "__none__", servicioId: { in: servicios.map((s) => s.id) } },
+    select: { servicioId: true, mensaje: true, createdAt: true },
+  });
+  const apuntado = new Map(mios.map((i) => [i.servicioId, i]));
+
+  const resultado = servicios.map((servicio) => {
+    const base = sinIdentificarALaPersona(soloLoQueCobraElProfesional(servicio))!;
+    const mio = apuntado.get(servicio.id);
+    return {
+      ...base,
+      meInteresa: mio != null,
+      miMensaje: mio?.mensaje ?? null,
+      meApunteEl: mio?.createdAt ?? null,
+    };
+  });
+  res.json(resultado);
+});
+
+// ---------------------------------------------------------------------------
+// A qué me he apuntado
+//
+// Apuntarse a una solicitud y no volver a saber nada es lo que más desconfianza
+// da: el botón se marcaba, se recargaba la página y ya no había forma de saber
+// si aquello seguía en pie, si se lo habían dado a otra persona o si nadie lo
+// había mirado. Aquí está cada candidatura con su desenlace, que es la única
+// pregunta que se hace quien se apuntó.
+// ---------------------------------------------------------------------------
+serviciosRouter.get("/mis-intereses", requiereRol("PROFESIONAL"), async (req, res) => {
+  const usuario = req.usuario!;
+  const intereses = await prisma.servicioInteres.findMany({
+    where: { profesionalId: usuario.profesionalId ?? "__none__" },
+    include: { servicio: { include: INCLUDE_SERVICIO } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const resultado = intereses.map((i) => {
+    const s = i.servicio;
+    const esMio = s.profesionalId != null && s.profesionalId === usuario.profesionalId;
+    // Lo mismo que en el resto de sus vistas: la identidad de la persona sólo
+    // aparece cuando el servicio ya es suyo de verdad (no meramente propuesto).
+    const confirmado = esMio && !["PENDIENTE", "ASIGNADO"].includes(s.estado);
+    const filtrado = soloLoQueCobraElProfesional(s)!;
+    const servicio = confirmado ? filtrado : sinIdentificarALaPersona(filtrado)!;
+
+    const desenlace = s.estado === "CANCELADO"
+      ? "CANCELADO"
+      : esMio && s.estado === "ASIGNADO"
+        ? "TE_LO_PROPONEN"
+        : esMio
+          ? "TUYO"
+          : s.profesionalId != null
+            ? "PARA_OTRA_PERSONA"
+            : "ESPERANDO";
+
+    return { ...servicio, meApunteEl: i.createdAt, miMensaje: i.mensaje, desenlace };
+  });
+
   res.json(resultado);
 });
 
@@ -146,6 +225,39 @@ serviciosRouter.post("/:id/interes", requiereRol("PROFESIONAL"), async (req, res
   );
 
   res.status(201).json({ ok: true });
+});
+
+// Desapuntarse. Quien se apunta a seis solicitudes y acaba cogiendo una tiene
+// que poder quitar las otras cinco: si no, coordinación sigue contando con una
+// candidata que ya no está, y la lista de "a qué me he apuntado" deja de ser
+// verdad. Sólo mientras nadie lo haya asignado todavía: una vez es tuyo, ya no
+// se retira un interés, se rechaza el servicio.
+serviciosRouter.delete("/:id/interes", requiereRol("PROFESIONAL"), async (req, res) => {
+  const usuario = req.usuario!;
+  const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id } });
+  if (!servicio) return res.status(404).json({ error: "No encontrado" });
+  if (servicio.organizacionId !== usuario.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+  if (servicio.profesionalId) return res.status(409).json({ error: "Este servicio ya está asignado: contesta a la propuesta en vez de retirar el interés" });
+
+  const profesionalId = usuario.profesionalId ?? "__none__";
+  const interes = await prisma.servicioInteres.findUnique({
+    where: { servicioId_profesionalId: { servicioId: servicio.id, profesionalId } },
+    include: { profesional: true },
+  });
+  if (!interes) return res.status(404).json({ error: "No estabas apuntada/o" });
+
+  await prisma.servicioInteres.delete({ where: { id: interes.id } });
+
+  // Coordinación estaba contando con ella para cubrirlo: que lo sepa en vez de
+  // descubrirlo al llamarla.
+  await notificarGestores(
+    servicio.organizacionId,
+    "profesional_retira_interes",
+    `${interes.profesional.nombre} ${interes.profesional.apellidos} ha retirado su interés en el servicio ${servicio.codigo}.`,
+    servicio.solicitudId,
+  );
+
+  res.status(204).end();
 });
 
 serviciosRouter.get("/:id", async (req, res) => {

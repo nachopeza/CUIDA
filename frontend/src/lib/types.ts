@@ -15,6 +15,16 @@ export interface Persona {
   apellidos: string;
   telefono: string | null;
   direccion: string | null;
+  // Dónde vive, por separado del portal: es lo único del domicilio que se le
+  // puede enseñar a quien todavía no tiene el trabajo asignado.
+  municipio?: string | null;
+  comunidad?: string | null;
+  zona?: string | null;
+  // Cuando la identidad está reservada (mercado de solicitudes), el servidor
+  // manda las iniciales en vez del nombre y lo dice con este aviso, para que la
+  // pantalla no parezca una ficha a medio rellenar.
+  iniciales?: string | null;
+  identidadReservada?: boolean;
   preferencias: string | null;
   contactos: string | null;
   medicacion: string | null;
@@ -112,7 +122,16 @@ export interface Servicio {
   visitas?: Visita[];
   incidencias?: Incidencia[];
   interesados?: ServicioInteres[];
+  // Sólo en las vistas del profesional: si ya se apuntó a este servicio, qué
+  // dijo al apuntarse y en qué ha quedado su candidatura.
+  meInteresa?: boolean;
+  miMensaje?: string | null;
+  meApunteEl?: string | null;
+  desenlace?: Desenlace;
 }
+
+// En qué ha quedado una candidatura, desde el lado de quien se apuntó.
+export type Desenlace = "ESPERANDO" | "TE_LO_PROPONEN" | "TUYO" | "PARA_OTRA_PERSONA" | "CANCELADO";
 
 export interface EstadoHistorialEntry {
   id: string;

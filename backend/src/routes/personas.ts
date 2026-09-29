@@ -17,6 +17,11 @@ const perfilPersonaSchema = {
   fechaNacimiento: z.string().datetime().optional(),
   telefono: z.string().optional(),
   direccion: z.string().optional(),
+  // El municipio va aparte de la dirección a propósito: es lo único de "dónde
+  // vive" que ve la plantilla antes de que el servicio sea suyo.
+  municipio: z.string().optional(),
+  comunidad: z.string().optional(),
+  zona: z.string().optional(),
   preferencias: z.string().optional(),
   contactos: z.string().optional(),
   medicacion: z.string().optional(),
@@ -226,7 +231,7 @@ personasRouter.get("/:id", async (req, res) => {
 // coordinación. Identidad (nombre/apellidos/fecha) y datos con matiz
 // asistencial (medicación, médico, recomendaciones) siguen siendo solo de
 // coordinación, que es quien los registra con criterio (sección 6).
-const CAMPOS_EDITABLES_FAMILIAR = ["telefono", "direccion", "contactos", "preferencias"] as const;
+const CAMPOS_EDITABLES_FAMILIAR = ["telefono", "direccion", "municipio", "comunidad", "zona", "contactos", "preferencias"] as const;
 
 // Editar el perfil completo (sección 6: ubicación, contactos, medicación,
 // médico, recomendaciones). Gestores editan cualquier campo; un familiar
