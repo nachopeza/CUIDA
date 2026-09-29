@@ -9,6 +9,7 @@ import { puedeAccederPersona, esGestorOrganizacion, filtrarEconomia, puedeVerImp
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
 import { asegurarSesiones, sincronizarSesionesConPlan } from "../services/sesiones.js";
+import { ArchivadoRechazado, archivarSolicitud } from "../services/archivado.js";
 
 export const solicitudesRouter = Router();
 solicitudesRouter.use(autenticar);
@@ -148,6 +149,38 @@ solicitudesRouter.delete("/:id", async (req, res) => {
   });
 
   res.status(204).send();
+});
+
+// Archivar: la salida para lo que ya no se puede eliminar. Cierra el servicio si
+// hubo trabajo, lo cancela si no, retira las jornadas que nadie ha empezado y
+// deja la solicitud fuera de las listas de trabajo, con todo su historial.
+const archivarSchema = z.object({ motivo: z.string().optional() });
+
+solicitudesRouter.post("/:id/archivar", async (req, res) => {
+  const usuario = req.usuario!;
+  if (!esGestorOrganizacion(usuario)) return res.status(403).json({ error: "Sin permiso" });
+  const parsed = archivarSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const solicitud = await prisma.solicitud.findUnique({ where: { id: req.params.id } });
+  if (!solicitud) return res.status(404).json({ error: "No encontrada" });
+  if (solicitud.organizacionId !== usuario.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+
+  try {
+    const resultado = await archivarSolicitud(solicitud.id, parsed.data.motivo?.trim() || "Archivada por coordinación");
+    await registrarAuditoria({
+      usuarioId: usuario.sub,
+      organizacionId: solicitud.organizacionId,
+      accion: "archivar_solicitud",
+      entidadTipo: "Solicitud",
+      entidadId: solicitud.id,
+      detalle: `${solicitud.codigo} → ${resultado.resultado}${resultado.jornadasRetiradas.length > 0 ? ` · ${resultado.jornadasRetiradas.length} jornada(s) retirada(s)` : ""}`,
+    });
+    res.json(resultado);
+  } catch (e) {
+    if (e instanceof ArchivadoRechazado) return res.status(409).json({ error: e.message });
+    throw e;
+  }
 });
 
 solicitudesRouter.get("/", async (req, res) => {

@@ -6,6 +6,8 @@ import { generarCodigo } from "../lib/codes.js";
 import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
 import { ocultarTarifaSiProcede, soloLoQueCobraElProfesional } from "../services/permisos.js";
+import { registrarHistorial } from "../services/estados.js";
+import { notificarGestores } from "../services/notificaciones.js";
 
 export const profesionalesRouter = Router();
 profesionalesRouter.use(autenticar);
@@ -231,6 +233,161 @@ profesionalesRouter.delete("/:id", requiereRol("COORDINADOR", "ORGANIZACION", "A
   });
 
   res.status(204).send();
+});
+
+// ---------------------------------------------------------------------------
+// Dar de baja a un profesional
+//
+// Borrar sólo se puede si nunca ha hecho nada; en cuanto ha atendido a alguien
+// el rastro tiene que quedarse. Pero "no se puede eliminar" no es una respuesta
+// para quien deja de trabajar con nosotros: hacía falta una salida de verdad. La
+// baja lo deja fuera de circulación —no se le puede proponer nada ni puede
+// entrar— y, sobre todo, recoge lo que dejaba a medias: los servicios que tenía
+// y que ahora nadie va a hacer.
+//
+//   propuestas sin aceptar    vuelven a estar sin cubrir, a la vista de todos
+//   servicios en marcha       abren una incidencia de reemplazo, con la persona
+//                             atendida y las jornadas que se quedan sin ir
+//   días pedidos sin contestar se cancelan: ya no hay a quién concedérselos
+// ---------------------------------------------------------------------------
+const ESTADOS_EN_MARCHA = ["ASIGNADO", "CONFIRMADO", "EN_CURSO"];
+
+async function impactoDeLaBaja(profesionalId: string, organizacionId: string) {
+  const servicios = await prisma.servicio.findMany({
+    where: { organizacionId, profesionalId, estado: { in: ESTADOS_EN_MARCHA as never[] } },
+    include: {
+      solicitud: { include: { persona: true, necesidad: true } },
+      visitas: { where: { estado: { in: ["PROGRAMADA", "CONFIRMADA"] }, fecha: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } }, orderBy: { fecha: "asc" } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  const ausencias = await prisma.ausencia.count({ where: { profesionalId, estado: "SOLICITADA" } });
+  const intereses = await prisma.servicioInteres.count({ where: { profesionalId } });
+  return {
+    propuestas: servicios.filter((s) => s.estado === "ASIGNADO"),
+    enMarcha: servicios.filter((s) => s.estado !== "ASIGNADO"),
+    ausenciasPendientes: ausencias,
+    interesesAbiertos: intereses,
+  };
+}
+
+// Qué pasaría, antes de hacerlo: la baja no se puede deshacer del todo (las
+// incidencias abiertas siguen abiertas), así que se enseña el alcance primero.
+profesionalesRouter.get("/:id/baja-impacto", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const usuario = req.usuario!;
+  const profesional = await prisma.profesional.findUnique({ where: { id: req.params.id } });
+  if (!profesional || profesional.organizacionId !== usuario.organizacionId) return res.status(404).json({ error: "No encontrado" });
+  const { propuestas, enMarcha, ausenciasPendientes, interesesAbiertos } = await impactoDeLaBaja(profesional.id, profesional.organizacionId);
+  const resumen = (s: (typeof enMarcha)[number]) => ({
+    id: s.id,
+    codigo: s.codigo,
+    persona: `${s.solicitud.persona.nombre} ${s.solicitud.persona.apellidos}`,
+    necesidad: s.solicitud.necesidad.nombre,
+    jornadasPorHacer: s.visitas.length,
+    proxima: s.visitas[0]?.fecha ?? null,
+  });
+  res.json({
+    estado: profesional.estado,
+    propuestas: propuestas.map(resumen),
+    enMarcha: enMarcha.map(resumen),
+    ausenciasPendientes,
+    interesesAbiertos,
+  });
+});
+
+const bajaSchema = z.object({ motivo: z.string().min(3, "Di por qué se da de baja") });
+
+profesionalesRouter.post("/:id/baja", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const parsed = bajaSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const usuario = req.usuario!;
+  const profesional = await prisma.profesional.findUnique({ where: { id: req.params.id }, include: { usuario: true } });
+  if (!profesional || profesional.organizacionId !== usuario.organizacionId) return res.status(404).json({ error: "No encontrado" });
+  if (profesional.estado === "INACTIVO") return res.status(409).json({ error: "Ya está de baja" });
+
+  const nombre = `${profesional.nombre} ${profesional.apellidos}`;
+  const { propuestas, enMarcha } = await impactoDeLaBaja(profesional.id, profesional.organizacionId);
+
+  // Las propuestas vuelven al mercado como si las hubiera rechazado.
+  for (const s of propuestas) {
+    await prisma.servicio.update({ where: { id: s.id }, data: { estado: "PENDIENTE", profesionalId: null } });
+    await registrarHistorial({
+      entidadTipo: "Servicio",
+      estadoAnterior: s.estado,
+      estadoNuevo: "PENDIENTE",
+      motivo: `${nombre} ha causado baja: la propuesta vuelve a estar sin cubrir`,
+      servicioId: s.id,
+    });
+  }
+
+  // Lo que estaba en marcha necesita a alguien: una incidencia por servicio.
+  const incidencias: string[] = [];
+  for (const s of enMarcha) {
+    const dias = s.visitas.map((v) => v.fecha.toLocaleDateString("es-ES", { day: "numeric", month: "short" }));
+    const incidencia = await prisma.incidencia.create({
+      data: {
+        codigo: await generarCodigo("incidencia"),
+        tipo: "GENERAL",
+        estado: "NUEVA",
+        motivo: "AUSENCIA",
+        prioridad: "ALTA",
+        descripcion:
+          `${nombre} ya no trabaja con nosotros (${parsed.data.motivo.trim()}). ` +
+          `${s.visitas.length === 0 ? "No tiene jornadas creadas" : s.visitas.length === 1 ? "Queda sin cubrir 1 jornada" : `Quedan sin cubrir ${s.visitas.length} jornadas`} de ` +
+          `${s.solicitud.necesidad.nombre} con ${s.solicitud.persona.nombre} ${s.solicitud.persona.apellidos}` +
+          `${dias.length > 0 ? ` (${dias.slice(0, 6).join(", ")}${dias.length > 6 ? "…" : ""})` : ""}. El servicio necesita un relevo definitivo.`,
+        servicioId: s.id,
+        visitaId: s.visitas[0]?.id,
+        creadoPorUsuarioId: usuario.sub,
+      },
+    });
+    incidencias.push(incidencia.codigo);
+  }
+
+  // Ya no hay quien conceda lo que pidió, ni candidatura que valga.
+  await prisma.ausencia.updateMany({ where: { profesionalId: profesional.id, estado: "SOLICITADA" }, data: { estado: "CANCELADA", respuesta: "Baja del profesional" } });
+  await prisma.servicioInteres.deleteMany({ where: { profesionalId: profesional.id } });
+
+  await prisma.profesional.update({ where: { id: profesional.id }, data: { estado: "INACTIVO" } });
+  if (profesional.usuario) await prisma.usuario.update({ where: { id: profesional.usuario.id }, data: { activo: false } });
+
+  await registrarAuditoria({
+    usuarioId: usuario.sub,
+    organizacionId: profesional.organizacionId,
+    accion: "baja_profesional",
+    entidadTipo: "Profesional",
+    entidadId: profesional.id,
+    detalle: `${profesional.codigo} · ${parsed.data.motivo.trim()} · ${propuestas.length} propuesta(s) devueltas, ${incidencias.length} servicio(s) sin cubrir`,
+  });
+  await notificarGestores(
+    profesional.organizacionId,
+    "profesional_baja",
+    `${nombre} está de baja. ${incidencias.length > 0 ? `${incidencias.length} servicio(s) necesitan relevo (${incidencias.join(", ")}).` : "No dejaba servicios en marcha."}`,
+  ).catch(() => undefined);
+
+  res.json({ ok: true, propuestasDevueltas: propuestas.map((s) => s.codigo), incidencias });
+});
+
+// Volver a darlo de alta. No recupera lo que se reasignó: los servicios ya
+// tienen a otra persona, y quitársela sería otra baja al revés.
+profesionalesRouter.post("/:id/reactivar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const usuario = req.usuario!;
+  const profesional = await prisma.profesional.findUnique({ where: { id: req.params.id }, include: { usuario: true } });
+  if (!profesional || profesional.organizacionId !== usuario.organizacionId) return res.status(404).json({ error: "No encontrado" });
+  if (profesional.estado !== "INACTIVO") return res.status(409).json({ error: "No está de baja" });
+
+  await prisma.profesional.update({ where: { id: profesional.id }, data: { estado: "ACTIVO" } });
+  if (profesional.usuario) await prisma.usuario.update({ where: { id: profesional.usuario.id }, data: { activo: true } });
+  await registrarAuditoria({
+    usuarioId: usuario.sub,
+    organizacionId: profesional.organizacionId,
+    accion: "reactivar_profesional",
+    entidadTipo: "Profesional",
+    entidadId: profesional.id,
+    detalle: profesional.codigo,
+  });
+  res.json({ ok: true });
 });
 
 // Resetear la contraseña de la cuenta de acceso del profesional (sección

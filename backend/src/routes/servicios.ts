@@ -10,6 +10,7 @@ import { validaciones, registrarHistorial, TransicionInvalidaError } from "../se
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
 import { anotarSiNoSeCreo, aMedianoche, asegurarSesiones, diasPrevistosEntre } from "../services/sesiones.js";
 import { candidatosParaServicio } from "../services/candidatos.js";
+import { retirarJornadasSinEmpezar } from "../services/archivado.js";
 import { calcularReparto, minutosEntre } from "../services/economia.js";
 import { reglasDe } from "../services/motorTiempo.js";
 
@@ -990,6 +991,10 @@ serviciosRouter.post("/:id/estado", async (req, res) => {
     detalle: `${servicio.estado} → ${parsed.data.estado}`,
   });
 
+  if (parsed.data.estado === "CANCELADO") {
+    await retirarJornadasSinEmpezar(servicio.id, "Servicio cancelado");
+  }
+
   // Si coordinación mueve el servicio a mano hasta confirmado o en curso, la
   // jornada también sale sola: el camino largo y el atajo dejan el servicio
   // en el mismo sitio.
@@ -1177,6 +1182,10 @@ serviciosRouter.post("/:id/confirmar-cancelacion", requiereRol("COORDINADOR", "O
   });
 
   await prisma.solicitud.update({ where: { id: servicio.solicitudId }, data: { estado: "CANCELADA" } }).catch(() => undefined);
+  // Cancelado el servicio, sus jornadas sin empezar salen de la agenda: si no,
+  // seguían en el panel de la profesional y la bandeja avisaba de visitas que
+  // no iniciaba nadie de un servicio que ya no existía.
+  await retirarJornadasSinEmpezar(servicio.id, "Servicio cancelado");
 
   await prisma.incidencia.update({ where: { id: incidencia.id }, data: { estado: "RESUELTA" } });
   await registrarHistorial({

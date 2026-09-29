@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
+import { QuitarEnLoteModal, type ElementoAQuitar } from "../../components/QuitarEnLoteModal.js";
 import { api } from "../../lib/api.js";
 import { Pagination, usePaginacion } from "../../components/Pagination.js";
 import { ThOrdenable } from "../../components/ThOrdenable.js";
@@ -28,11 +29,16 @@ export function EmpresasTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [verDeBaja, setVerDeBaja] = useState(false);
+  const deBaja = empresas.filter((e) => e.estado === "INACTIVA").length;
+
   const filtradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    if (!q) return empresas;
-    return empresas.filter((e) => `${e.nombre} ${e.codigo} ${e.cif ?? ""}`.toLowerCase().includes(q));
-  }, [empresas, busqueda]);
+    return empresas.filter((e) => {
+      if (!verDeBaja && e.estado === "INACTIVA") return false;
+      return !q || `${e.nombre} ${e.codigo} ${e.cif ?? ""}`.toLowerCase().includes(q);
+    });
+  }, [empresas, busqueda, verDeBaja]);
 
   const orden = useOrdenacion(filtradas, {
     nombre: (e) => e.nombre,
@@ -44,22 +50,10 @@ export function EmpresasTab() {
   const { items: pagina, pagina: paginaActual, totalPaginas, setPagina } = usePaginacion(orden.ordenadas);
   const seleccion = useSeleccion(filtradas);
 
-  async function eliminarSeleccionadas() {
-    const filas = seleccion.seleccionadas;
-    if (filas.length === 0) return;
-    if (!confirm(`¿Eliminar ${filas.length} empresa(s)? Las que tengan profesionales o servicios asociados no se pueden borrar.`)) return;
-    const resultados = await Promise.all(
-      filas.map((e) =>
-        api
-          .delete(`/empresas-colaboradoras/${e.id}`, token)
-          .then(() => true)
-          .catch(() => false),
-      ),
-    );
-    const bloqueadas = resultados.filter((r) => !r).length;
-    seleccion.limpiar();
-    await cargar();
-    if (bloqueadas > 0) alert(`${bloqueadas} no se han podido eliminar porque tienen profesionales o servicios asociados.`);
+  const [quitando, setQuitando] = useState<ElementoAQuitar[] | null>(null);
+  function eliminarSeleccionadas() {
+    if (seleccion.seleccionadas.length === 0) return;
+    setQuitando(seleccion.seleccionadas.map((e) => ({ id: e.id, etiqueta: `${e.nombre} · ${e.codigo}` })));
   }
 
   function exportar() {
@@ -79,8 +73,36 @@ export function EmpresasTab() {
 
   return (
     <div>
+      {quitando && (
+        <QuitarEnLoteModal
+          singular="empresa"
+          plural="empresas"
+          elementos={quitando}
+          eliminar={(id) => api.delete(`/empresas-colaboradoras/${id}`, token)}
+          alternativa={{
+            verbo: "Dar de baja",
+            textoHecho: (n) => `${n} de baja`,
+            explicacion: "Pasan a inactivas: no se les puede asignar servicios nuevos, pero lo que se hizo con ellas se conserva.",
+            aplicar: async (id) => {
+              await api.patch(`/empresas-colaboradoras/${id}`, { estado: "INACTIVA" }, token);
+            },
+          }}
+          onClose={() => setQuitando(null)}
+          onTerminado={async () => {
+            seleccion.limpiar();
+            await cargar();
+          }}
+        />
+      )}
+
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre, código o CIF…" className="flex-1 sm:max-w-xs" />
+        {deBaja > 0 && (
+          <label className="flex items-center gap-1.5 text-xs text-slate-500">
+            <input type="checkbox" checked={verDeBaja} onChange={(e) => setVerDeBaja(e.target.checked)} />
+            Ver de baja ({deBaja})
+          </label>
+        )}
         <button onClick={() => setNuevoAbierto(true)} className="ml-auto flex items-center gap-1 rounded-xl bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-800">
           <IconPlus className="h-4 w-4" /> Nueva empresa
         </button>

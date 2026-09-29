@@ -344,6 +344,56 @@ personasRouter.post("/:id/familiares", requiereRol("COORDINADOR", "ORGANIZACION"
 // en cuanto ha habido servicio hay historial asistencial y económico que no
 // debe desaparecer (sección "poder eliminar el conjunto seleccionado", con
 // el límite obvio de no borrar historial real).
+// Archivar a una persona: para quien ya no se atiende pero tiene historial, que
+// no se puede borrar (facturas, servicios). Queda fuera de las listas de trabajo
+// y su cuenta deja de poder entrar, con todo lo que se hizo intacto. No se
+// archiva a quien todavía tiene un servicio en marcha: primero hay que cerrarlo,
+// o se quedaría una persona atendida sin nadie que lo sepa.
+personasRouter.post("/:id/archivar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const persona = await prisma.persona.findUnique({ where: { id: req.params.id }, include: { usuario: true } });
+  if (!persona || persona.organizacionId !== req.usuario!.organizacionId) return res.status(404).json({ error: "No encontrada" });
+  if (persona.estado === "ARCHIVADA") return res.status(409).json({ error: "Ya está archivada" });
+
+  const enMarcha = await prisma.servicio.findMany({
+    where: { solicitud: { personaId: persona.id }, estado: { notIn: ["CERRADO", "CANCELADO"] } },
+    select: { codigo: true },
+  });
+  if (enMarcha.length > 0) {
+    return res.status(409).json({
+      error: `Tiene ${enMarcha.length === 1 ? "un servicio" : `${enMarcha.length} servicios`} sin cerrar (${enMarcha.map((s) => s.codigo).join(", ")}): ciérralos o cancélalos antes.`,
+    });
+  }
+
+  await prisma.persona.update({ where: { id: persona.id }, data: { estado: "ARCHIVADA" } });
+  if (persona.usuario) await prisma.usuario.update({ where: { id: persona.usuario.id }, data: { activo: false } });
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: persona.organizacionId,
+    accion: "archivar_persona",
+    entidadTipo: "Persona",
+    entidadId: persona.id,
+    detalle: persona.codigo,
+  });
+  res.json({ ok: true });
+});
+
+personasRouter.post("/:id/reactivar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
+  const persona = await prisma.persona.findUnique({ where: { id: req.params.id }, include: { usuario: true } });
+  if (!persona || persona.organizacionId !== req.usuario!.organizacionId) return res.status(404).json({ error: "No encontrada" });
+  if (persona.estado !== "ARCHIVADA") return res.status(409).json({ error: "No está archivada" });
+  await prisma.persona.update({ where: { id: persona.id }, data: { estado: "ACTIVA" } });
+  if (persona.usuario) await prisma.usuario.update({ where: { id: persona.usuario.id }, data: { activo: true } });
+  await registrarAuditoria({
+    usuarioId: req.usuario!.sub,
+    organizacionId: persona.organizacionId,
+    accion: "reactivar_persona",
+    entidadTipo: "Persona",
+    entidadId: persona.id,
+    detalle: persona.codigo,
+  });
+  res.json({ ok: true });
+});
+
 personasRouter.delete("/:id", requiereRol("COORDINADOR", "ORGANIZACION", "ADMIN"), async (req, res) => {
   const persona = await prisma.persona.findUnique({
     where: { id: req.params.id },

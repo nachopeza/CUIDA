@@ -45,6 +45,10 @@ const COLORES: Record<string, string> = {
   ASIGNADA: "bg-amber-100 text-amber-700",
   EN_RESOLUCION: "bg-amber-100 text-amber-700",
   RESUELTA: "bg-brand-green-100 text-brand-green-700",
+  // Fuera de circulación pero con historial: de baja o archivado.
+  INACTIVO: "bg-slate-200 text-slate-500",
+  INACTIVA: "bg-slate-200 text-slate-500",
+  ARCHIVADA: "bg-slate-200 text-slate-500",
 };
 
 // Los estados cuyo nombre en la base de datos no se puede enseñar tal cual:
@@ -52,6 +56,8 @@ const COLORES: Record<string, string> = {
 const TEXTOS: Record<string, string> = {
   FALTA_PROFESIONAL: "No fue nadie",
   NO_PRESENTADO: "No presentado",
+  INACTIVO: "De baja",
+  INACTIVA: "De baja",
 };
 
 export function EstadoBadge({ estado }: { estado: string }) {

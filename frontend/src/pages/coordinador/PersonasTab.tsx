@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
+import { QuitarEnLoteModal, type ElementoAQuitar } from "../../components/QuitarEnLoteModal.js";
 import { api } from "../../lib/api.js";
 import { Pagination, usePaginacion } from "../../components/Pagination.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
@@ -22,6 +23,8 @@ export function PersonasTab({ onAbrirFicha, refreshKey }: { onAbrirFicha: (id: s
   const [busqueda, setBusqueda] = useState("");
   const [conAcceso, setConAcceso] = useState("");
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  // Lo archivado no estorba en la lista de trabajo, pero se puede ver.
+  const [verArchivadas, setVerArchivadas] = useState(false);
 
   async function cargar() {
     setPersonas(await api.get<Persona[]>("/personas", token));
@@ -32,7 +35,9 @@ export function PersonasTab({ onAbrirFicha, refreshKey }: { onAbrirFicha: (id: s
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
+  const archivadas = personas.filter((p) => p.estado === "ARCHIVADA").length;
   const filtradas = personas.filter((p) => {
+    if (!verArchivadas && p.estado === "ARCHIVADA") return false;
     const q = busqueda.trim().toLowerCase();
     if (q && !`${p.nombre} ${p.apellidos} ${p.codigo} ${p.usuario?.email ?? ""}`.toLowerCase().includes(q)) return false;
     if (conAcceso === "si" && !p.usuario) return false;
@@ -66,28 +71,45 @@ export function PersonasTab({ onAbrirFicha, refreshKey }: { onAbrirFicha: (id: s
     );
   }
 
-  async function eliminarSeleccionados() {
-    const filas = seleccion.seleccionadas;
-    if (filas.length === 0) return;
-    if (!confirm(`¿Eliminar ${filas.length} usuario(s)? Los que ya tengan solicitudes o facturas no se pueden borrar.`)) return;
-    const resultados = await Promise.all(
-      filas.map((p) =>
-        api
-          .delete(`/personas/${p.id}`, token)
-          .then(() => true)
-          .catch(() => false),
-      ),
-    );
-    const bloqueados = resultados.filter((r) => !r).length;
-    seleccion.limpiar();
-    await cargar();
-    if (bloqueados > 0) alert(`${bloqueados} no se han podido eliminar porque ya tienen solicitudes o facturas.`);
+  const [quitando, setQuitando] = useState<ElementoAQuitar[] | null>(null);
+  function eliminarSeleccionados() {
+    if (seleccion.seleccionadas.length === 0) return;
+    setQuitando(seleccion.seleccionadas.map((p) => ({ id: p.id, etiqueta: `${p.nombre} ${p.apellidos} · ${p.codigo}` })));
   }
 
   return (
     <div>
+      {quitando && (
+        <QuitarEnLoteModal
+          singular="usuario"
+          plural="usuarios"
+          elementos={quitando}
+          eliminar={(id) => api.delete(`/personas/${id}`, token)}
+          alternativa={{
+            verbo: "Archivar",
+            textoHecho: (n) => `${n} archivad${n === 1 ? "o" : "os"}`,
+            explicacion:
+              "Dejan de aparecer en las listas de trabajo y su cuenta ya no puede entrar. Se conserva todo su historial y sus facturas. Quien tenga servicios sin cerrar no se puede archivar hasta cerrarlos.",
+            aplicar: async (id) => {
+              await api.post(`/personas/${id}/archivar`, {}, token);
+            },
+          }}
+          onClose={() => setQuitando(null)}
+          onTerminado={async () => {
+            seleccion.limpiar();
+            await cargar();
+          }}
+        />
+      )}
+
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre, código o email…" className="flex-1 sm:max-w-xs" />
+        {archivadas > 0 && (
+          <label className="flex items-center gap-1.5 text-xs text-slate-500">
+            <input type="checkbox" checked={verArchivadas} onChange={(e) => setVerArchivadas(e.target.checked)} />
+            Ver archivados ({archivadas})
+          </label>
+        )}
         <select
           value={orden.campo ?? ""}
           onChange={(e) => e.target.value && orden.ordenarPor(e.target.value)}

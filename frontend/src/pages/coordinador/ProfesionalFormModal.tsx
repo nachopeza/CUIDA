@@ -3,6 +3,7 @@ import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Modal } from "../../components/Modal.js";
 import { EstadoBadge } from "../../components/EstadoBadge.js";
+import { BajaProfesionalModal } from "../../components/BajaProfesionalModal.js";
 import { ExpedienteDocumentos } from "../../components/ExpedienteDocumentos.js";
 import { FotoUpload } from "../../components/FotoUpload.js";
 import { DisponibilidadPicker } from "../../components/DisponibilidadPicker.js";
@@ -55,6 +56,7 @@ export function ProfesionalFormModal({
   onSaved: () => void;
 }) {
   const { token } = useAuth();
+  const [dandoDeBaja, setDandoDeBaja] = useState(false);
   const [form, setForm] = useState<Campos>(
     profesional
       ? {
@@ -311,6 +313,36 @@ export function ProfesionalFormModal({
             )}
           </div>
 
+          {/* Baja: la salida para quien deja de trabajar con nosotros. Eliminar
+              sólo se puede si nunca hizo nada; esto sirve siempre y recoge lo
+              que dejaba a medias. */}
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Situación</p>
+            {profesional.estado === "INACTIVO" ? (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                <p className="text-sm text-slate-600">
+                  <span className="font-medium text-slate-800">De baja.</span> No se le puede proponer nada y su cuenta no puede entrar.
+                </p>
+                <button
+                  onClick={async () => {
+                    await api.post(`/profesionales/${profesional.id}/reactivar`, {}, token);
+                    onSaved();
+                  }}
+                  className="boton-secundario-sm"
+                >
+                  Reactivar
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-slate-500">En activo. Si deja de trabajar con nosotros, se da de baja sin perder su historial.</p>
+                <button onClick={() => setDandoDeBaja(true)} className="rounded-md border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50">
+                  Dar de baja…
+                </button>
+              </div>
+            )}
+          </div>
+
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Expediente</p>
             <ExpedienteDocumentos profesionalId={profesional.id} />
@@ -357,6 +389,14 @@ export function ProfesionalFormModal({
             )}
           </div>
         </div>
+      )}
+      {dandoDeBaja && profesional && (
+        <BajaProfesionalModal
+          profesionalId={profesional.id}
+          nombre={`${profesional.nombre} ${profesional.apellidos}`}
+          onClose={() => setDandoDeBaja(false)}
+          onHecho={() => onSaved()}
+        />
       )}
     </Modal>
   );

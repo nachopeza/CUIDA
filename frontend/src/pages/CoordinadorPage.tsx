@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth.js";
 import { useRefrescoAutomatico } from "../lib/refresco.js";
+import { QuitarEnLoteModal, type ElementoAQuitar } from "../components/QuitarEnLoteModal.js";
 import { useRegistrarInicio, useRegistrarMenuMovil } from "../lib/menuMovil.js";
 import { api } from "../lib/api.js";
 import { EstadoBadge, EstadoUnificadoBadge } from "../components/EstadoBadge.js";
@@ -480,28 +481,15 @@ export function CoordinadorPage() {
   } = usePaginacion(ordenSolicitudes.ordenadas);
   const seleccionSolicitudes = useSeleccion(solicitudesFiltradas);
 
-  // Eliminar en bloque (sección "si selecciono todas las solicitudes pueda
-  // eliminarlo"): el backend solo deja borrar las que todavía no tienen
-  // servicio en marcha, así que se informa de cuántas se han podido quitar.
-  async function eliminarSolicitudes() {
-    const filas = seleccionSolicitudes.seleccionadas;
-    if (filas.length === 0) return;
-    if (!confirm(`¿Eliminar ${filas.length} solicitud(es)? Las que ya tengan un servicio en marcha no se pueden borrar, hay que cancelarlas.`)) return;
-    const resultados = await Promise.all(
-      filas.map((s) =>
-        api
-          .delete(`/solicitudes/${s.id}`, token)
-          .then(() => true)
-          .catch(() => false),
-      ),
+  // "Quitar" solicitudes: se borran las que aún no tienen servicio; las que sí
+  // lo tienen no se pueden borrar, pero se pueden archivar (cerrar si hubo trabajo,
+  // cancelar si no) en el mismo gesto, en vez de rebotar con un aviso.
+  const [quitandoSolicitudes, setQuitandoSolicitudes] = useState<ElementoAQuitar[] | null>(null);
+  function eliminarSolicitudes() {
+    if (seleccionSolicitudes.seleccionadas.length === 0) return;
+    setQuitandoSolicitudes(
+      seleccionSolicitudes.seleccionadas.map((s) => ({ id: s.id, etiqueta: `${s.codigo} · ${s.persona.nombre} ${s.persona.apellidos} · ${s.necesidad.nombre}` })),
     );
-    const borradas = resultados.filter(Boolean).length;
-    const bloqueadas = resultados.length - borradas;
-    seleccionSolicitudes.limpiar();
-    await cargar();
-    if (bloqueadas > 0) {
-      alert(`Se han eliminado ${borradas}. ${bloqueadas} no se han podido eliminar porque ya tienen un servicio en marcha: cancélalas desde su ficha.`);
-    }
   }
 
   function exportarSolicitudes() {
@@ -557,6 +545,29 @@ export function CoordinadorPage() {
       />
       }
     >
+      {quitandoSolicitudes && (
+        <QuitarEnLoteModal
+          singular="solicitud"
+          plural="solicitudes"
+          elementos={quitandoSolicitudes}
+          eliminar={(id) => api.delete(`/solicitudes/${id}`, token)}
+          alternativa={{
+            verbo: "Archivar",
+            textoHecho: (n) => `${n} archivada${n === 1 ? "" : "s"} (cerradas o canceladas según hubiera trabajo)`,
+            explicacion:
+              "Si hubo trabajo hecho se cierran; si no, se cancelan. Las jornadas que nadie ha empezado salen de la agenda y todo el historial se conserva. Las que tienen jornadas por verificar o una incidencia abierta no se archivan hasta resolverlas.",
+            aplicar: async (id) => {
+              await api.post(`/solicitudes/${id}/archivar`, { motivo: "Archivada desde el listado de solicitudes" }, token);
+            },
+          }}
+          onClose={() => setQuitandoSolicitudes(null)}
+          onTerminado={async () => {
+            seleccionSolicitudes.limpiar();
+            await cargar();
+          }}
+        />
+      )}
+
       {/* En escritorio el buscador va en la cabecera de la aplicación. */}
       {ranuraBuscador && createPortal(buscador, ranuraBuscador)}
 
@@ -742,7 +753,7 @@ export function CoordinadorPage() {
                   onSeleccionarTodo={seleccionSolicitudes.seleccionarTodo}
                   onLimpiarSeleccion={seleccionSolicitudes.limpiar}
                   onEliminar={eliminarSolicitudes}
-                  etiquetaEliminar="Eliminar solicitudes"
+                  etiquetaEliminar="Quitar solicitudes"
                 />
                 <div className="overflow-x-auto tarjeta">
                 <table className="min-w-full divide-y divide-slate-100 text-sm">

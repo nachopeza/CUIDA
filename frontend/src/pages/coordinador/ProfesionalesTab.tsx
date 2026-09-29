@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
+import { QuitarEnLoteModal, type ElementoAQuitar } from "../../components/QuitarEnLoteModal.js";
 import { api } from "../../lib/api.js";
 import { Avatar } from "../../components/Avatar.js";
 import { Pagination, usePaginacion } from "../../components/Pagination.js";
@@ -40,15 +41,20 @@ export function ProfesionalesTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Quien está de baja no estorba en la lista de trabajo, pero se puede ver.
+  const [verDeBaja, setVerDeBaja] = useState(false);
+  const deBaja = profesionales.filter((p) => p.estado === "INACTIVO").length;
+
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return profesionales.filter((p) => {
+      if (!verDeBaja && p.estado === "INACTIVO") return false;
       if (q && !`${p.nombre} ${p.apellidos} ${p.codigo} ${p.zona ?? ""}`.toLowerCase().includes(q)) return false;
       if (empresaFiltro === "__independiente__" && p.empresaColaboradoraId) return false;
       if (empresaFiltro && empresaFiltro !== "__independiente__" && p.empresaColaboradoraId !== empresaFiltro) return false;
       return true;
     });
-  }, [profesionales, busqueda, empresaFiltro]);
+  }, [profesionales, busqueda, empresaFiltro, verDeBaja]);
 
   const orden = useOrdenacion(filtrados, {
     codigo: (p) => p.codigo,
@@ -61,22 +67,12 @@ export function ProfesionalesTab() {
   const { items: pagina, pagina: paginaActual, totalPaginas, setPagina } = usePaginacion(orden.ordenadas);
   const seleccion = useSeleccion(filtrados);
 
-  async function eliminarSeleccionados() {
-    const filas = seleccion.seleccionadas;
-    if (filas.length === 0) return;
-    if (!confirm(`¿Eliminar ${filas.length} profesional(es)? Los que ya hayan hecho servicios no se pueden borrar.`)) return;
-    const resultados = await Promise.all(
-      filas.map((p) =>
-        api
-          .delete(`/profesionales/${p.id}`, token)
-          .then(() => true)
-          .catch(() => false),
-      ),
-    );
-    const bloqueados = resultados.filter((r) => !r).length;
-    seleccion.limpiar();
-    await cargar();
-    if (bloqueados > 0) alert(`${bloqueados} no se han podido eliminar porque ya tienen servicios realizados.`);
+  // "Quitar" no es sólo borrar: quien ya ha hecho servicios no se puede borrar,
+  // pero sí dar de baja. El diálogo lo ofrece cuando hace falta.
+  const [quitando, setQuitando] = useState<ElementoAQuitar[] | null>(null);
+  function eliminarSeleccionados() {
+    if (seleccion.seleccionadas.length === 0) return;
+    setQuitando(seleccion.seleccionadas.map((p) => ({ id: p.id, etiqueta: `${p.nombre} ${p.apellidos} · ${p.codigo}` })));
   }
 
   function exportar() {
@@ -98,8 +94,37 @@ export function ProfesionalesTab() {
 
   return (
     <div>
+      {quitando && (
+        <QuitarEnLoteModal
+          singular="profesional"
+          plural="profesionales"
+          elementos={quitando}
+          eliminar={(id) => api.delete(`/profesionales/${id}`, token)}
+          alternativa={{
+            verbo: "Dar de baja",
+            textoHecho: (n) => `${n} de baja`,
+            explicacion:
+              "Quedan fuera de circulación y sin acceso. Las propuestas que no habían aceptado vuelven a estar sin cubrir y cada servicio en marcha abre una incidencia de relevo. Su historial se conserva.",
+            aplicar: async (id) => {
+              await api.post(`/profesionales/${id}/baja`, { motivo: "Baja desde el listado de profesionales" }, token);
+            },
+          }}
+          onClose={() => setQuitando(null)}
+          onTerminado={async () => {
+            seleccion.limpiar();
+            await cargar();
+          }}
+        />
+      )}
+
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre, código o zona…" className="flex-1 sm:max-w-xs" />
+        {deBaja > 0 && (
+          <label className="flex items-center gap-1.5 text-xs text-slate-500">
+            <input type="checkbox" checked={verDeBaja} onChange={(e) => setVerDeBaja(e.target.checked)} />
+            Ver de baja ({deBaja})
+          </label>
+        )}
         <select value={empresaFiltro} onChange={(e) => setEmpresaFiltro(e.target.value)} className="campo">
           <option value="">Todas las empresas</option>
           <option value="__independiente__">Independientes</option>

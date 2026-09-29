@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
+import { QuitarEnLoteModal, type ElementoAQuitar } from "../../components/QuitarEnLoteModal.js";
 import { api } from "../../lib/api.js";
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
 import { useSeleccion } from "../../lib/useSeleccion.js";
@@ -100,22 +101,10 @@ export function ServiciosTab() {
   });
   const seleccion = useSeleccion(visibles);
 
-  async function eliminarSeleccionados() {
-    const filas = seleccion.seleccionadas;
-    if (filas.length === 0) return;
-    if (!confirm(`¿Eliminar ${filas.length} servicio(s) del catálogo? Los que ya se hayan pedido alguna vez no se pueden borrar.`)) return;
-    const resultados = await Promise.all(
-      filas.map((s) =>
-        api
-          .delete(`/necesidades/${s.id}`, token)
-          .then(() => true)
-          .catch(() => false),
-      ),
-    );
-    const bloqueados = resultados.filter((r) => !r).length;
-    seleccion.limpiar();
-    await cargar();
-    if (bloqueados > 0) alert(`${bloqueados} no se han podido eliminar porque ya se han usado en alguna solicitud. Desactívalos en su lugar.`);
+  const [quitando, setQuitando] = useState<ElementoAQuitar[] | null>(null);
+  function eliminarSeleccionados() {
+    if (seleccion.seleccionadas.length === 0) return;
+    setQuitando(seleccion.seleccionadas.map((s) => ({ id: s.id, etiqueta: `${s.nombre} · ${s.codigo}` })));
   }
 
   function exportar() {
@@ -136,6 +125,28 @@ export function ServiciosTab() {
 
   return (
     <div>
+      {quitando && (
+        <QuitarEnLoteModal
+          singular="servicio del catálogo"
+          plural="servicios del catálogo"
+          elementos={quitando}
+          eliminar={(id) => api.delete(`/necesidades/${id}`, token)}
+          alternativa={{
+            verbo: "Desactivar",
+            textoHecho: (n) => `${n} desactivado${n === 1 ? "" : "s"}`,
+            explicacion: "Dejan de ofrecerse en solicitudes nuevas, pero las que ya se hicieron con ellos conservan su nombre y su precio.",
+            aplicar: async (id) => {
+              await api.patch(`/necesidades/${id}`, { activo: false }, token);
+            },
+          }}
+          onClose={() => setQuitando(null)}
+          onTerminado={async () => {
+            seleccion.limpiar();
+            await cargar();
+          }}
+        />
+      )}
+
       <p className="mb-3 text-xs text-slate-500">
         Lo que la organización ofrece: acompañamiento, comidas, limpieza... Cada servicio lleva su propio % de IVA (4% superreducido para plazas concertadas o con prestación
         vinculada a dependencia; 10% reducido para contratación particular sin ayuda pública), que hereda cada solicitud al fijar su tarifa.

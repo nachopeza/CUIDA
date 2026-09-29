@@ -23,6 +23,9 @@ const editarSchema = crearSchema.partial().extend({
   encargoFirmado: z.boolean().optional(),
   encargoFecha: z.string().optional().nullable(),
   encargoArchivoId: z.string().optional().nullable(),
+  // Dar de baja a una empresa con la que ya no se trabaja sin borrar lo que se
+  // hizo con ella.
+  estado: z.enum(["ACTIVA", "INACTIVA"]).optional(),
 });
 
 // Empresa externa a la que subcontratar un servicio (sección 11: modelo
