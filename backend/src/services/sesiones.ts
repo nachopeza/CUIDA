@@ -333,6 +333,18 @@ export async function sincronizarSesionesConPlan(servicioId: string): Promise<Re
     if (servicio.tipoServicio !== "RECURRENTE") {
       // Puntual: el servicio es la jornada, así que va donde diga el plan.
       destino = aMedianoche(plan.fechaInicio);
+    } else if (porHacer.length === 1) {
+      // Un recurrente sólo lleva una jornada por delante, y esa tiene que ir
+      // donde toca ahora según el plan: si se pasa de "lunes" a "todos los
+      // días", la jornada vuelve a mañana en vez de quedarse el lunes; y si se
+      // cambia el día, se mueve al nuevo. Antes sólo se corregía cuando el día
+      // dejaba de ser válido, y cambiar el plan "a mejor" no movía nada.
+      const cerradas = servicio.visitas.filter((v) => v.id !== visita.id);
+      const ultimaCerrada = cerradas.reduce<Date | null>((max, v) => (max === null || v.fecha > max ? v.fecha : max), null);
+      const desde = new Date(
+        Math.max(hoy.getTime(), aMedianoche(plan.fechaInicio).getTime(), ultimaCerrada ? aMedianoche(ultimaCerrada).getTime() + 86400000 : 0),
+      );
+      destino = siguienteDia(desde, dias);
     } else if (aMedianoche(visita.fecha) < aMedianoche(plan.fechaInicio) || !dias.includes(visita.fecha.getDay())) {
       // Recurrente: si se ha quedado antes del comienzo o en un día que ya no
       // toca, se corre al primero válido.

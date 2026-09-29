@@ -6,6 +6,7 @@ import { Cronometro } from "../../components/Cronometro.js";
 import { Avatar } from "../../components/Avatar.js";
 import { infoMotivo } from "../../lib/incidencias.js";
 import { INFO_PRIORIDAD, calcularPendientes, type Asunto } from "../../lib/pendientes.js";
+import { Novedades } from "../../components/Novedades.js";
 import { duracion, euros, minutosEntre, conMayusculaInicial } from "../../lib/economia.js";
 import { IconAlert, IconArrowDown, IconArrowUp, IconBriefcase, IconCalendar, IconCheck, IconChevronLeft, IconChevronRight, IconClipboard, IconClock, IconPin, IconReceipt, IconRefresh, IconShield, IconUsers } from "../../components/icons.js";
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
@@ -634,6 +635,18 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
               </ul>
             </section>
           )}
+
+          {/* Lo que ha pasado sin que nadie lo pidiera: una profesional que
+              acepta, una jornada que se mueve, alguien que se apunta. Sólo se
+              veía en la campana, y la campana hay que abrirla. Va encima de la
+              bandeja porque a menudo es lo que cierra un asunto de ella. */}
+          <Novedades
+            limite={4}
+            onAbrir={(tipo, id) => {
+              if (tipo === "Incidencia") onAbrirIncidencia(id);
+              else if (tipo === "Solicitud") onAbrirSolicitud(id);
+            }}
+          />
 
           {/* ---------------------------------------------------------------
               Bandeja de trabajo. Una tabla de prioridad, asunto, persona,

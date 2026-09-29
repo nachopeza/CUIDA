@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth.js";
 import { useRefrescoAutomatico } from "../lib/refresco.js";
 import { QuitarEnLoteModal, type ElementoAQuitar } from "../components/QuitarEnLoteModal.js";
+import { ServiciosLista } from "./coordinador/ServiciosLista.js";
 import { useRegistrarInicio, useRegistrarMenuMovil } from "../lib/menuMovil.js";
 import { api } from "../lib/api.js";
 import { EstadoBadge, EstadoUnificadoBadge } from "../components/EstadoBadge.js";
@@ -585,7 +586,7 @@ export function CoordinadorPage() {
             <h2 className="text-xl font-semibold text-slate-800">{tituloTab}</h2>
             {(tab === "solicitudes" || tab === "servicios") && (
               <button onClick={() => void abrirNuevaSolicitud()} className="boton-verde px-4 py-2 text-xs">
-                <IconPlus className="h-4 w-4" /> Nueva solicitud
+                <IconPlus className="h-4 w-4" /> {tab === "servicios" ? "Nuevo servicio" : "Nueva solicitud"}
               </button>
             )}
             {(tab === "personas" || tab === "contactos") && (
@@ -612,7 +613,17 @@ export function CoordinadorPage() {
           />
         )}
 
-        {(tab === "solicitudes" || tab === "servicios") && (
+        {tab === "servicios" && (
+          <ServiciosLista
+            solicitudes={solicitudes}
+            profesionales={profesionales}
+            incidencias={incidencias}
+            onAbrirFicha={(id) => setFichaAbierta(id)}
+            onAbrirPersona={abrirPersona}
+          />
+        )}
+
+        {tab === "solicitudes" && (
           <div>
             {/* Las casillas son a la vez el resumen, la leyenda y el filtro:
                 mismo nombre y mismo color que el badge de cada fila, así no

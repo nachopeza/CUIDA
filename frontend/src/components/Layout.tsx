@@ -125,6 +125,10 @@ export function Layout({ children }: { children: ReactNode }) {
                 es lo que antes obligaba a elegir entre una cosa y la otra.
                 El ancho se queda en 32rem, y se encoge si no cabe para no
                 meterse debajo de la campana. */}
+            {/* Con el rótulo del área a la vista (lg) el buscador empieza donde
+                acaba éste (28.5rem), y por debajo de xl, donde ya no hay
+                columna estrecha, acaba antes de la campana. Así nunca se pisan,
+                cualquiera que sea el ancho. */}
             {/* Anclado por la DERECHA, al borde del bloque ancho: 22.5rem de
                 la columna estrecha más 1rem del hueco de la rejilla más
                 1.25rem del margen, o sea 24.75rem desde el borde. Por la
@@ -132,7 +136,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 pantallas cortas se encoge en vez de meterse bajo el menú. */}
             <div
               id={RANURA_BUSCADOR}
-              className="absolute left-[16.25rem] right-[24.75rem] top-1/2 ml-auto hidden max-w-[32rem] -translate-y-1/2 md:block"
+              className="absolute left-[16.25rem] right-[16.5rem] top-1/2 ml-auto hidden max-w-[32rem] -translate-y-1/2 md:block lg:left-[28.5rem] xl:right-[24.75rem]"
             />
 
             {usuario && (

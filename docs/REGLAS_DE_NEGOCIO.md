@@ -502,3 +502,71 @@ acepta se compromete a ir y hay que decirle cuándo.
 Quiere decir «cada semana, el día que empezó». Antes quería decir «los siete
 días», y un servicio de los siete días no lo puede cubrir nadie: la lista de
 candidatos salía vacía sin explicar por qué.
+
+## Quién es la persona, antes de que el trabajo sea del profesional
+
+Mientras un servicio está publicado o sólo propuesto, lo ve toda la plantilla o
+alguien que todavía puede decir que no. Para decidir si encaja basta el
+**municipio** (y el barrio, si lo hay), los días, las horas, qué hay que hacer y
+lo que se cobra. El **nombre, la dirección, el teléfono y el texto libre** de la
+familia —que suele llevar el nombre dentro— no salen hasta que el profesional
+acepta y el servicio pasa a ser suyo. Hasta entonces se le enseñan las iniciales
+y un aviso que explica por qué se ve tan poco. Lo aplica el servidor, no la
+pantalla (art. 5.1.c RGPD, minimización).
+
+Por eso el municipio se pide en el alta de la persona, aparte de la dirección: sin
+él, la solicitud saldría al mercado sin decir ni dónde es.
+
+## Apuntarse a una solicitud
+
+«Me interesa» se guarda: sobrevive a recargar la página y se puede retirar
+mientras nadie lo haya asignado. Cada candidatura tiene un desenlace visible
+—esperando, te lo proponen, es tuyo, se lo han dado a otra persona, cancelado— y
+retirarla avisa a coordinación, que estaba contando con esa persona.
+
+## Fichar la entrada
+
+«He llegado» ficha la hora de ese instante, así que sólo se puede pulsar **el día
+de la jornada**, y sólo si no hay otra abierta: dos jornadas abiertas son dos
+cronómetros contando el mismo tiempo. Una jornada de un día anterior que se quedó
+sin fichar no se ficha a posteriori: se avisa a coordinación, que la registra con
+su motivo (`fichar-por`). Una de un día futuro se ve, pero sin botón que pulsar
+por error.
+
+## Un recurrente siempre tiene su próxima jornada
+
+La siguiente jornada se crea en cuanto se cierra la actual, no cuando se
+verifica: entre una cosa y la otra un servicio indefinido se quedaba sin nada por
+delante. Además, cada media hora el servidor repasa todos los recurrentes en
+marcha y repone los que se hayan quedado sin ella. Al cambiar el plan, la jornada
+única por delante se recoloca donde toca ahora, también «hacia antes».
+
+## Dar de baja y archivar
+
+Lo que tiene historial no se borra. Se **archiva**, se **da de baja** o se
+**desactiva**, según lo que sea:
+
+- **Profesional**: la baja lo deja fuera de circulación y sin acceso. Las
+  propuestas que no había aceptado vuelven a estar sin cubrir; cada servicio en
+  marcha abre una incidencia de relevo (prioridad alta); sus peticiones de días
+  sin contestar y sus candidaturas se retiran. Se ve el alcance antes de
+  confirmar. Es reactivable, pero no recupera lo que se reasignó.
+- **Solicitud**: archivar cierra el servicio si hubo trabajo hecho y lo cancela si
+  no; las jornadas que nadie ha empezado salen de la agenda, sin cargo. No se
+  archiva con una jornada abierta, jornadas por verificar o una incidencia
+  abierta: se perdería lo que hay que cobrar y pagar.
+- **Persona**: archivada, sin acceso, con todo su historial y sus facturas; no si
+  tiene servicios sin cerrar.
+- **Empresa colaboradora**: inactiva. **Servicio del catálogo**: desactivado.
+
+Cancelar un servicio retira también sus jornadas sin empezar: antes quedaban en
+la agenda de la profesional y la bandeja avisaba de visitas que no iniciaba
+nadie.
+
+## La bandeja
+
+No lleva «pendiente de verificar»: la verificación tiene su apartado y una segunda
+lista de lo mismo tapaba lo que hay que resolver. Sí lleva los **tiempos sin
+decidir**, las **incidencias** (con «sólo las mías» y las que no tienen
+responsable) y las **solicitudes sin gestionar**: sin revisar, sin profesional
+—diciendo cuántas personas se han apuntado— o sin que nadie haya aceptado.
