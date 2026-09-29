@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../lib/auth.js";
 import { useRegistrarInicio, useRegistrarMenuMovil } from "../lib/menuMovil.js";
+import { useRefrescoAutomatico } from "../lib/refresco.js";
 import { api } from "../lib/api.js";
 import { Card, Panel } from "../components/Layout.js";
 import { Novedades } from "../components/Novedades.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
 import { Cronometro } from "../components/Cronometro.js";
-import { IconAlert, IconCalendar, IconChat, IconClock, IconFlag, IconHome, IconLock, IconNote, IconPin, IconPlay, IconSearch, IconStop, IconUsers, IconIdCard } from "../components/icons.js";
+import { AccionEntrada } from "../components/AccionEntrada.js";
+import { IconAlert, IconCalendar, IconChat, IconClock, IconFlag, IconHome, IconLock, IconNote, IconPin, IconSearch, IconStop, IconUsers, IconIdCard } from "../components/icons.js";
 import { IconoNecesidad } from "../lib/necesidadIconos.js";
 import { cobroDeJornada, duracion, euros, minutosEntre, minutosFichados, porHora } from "../lib/economia.js";
 import { Modal } from "../components/Modal.js";
@@ -32,14 +34,6 @@ const NAV: ItemNav[] = [
   { key: "buscar", label: "Buscar solicitudes", icon: IconSearch },
   { key: "perfil", label: "Mi perfil", icon: IconUsers },
 ];
-const TAB_LABEL: Record<Tab, string> = {
-  proximos: "Hoy",
-  jornadas: "Mis jornadas",
-  expediente: "Mi contrato",
-  buscar: "Buscar solicitudes",
-  perfil: "Mi perfil",
-};
-
 const PRIORIDADES = ["BAJA", "MEDIA", "ALTA"] as const;
 
 // Interfaz CUIDA PROFESIONAL (sección 9), rediseñada: lo primero que se ve
@@ -71,6 +65,14 @@ export function ProfesionalPage() {
   // buenas razones— la promesa se rompía por dentro y en pantalla no pasaba
   // nada. Quien está delante vuelve a pulsar, y otra vez.
   const [error, setError] = useState<string | null>(null);
+  // El reloj de la pantalla: "He llegado" ficha la hora de ahora, y lo que se
+  // ve en el botón tiene que ser esa hora, no otra.
+  const [ahora, setAhora] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setAhora(new Date()), 20000);
+    return () => clearInterval(id);
+  }, []);
+  const [verTodasLasProximas, setVerTodasLasProximas] = useState(false);
 
   async function cargar() {
     if (!usuario?.profesionalId) return;
@@ -116,6 +118,10 @@ export function ProfesionalPage() {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuario?.profesionalId]);
+
+  // Si coordinación le da un servicio o le mueve una jornada, aparece sin que
+  // tenga que recargar la página.
+  useRefrescoAutomatico(cargar);
 
   async function iniciar(id: string) {
     await intentar(async () => {
@@ -171,6 +177,15 @@ export function ProfesionalPage() {
   // verificado— se va a "Mis jornadas": mezclarlo hacía que cada día la lista
   // creciera con trabajo que ya no toca.
   const visitasProximas = visitas.filter((v) => ["PROGRAMADA", "CONFIRMADA", "EN_CURSO"].includes(v.estado));
+
+  // "Hoy" es lo que se puede hacer ahora: la jornada de hoy, la que está abierta
+  // y las que se quedaron sin fichar. Lo que viene después se ve, pero aparte y
+  // sin un botón de empezar que no se puede pulsar todavía.
+  const hoyClave = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}-${String(ahora.getDate()).padStart(2, "0")}`;
+  const deHoy = visitasProximas.filter((v) => v.estado === "EN_CURSO" || v.fecha.slice(0, 10) <= hoyClave);
+  const futuras = visitasProximas.filter((v) => !deHoy.includes(v));
+  const LIMITE_PROXIMAS = 3;
+  const jornadasVisibles = [...deHoy, ...(verTodasLasProximas ? futuras : futuras.slice(0, LIMITE_PROXIMAS))];
 
   // El mes de un vistazo, que es lo que se mira al abrir.
   const mesActual = new Date().toISOString().slice(0, 7);
@@ -379,13 +394,21 @@ export function ProfesionalPage() {
           )}
 
           {visitasProximas.length === 0 && <p className="text-sm text-slate-500">No tienes jornadas próximas.</p>}
+          {visitasProximas.length > 0 && deHoy.length === 0 && (
+            <p className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">Hoy no tienes ninguna jornada. Lo próximo está aquí debajo.</p>
+          )}
 
-          {visitasProximas.map((v) => {
+          {jornadasVisibles.map((v, i) => {
             const persona = v.servicio?.solicitud.persona;
             const cerrada = v.estado === "FINALIZADA" || v.estado === "REVISADA";
             const incidenciaAbiertaEnVisita = v.incidencias?.some((i) => !["RESUELTA", "CERRADA"].includes(i.estado));
             return (
-              <Card key={v.id}>
+              <Fragment key={v.id}>
+              {i === 0 && deHoy.length > 0 && <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Hoy</h3>}
+              {i === deHoy.length && futuras.length > 0 && (
+                <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">Próximas jornadas</h3>
+              )}
+              <Card>
                 <div className="mb-2 flex items-center justify-between">
                   <div>
                     <p className="font-medium">
@@ -565,10 +588,19 @@ export function ProfesionalPage() {
 
                 <div className="flex items-center gap-2">
                   {(v.estado === "PROGRAMADA" || v.estado === "CONFIRMADA") && (
-                    <button onClick={() => iniciar(v.id)} className="rounded-xl bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800">
-                      <IconPlay className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" />
-                      He llegado — empezar a contar
-                    </button>
+                    <AccionEntrada
+                      visita={v}
+                      ahora={ahora}
+                      hoyClave={hoyClave}
+                      onFichar={() => iniciar(v.id)}
+                      onAvisar={() => {
+                        setIncidenciaAbierta(v.id);
+                        setIncidenciaForm({
+                          descripcion: `No se fichó la jornada ${v.codigo} del ${new Date(v.fecha).toLocaleDateString("es-ES")}. `,
+                          prioridad: "ALTA",
+                        });
+                      }}
+                    />
                   )}
                   {v.estado === "EN_CURSO" && (
                     <button
@@ -583,8 +615,15 @@ export function ProfesionalPage() {
                   {v.estado === "REVISADA" && <span className="text-xs text-brand-green-600">Verificada y archivada</span>}
                 </div>
               </Card>
+              </Fragment>
             );
           })}
+
+          {futuras.length > LIMITE_PROXIMAS && (
+            <button onClick={() => setVerTodasLasProximas((x) => !x)} className="mt-1 text-xs font-medium text-brand underline decoration-dotted">
+              {verTodasLasProximas ? "Ver menos" : `Ver las ${futuras.length - LIMITE_PROXIMAS} jornadas siguientes`}
+            </button>
+          )}
         </>
       )}
 

@@ -6,7 +6,7 @@ import { registrarAuditoria } from "../services/audit.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError, TRANSICIONES_SERVICIO } from "../services/estados.js";
 import { notificarGestores } from "../services/notificaciones.js";
 import { esGestorOrganizacion, ocultarTarifaSiProcede, soloLoQueCobraElProfesional } from "../services/permisos.js";
-import { anotarSiNoSeCreo, asegurarSesiones } from "../services/sesiones.js";
+import { anotarSiNoSeCreo, aMedianoche, asegurarSesiones } from "../services/sesiones.js";
 import { formatearDuracion, minutosFichados } from "../services/economia.js";
 import { generarCodigo } from "../lib/codes.js";
 import { liquidarVisita, tarifaAplicable } from "../services/visitaEconomia.js";
@@ -127,6 +127,36 @@ visitasRouter.post("/:id/iniciar", async (req, res) => {
   } catch (err) {
     if (err instanceof TransicionInvalidaError) return res.status(409).json({ error: err.message });
     throw err;
+  }
+
+  // "He llegado" es un fichaje: la hora que queda escrita es la de este
+  // instante, y ese instante sólo es verdad el día de la jornada. Antes el
+  // botón salía en todas las jornadas próximas y bastaba un toque para dejar
+  // fichada la entrada de la semana que viene, o de la de ayer, con la hora de
+  // ahora. Quien quiera dejar constancia de otro día tiene su camino: avisar a
+  // coordinación, que la ficha por ella con su motivo.
+  const esProfesional = req.usuario!.rol === "PROFESIONAL";
+  if (esProfesional) {
+    const hoy = aMedianoche(new Date()).getTime();
+    const dia = aMedianoche(visita.fecha).getTime();
+    if (dia > hoy) {
+      const cuando = new Date(visita.fecha).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+      return res.status(409).json({ error: `Esta jornada es del ${cuando}: sólo se puede fichar la entrada ese día.` });
+    }
+    if (dia < hoy) {
+      return res.status(409).json({
+        error: "Esta jornada era de un día anterior y no se fichó. Avisa a coordinación y la registra ella con lo que ocurrió.",
+      });
+    }
+    // Dos jornadas abiertas a la vez son dos cronómetros contando el mismo
+    // tiempo: cada uno saldría facturable.
+    const abierta = await prisma.visita.findFirst({
+      where: { estado: "EN_CURSO", servicio: { profesionalId: visita.servicio.profesionalId }, NOT: { id: visita.id } },
+      select: { codigo: true },
+    });
+    if (abierta) {
+      return res.status(409).json({ error: `Tienes abierta la jornada ${abierta.codigo}. Ciérrala antes de empezar otra.` });
+    }
   }
 
   const actualizada = await prisma.visita.update({

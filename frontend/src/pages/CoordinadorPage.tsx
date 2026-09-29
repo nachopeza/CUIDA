@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth.js";
+import { useRefrescoAutomatico } from "../lib/refresco.js";
 import { useRegistrarInicio, useRegistrarMenuMovil } from "../lib/menuMovil.js";
 import { api } from "../lib/api.js";
 import { EstadoBadge, EstadoUnificadoBadge } from "../components/EstadoBadge.js";
@@ -317,6 +318,10 @@ export function CoordinadorPage() {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Lo que cambia en otro sitio (una profesional que acepta, coordinación que
+  // mueve una jornada) se ve sin recargar la página.
+  useRefrescoAutomatico(cargar, 30000);
 
   // Al pinchar una notificación llegamos aquí con ?solicitud=<id> en la URL:
   // abrimos su ficha directamente, sin que la coordinadora tenga que buscarla.

@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
-import { DocumentosProfesional } from "../../components/DocumentosProfesional.js";
 import { FotoUpload } from "../../components/FotoUpload.js";
 import { DisponibilidadPicker } from "../../components/DisponibilidadPicker.js";
 import { parsearDisponibilidad, serializarDisponibilidad, type Disponibilidad } from "../../lib/disponibilidad.js";
@@ -120,10 +119,12 @@ export function MiPerfilTab() {
         </button>
       </form>
 
-      <div className="mt-5 border-t border-slate-100 pt-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Mis documentos</p>
-        <DocumentosProfesional profesionalId={profesional.id} />
-      </div>
+      {/* Los documentos no se gestionan aquí: son el expediente y están en
+          "Mi contrato". Tenerlos en dos sitios era enseñar dos listas distintas
+          de lo mismo. */}
+      <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
+        Tus documentos (DNI, certificados, seguro…) están en <strong className="font-medium text-slate-500">Mi contrato</strong>.
+      </p>
     </Card>
   );
 }

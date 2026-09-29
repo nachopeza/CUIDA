@@ -113,7 +113,13 @@ personalRouter.get("/:profesionalId/documentos", async (req, res) => {
   res.json(documentos);
 });
 
-personalRouter.post("/:profesionalId/documentos", soloGestion, async (req, res) => {
+// Un único sitio donde se añaden documentos al expediente, lo haga coordinación
+// o la propia profesional. Había además un camino aparte, /profesionales/:id/
+// documentos, que guardaba sólo un nombre y un enlace sin tipo ni caducidad:
+// los papeles que entraban por ahí no contaban para nada y el expediente se
+// veía distinto según desde dónde se mirase.
+personalRouter.post("/:profesionalId/documentos", async (req, res) => {
+  if (!puedeVer(req.usuario!, req.params.profesionalId)) return res.status(403).json({ error: "Sin permiso" });
   const parsed = documentoSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const profesional = await profesionalPropio(req.params.profesionalId, req.usuario!.organizacionId);
@@ -144,10 +150,19 @@ personalRouter.post("/:profesionalId/documentos", soloGestion, async (req, res) 
   res.status(201).json(documento);
 });
 
-personalRouter.delete("/documentos/:id", soloGestion, async (req, res) => {
+personalRouter.delete("/documentos/:id", async (req, res) => {
   const documento = await prisma.documento.findUnique({ where: { id: req.params.id }, include: { profesional: true } });
   if (!documento?.profesional) return res.status(404).json({ error: "No encontrado" });
   if (documento.profesional.organizacionId !== req.usuario!.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+  // La profesional puede retirar lo que ella misma aportó como "otro", pero no
+  // el DNI, el certificado de delitos sexuales o el contrato: esos son la
+  // prueba de que se cumple la ley y los quita quien responde de ello.
+  if (!esGestorOrganizacion(req.usuario!)) {
+    const esSuyo = req.usuario!.rol === "PROFESIONAL" && req.usuario!.profesionalId === documento.profesionalId;
+    if (!esSuyo || documento.tipo !== "OTRO") {
+      return res.status(403).json({ error: "Este documento forma parte de tu expediente: si hay que quitarlo, pídeselo a coordinación." });
+    }
+  }
   await prisma.documento.delete({ where: { id: documento.id } });
   await registrarAuditoria({
     usuarioId: req.usuario!.sub,

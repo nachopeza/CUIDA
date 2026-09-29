@@ -1,25 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
-import { ArchivoUpload, ArchivoEnlace, type ArchivoSubido } from "../../components/ArchivoUpload.js";
 import { Modal } from "../../components/Modal.js";
+import { ExpedienteDocumentos } from "../../components/ExpedienteDocumentos.js";
 import { SearchBox } from "../../components/SearchBox.js";
 import { LoQueDeja } from "./LoQueDeja.js";
 import { exportarCSV } from "../../lib/csv.js";
 import { duracion } from "../../lib/economia.js";
 import {
-  DOCUMENTOS_OBLIGATORIOS,
   ETIQUETA_AUSENCIA,
   ETIQUETA_CONTRATO,
-  ETIQUETA_DOCUMENTO,
-  TONO_VIGENCIA,
   esImpedimento,
   textoCarencia,
-  textoVigencia,
-  vigenciaDe,
 } from "../../lib/personal.js";
-import { IconAlert, IconCalendar, IconCheck, IconClock, IconFile, IconPlus, IconTrash, IconUsers } from "../../components/icons.js";
-import type { Ausencia, DiaDeJornada, DocumentoProfesional, FichaProfesional, RegistroJornada, TipoDocumento } from "../../lib/types.js";
+import { IconAlert, IconCalendar, IconCheck, IconClock, IconFile } from "../../components/icons.js";
+import type { Ausencia, DiaDeJornada, FichaProfesional, RegistroJornada } from "../../lib/types.js";
 
 type Vista = "plantilla" | "ausencias" | "jornada";
 
@@ -460,18 +455,6 @@ export function RegistroDetalle({ registro }: { registro: RegistroJornada }) {
   );
 }
 
-const TIPOS: TipoDocumento[] = [
-  "DNI",
-  "DELITOS_SEXUALES",
-  "TITULACION",
-  "CONTRATO",
-  "ALTA_SEGURIDAD_SOCIAL",
-  "CARNE_CONDUCIR",
-  "SEGURO",
-  "FORMACION",
-  "OTRO",
-];
-
 function ExpedienteModal({
   miembro,
   onClose,
@@ -484,48 +467,7 @@ function ExpedienteModal({
   onError: (m: string | null) => void;
 }) {
   const { token } = useAuth();
-  const [form, setForm] = useState({ tipo: "DELITOS_SEXUALES" as TipoDocumento, nombre: "", fechaEmision: "", fechaCaducidad: "" });
-  const [archivo, setArchivo] = useState<ArchivoSubido | null>(null);
-  const [guardando, setGuardando] = useState(false);
   const [nuevaAusencia, setNuevaAusencia] = useState({ tipo: "VACACIONES", desde: "", hasta: "", motivo: "" });
-
-  // El nombre del documento sale del fichero si no se ha escrito otro: nadie
-  // quiere teclear "Certificado.pdf" después de haberlo subido.
-  function alSubir(a: ArchivoSubido | null) {
-    setArchivo(a);
-    if (a && !form.nombre.trim()) setForm((f) => ({ ...f, nombre: a.nombre.replace(/\.[^.]+$/, "") }));
-  }
-
-  async function anadir() {
-    if (!form.nombre.trim()) return;
-    setGuardando(true);
-    onError(null);
-    try {
-      await api.post(
-        `/personal/${miembro.id}/documentos`,
-        { ...form, archivoId: archivo?.id ?? null, fechaEmision: form.fechaEmision || null, fechaCaducidad: form.fechaCaducidad || null },
-        token,
-      );
-      setForm({ tipo: "DELITOS_SEXUALES", nombre: "", fechaEmision: "", fechaCaducidad: "" });
-      setArchivo(null);
-      await onCambiado();
-    } catch (e) {
-      onError(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido guardar");
-    } finally {
-      setGuardando(false);
-    }
-  }
-
-  async function borrar(d: DocumentoProfesional) {
-    if (!window.confirm(`¿Quitar "${d.nombre}" del expediente?`)) return;
-    onError(null);
-    try {
-      await api.delete(`/personal/documentos/${d.id}`, token);
-      await onCambiado();
-    } catch (e) {
-      onError(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido borrar");
-    }
-  }
 
   async function registrarAusencia() {
     if (!nuevaAusencia.desde || !nuevaAusencia.hasta) return;
@@ -565,93 +507,7 @@ function ExpedienteModal({
           <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
             <IconFile className="h-3.5 w-3.5" /> Expediente
           </p>
-          {miembro.documentos.length === 0 ? (
-            <p className="rounded-xl bg-slate-50 px-3 py-3 text-center text-xs text-slate-400">Sin documentos.</p>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {miembro.documentos.map((d) => (
-                <li key={d.id} className="flex items-center justify-between gap-3 py-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-slate-800">{d.nombre}</p>
-                    <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-slate-400">
-                      {ETIQUETA_DOCUMENTO[d.tipo]}
-                      {d.fechaEmision && <span>· emitido {fecha(d.fechaEmision)}</span>}
-                      {d.archivoId ? (
-                        <>
-                          <span>·</span>
-                          <ArchivoEnlace archivoId={d.archivoId} nombre={d.nombre} />
-                        </>
-                      ) : (
-                        // Anotado sin el papel: se dice, porque es justo el caso
-                        // que parecía resuelto y no lo estaba.
-                        <span className="text-amber-700">· sin el documento subido</span>
-                      )}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${TONO_VIGENCIA[vigenciaDe(d.fechaCaducidad)]}`}>
-                      {textoVigencia(d)}
-                    </span>
-                    <button onClick={() => borrar(d)} className="text-slate-300 hover:text-rose-600" title="Quitar del expediente">
-                      <IconTrash className="h-4 w-4" />
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <div className="mt-2 grid gap-2 rounded-lg border border-slate-200 p-2.5 sm:grid-cols-2">
-            <label className="text-xs text-slate-500">
-              Tipo
-              <select
-                value={form.tipo}
-                onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value as TipoDocumento }))}
-                className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-              >
-                {TIPOS.map((t) => (
-                  <option key={t} value={t}>
-                    {ETIQUETA_DOCUMENTO[t]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-xs text-slate-500">
-              Referencia
-              <input
-                type="text"
-                value={form.nombre}
-                onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-                placeholder="Certificación negativa del Registro Central"
-                className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-              />
-            </label>
-            <label className="text-xs text-slate-500">
-              Emitido el
-              <input type="date" value={form.fechaEmision} onChange={(e) => setForm((f) => ({ ...f, fechaEmision: e.target.value }))} className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-            </label>
-            <label className="text-xs text-slate-500">
-              Caduca el
-              <input type="date" value={form.fechaCaducidad} onChange={(e) => setForm((f) => ({ ...f, fechaCaducidad: e.target.value }))} className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-            </label>
-            <div className="sm:col-span-2">
-              <ArchivoUpload valor={archivo} onSubido={alSubir} etiqueta="Subir el documento (PDF, JPG o PNG)" />
-            </div>
-            {/* Un obligatorio sin fichero no desbloquea a nadie, así que no se
-                deja añadir a medias: se dice antes, no después. */}
-            {!archivo && DOCUMENTOS_OBLIGATORIOS.includes(form.tipo) && (
-              <p className="text-xs text-amber-700 sm:col-span-2">
-                {ETIQUETA_DOCUMENTO[form.tipo]} es obligatorio: sin el documento subido seguirá contando como que falta.
-              </p>
-            )}
-            <button
-              onClick={anadir}
-              disabled={guardando || !form.nombre.trim()}
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2"
-            >
-              <IconPlus className="h-3.5 w-3.5" /> {guardando ? "Guardando…" : "Añadir al expediente"}
-            </button>
-          </div>
+          <ExpedienteDocumentos profesionalId={miembro.id} onCambiado={onCambiado} />
         </section>
 
         <section>

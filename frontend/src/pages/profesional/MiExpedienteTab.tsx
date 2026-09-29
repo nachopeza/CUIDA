@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { ArchivoEnlace } from "../../components/ArchivoUpload.js";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Card } from "../../components/Layout.js";
 import { Modal } from "../../components/Modal.js";
+import { ExpedienteDocumentos } from "../../components/ExpedienteDocumentos.js";
 import { duracion } from "../../lib/economia.js";
-import { ETIQUETA_AUSENCIA, ETIQUETA_DOCUMENTO, TONO_VIGENCIA, textoVigencia, vigenciaDe } from "../../lib/personal.js";
+import { ETIQUETA_AUSENCIA, ETIQUETA_DOCUMENTO, textoVigencia, vigenciaDe } from "../../lib/personal.js";
 import { RegistroDetalle } from "../coordinador/PersonalTab.js";
 import { IconAlert, IconCalendar, IconCheck, IconClock, IconFile } from "../../components/icons.js";
 import type { Ausencia, DocumentoProfesional, RegistroJornada, TipoAusencia } from "../../lib/types.js";
@@ -112,35 +112,10 @@ export function MiExpedienteTab({ profesionalId }: { profesionalId: string }) {
         </div>
       )}
 
+      {/* Un único sitio para los papeles: se ven, se renuevan y se suben aquí,
+          y coordinación mira exactamente lo mismo en su expediente. */}
       <Card title="Mi documentación">
-        {documentos.length === 0 ? (
-          <p className="py-3 text-center text-sm text-slate-400">La empresa todavía no tiene documentación tuya.</p>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {documentos.map((d) => (
-              <li key={d.id} className="flex items-center justify-between gap-3 py-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm text-slate-800">{d.nombre}</p>
-                  <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-slate-400">
-                    {ETIQUETA_DOCUMENTO[d.tipo]}
-                    {d.fechaEmision && <span>· emitido {fecha(d.fechaEmision)}</span>}
-                    {/* Su propio documento: puede verlo y descargarlo. Es suyo,
-                        y si hace falta renovarlo necesita el original. */}
-                    {d.archivoId && (
-                      <>
-                        <span>·</span>
-                        <ArchivoEnlace archivoId={d.archivoId} nombre={d.nombre} />
-                      </>
-                    )}
-                  </p>
-                </div>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${TONO_VIGENCIA[vigenciaDe(d.fechaCaducidad)]}`}>
-                  {textoVigencia(d)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ExpedienteDocumentos profesionalId={profesionalId} propio onCambiado={cargar} />
       </Card>
 
       <Card title="Mis ausencias">

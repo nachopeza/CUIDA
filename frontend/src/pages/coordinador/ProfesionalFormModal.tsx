@@ -3,7 +3,7 @@ import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
 import { Modal } from "../../components/Modal.js";
 import { EstadoBadge } from "../../components/EstadoBadge.js";
-import { DocumentosProfesional } from "../../components/DocumentosProfesional.js";
+import { ExpedienteDocumentos } from "../../components/ExpedienteDocumentos.js";
 import { FotoUpload } from "../../components/FotoUpload.js";
 import { DisponibilidadPicker } from "../../components/DisponibilidadPicker.js";
 import { parsearDisponibilidad, serializarDisponibilidad, type Disponibilidad } from "../../lib/disponibilidad.js";
@@ -312,8 +312,8 @@ export function ProfesionalFormModal({
           </div>
 
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Documentos</p>
-            <DocumentosProfesional profesionalId={profesional.id} />
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Expediente</p>
+            <ExpedienteDocumentos profesionalId={profesional.id} />
           </div>
 
           {/* Glosario de pagos (sección "ver pagos, cobros, dinero

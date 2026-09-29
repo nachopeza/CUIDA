@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth.js";
+import { useRefrescoAutomatico } from "../lib/refresco.js";
 import { api } from "../lib/api.js";
 import { Card } from "../components/Layout.js";
 import { EstadoBadge } from "../components/EstadoBadge.js";
@@ -36,6 +37,10 @@ export function PersonaPage() {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Lo que cambia en otro sitio (una profesional que acepta, coordinación que
+  // mueve una jornada) se ve sin recargar la página.
+  useRefrescoAutomatico(cargar, 30000);
 
   async function cancelarServicio(servicioId: string) {
     await api.post(`/servicios/${servicioId}/solicitar-cancelacion`, {}, token);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
+import { useRefrescoAutomatico } from "../../lib/refresco.js";
 import { Card } from "../../components/Layout.js";
 import { SearchBox } from "../../components/SearchBox.js";
 import { SubPestanas } from "../../components/SubPestanas.js";
@@ -91,6 +92,10 @@ export function BuscarSolicitudesTab() {
     cargar().catch(() => setError("No se han podido cargar las solicitudes."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Una solicitud que coordinación acaba de asignar a otra persona no debe
+  // seguir ofreciéndose: se pone al día sola.
+  useRefrescoAutomatico(cargar);
 
   async function intentar(accion: () => Promise<void>) {
     setOcupado(true);
