@@ -26,6 +26,9 @@ import { IncidenciaFichaModal } from "../pages/coordinador/IncidenciaFichaModal.
 import { parsearDisponibilidad } from "../lib/disponibilidad.js";
 import { etiquetaTitulacion, zonaDe } from "../lib/territorio.js";
 import { resumenDisponibilidad } from "./DisponibilidadPicker.js";
+import { PerfilProfesionalModal } from "./PerfilProfesionalModal.js";
+import { PeticionLibre } from "./PeticionLibre.js";
+import { ProximasJornadas } from "./ProximasJornadas.js";
 import type { Candidato, EmpresaColaboradora, Necesidad, Profesional, Solicitud, TarifaVigente, Visita } from "../lib/types.js";
 
 // Espejo de TRANSICIONES_SERVICIO del backend (backend/src/services/estados.ts):
@@ -176,6 +179,8 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   // no pasaba nada: dos clics perdidos y ninguna explicación.
   // Quién puede cubrirlo, según el servidor.
   const [candidatosTodos, setCandidatosTodos] = useState<Candidato[]>([]);
+  // El perfil abierto de alguien que se ha apuntado.
+  const [perfilInteresado, setPerfilInteresado] = useState<{ id: string; mensaje: string | null } | null>(null);
   // La tarifa vigente de la casa, para proponer el precio en vez de pedir que
   // se teclee en cada servicio.
   const [tarifasVigentes, setTarifasVigentes] = useState<TarifaVigente[]>([]);
@@ -784,6 +789,10 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
           {new Date(s.createdAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
         </p>
 
+        {/* Lo que la persona pidió, con sus palabras: lo primero que hay que
+            leer, no una línea gris dentro de un bloque plegado. */}
+        <PeticionLibre solicitudId={solicitudId} texto={s.descripcionLibre} editable={!cancelada} onGuardado={recargar} />
+
         {/* Por qué no se ha podido hacer lo último. Va arriba del todo y
             con el motivo tal cual lo dice el servidor: "falta el certificado
             de delitos sexuales" se entiende; que no pase nada al pulsar, no. */}
@@ -1070,6 +1079,8 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
 
             {bloqueQueYCuando}
 
+            {["CONFIRMADO", "EN_CURSO"].includes(srv.estado) && <ProximasJornadas servicioId={srv.id} recarga={`${srv.visitas?.length}-${srv.estado}-${s.plan?.fechaInicio}-${s.plan?.horaInicio}-${s.plan?.recurrencia}`} />}
+
             {/* Lo que le falta a este servicio para poder prestarse. Se podía
                 publicar y mandárselo a un profesional sin horas y sin precio:
                 él no sabía cuándo ir ni cuánto iba a cobrar, y al facturar no
@@ -1128,12 +1139,24 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                     {srv.interesados && srv.interesados.length > 0 ? (
                       <ul className="space-y-1.5">
                         {srv.interesados.map((i) => (
-                          <li key={i.id} className="flex items-center justify-between rounded-md bg-amber-50 px-2.5 py-1.5 text-sm">
-                            <span>
-                              {i.profesional.nombre} {i.profesional.apellidos}
-                              {i.mensaje && <span className="text-slate-400"> — "{i.mensaje}"</span>}
-                            </span>
-                            <button onClick={() => asignar(i.profesional.id)} className="rounded-xl bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800">
+                          <li key={i.id} className="flex items-center justify-between gap-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-sm">
+                            {/* El nombre abre su perfil: para elegir entre varias
+                                hay que poder ver quién es cada una sin salir. */}
+                            <button onClick={() => setPerfilInteresado({ id: i.profesional.id, mensaje: i.mensaje })} className="min-w-0 flex-1 text-left">
+                              <span className="font-medium text-slate-800 underline decoration-dotted underline-offset-2">
+                                {i.profesional.nombre} {i.profesional.apellidos}
+                              </span>
+                              {(() => {
+                                const c = candidatosTodos.find((x) => x.id === i.profesional.id);
+                                return c ? (
+                                  <span className={`ml-2 text-xs ${c.encaja ? "text-brand-green-700" : "text-rose-600"}`}>
+                                    {c.encaja ? "Encaja" : `No encaja: ${c.motivo.toLowerCase()}`}
+                                  </span>
+                                ) : null;
+                              })()}
+                              {i.mensaje && <span className="block truncate text-xs text-slate-500">"{i.mensaje}"</span>}
+                            </button>
+                            <button onClick={() => asignar(i.profesional.id)} className="shrink-0 rounded-xl bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800">
                               Elegir
                             </button>
                           </li>
@@ -1612,6 +1635,17 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
 
       {desgloseDe && (
         <DesgloseVisitaModal visitaId={desgloseDe} onClose={() => setDesgloseDe(null)} onCambio={recargar} />
+      )}
+      {perfilInteresado && (
+        <PerfilProfesionalModal
+          profesionalId={perfilInteresado.id}
+          mensaje={perfilInteresado.mensaje}
+          onClose={() => setPerfilInteresado(null)}
+          onElegir={(id) => {
+            setPerfilInteresado(null);
+            void asignar(id);
+          }}
+        />
       )}
     </Modal>
   );

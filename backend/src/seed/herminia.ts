@@ -1082,14 +1082,26 @@ async function main() {
     },
   });
   await registrarHistorial({ entidadTipo: "Servicio", estadoAnterior: "PENDIENTE", estadoNuevo: "EN_CURSO", motivo: "Contrato recurrente de tardes con Rosa (seed)", servicioId: servicioManuel.id });
+  // Las jornadas de Manuel caen en los días que dice su recurrencia (jueves a
+  // domingo): si la de la semana pasada o la de la que viene cayeran en otro día,
+  // el plan y la agenda se contradirían según el día en que se cargue la demo.
+  const diasManuel = [4, 5, 6, 0];
+  const desplazamientoA = (paso: 1 | -1) => {
+    for (let n = 1; n < 8; n += 1) {
+      if (diasManuel.includes(fechaEn(n * paso).getDay())) return n * paso;
+    }
+    return paso;
+  };
+  const pasadoManuel = desplazamientoA(-1);
+  const siguienteManuel = desplazamientoA(1);
   const visitaManuel = await prisma.visita.create({
     data: {
       codigo: await generarCodigo("visita"),
-      fecha: fechaEn(-3),
+      fecha: fechaEn(pasadoManuel),
       horaInicioProg: "17:00",
       horaFinProg: "20:00",
-      horaInicioReal: enHora(fechaEn(-3), "17:00"),
-      horaFinReal: enHora(fechaEn(-3), "20:00"),
+      horaInicioReal: enHora(fechaEn(pasadoManuel), "17:00"),
+      horaFinReal: enHora(fechaEn(pasadoManuel), "20:00"),
       servicioId: servicioManuel.id,
       profesionalId: rosa.id,
       estado: "REVISADA",
@@ -1100,7 +1112,7 @@ async function main() {
   await prisma.visita.create({
     data: {
       codigo: await generarCodigo("visita"),
-      fecha: fechaEn(1),
+      fecha: fechaEn(siguienteManuel),
       horaInicioProg: "17:00",
       horaFinProg: "20:00",
       servicioId: servicioManuel.id,

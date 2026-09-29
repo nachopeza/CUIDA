@@ -6,7 +6,7 @@ import { registrarAuditoria } from "../services/audit.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError, TRANSICIONES_SERVICIO } from "../services/estados.js";
 import { notificarGestores } from "../services/notificaciones.js";
 import { esGestorOrganizacion, ocultarTarifaSiProcede, soloLoQueCobraElProfesional } from "../services/permisos.js";
-import { anotarSiNoSeCreo, aMedianoche, asegurarSesiones } from "../services/sesiones.js";
+import { anotarSiNoSeCreo, aMedianoche, asegurarSesiones, avanzarAgenda } from "../services/sesiones.js";
 import { formatearDuracion, minutosFichados } from "../services/economia.js";
 import { generarCodigo } from "../lib/codes.js";
 import { liquidarVisita, tarifaAplicable } from "../services/visitaEconomia.js";
@@ -308,6 +308,10 @@ visitasRouter.post("/:id/finalizar", async (req, res) => {
       }
     }
   }
+
+  // Cerrada la jornada, la siguiente ya tiene que estar en la agenda: no hay que
+  // esperar a que alguien la verifique.
+  await avanzarAgenda(visita.servicioId).catch(() => undefined);
 
   res.json({ ...actualizada, tiempos: liquidada?.tiempos ?? null });
 });
@@ -849,6 +853,10 @@ visitasRouter.post("/:id/fichar-por", requiereRol("COORDINADOR", "ORGANIZACION",
     });
   }
 
+  // Cerrada la jornada, la siguiente ya tiene que estar en la agenda: no hay que
+  // esperar a que alguien la verifique.
+  await avanzarAgenda(visita.servicioId).catch(() => undefined);
+
   res.json({
     ...liquidada?.visita,
     tiempos: liquidada?.tiempos ?? null,
@@ -917,6 +925,10 @@ visitasRouter.post("/:id/cerrar-manual", requiereRol("COORDINADOR", "ORGANIZACIO
     entidadTipo: "Visita",
     entidadId: visita.id,
   });
+
+  // Cerrada la jornada, la siguiente ya tiene que estar en la agenda: no hay que
+  // esperar a que alguien la verifique.
+  await avanzarAgenda(visita.servicioId).catch(() => undefined);
 
   res.json({ ...liquidada?.visita, tiempos: liquidada?.tiempos ?? null });
 });
@@ -995,6 +1007,10 @@ visitasRouter.post("/:id/no-prestada", requiereRol("COORDINADOR", "ORGANIZACION"
     entidadTipo: "Visita",
     entidadId: visita.id,
   });
+
+  // Cerrada la jornada, la siguiente ya tiene que estar en la agenda: no hay que
+  // esperar a que alguien la verifique.
+  await avanzarAgenda(visita.servicioId).catch(() => undefined);
 
   res.json({ ...liquidada?.visita, tiempos: liquidada?.tiempos ?? null });
 });

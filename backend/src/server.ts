@@ -27,6 +27,7 @@ import { equipoRouter } from "./routes/equipo.js";
 import { cuentaRouter } from "./routes/cuenta.js";
 import { coberturaRouter } from "./routes/cobertura.js";
 import { conErroresAsincronos } from "./lib/asincrono.js";
+import { mantenerAgendaDeTodos } from "./services/sesiones.js";
 
 const app = express();
 
@@ -79,3 +80,18 @@ const PORT = Number(process.env.PORT ?? 4000);
 app.listen(PORT, () => {
   console.log(`CUIDA backend escuchando en :${PORT}`);
 });
+
+// Que ningún servicio recurrente se quede sin su próxima jornada: al arrancar y
+// cada media hora. Es una red de seguridad; lo normal es que la jornada siguiente
+// se cree en cuanto se cierra la actual.
+const MEDIA_HORA = 30 * 60 * 1000;
+async function repasarAgendas() {
+  try {
+    const creadas = await mantenerAgendaDeTodos();
+    if (creadas > 0) console.log(`Agenda: ${creadas} jornada(s) recurrente(s) repuestas.`);
+  } catch (e) {
+    console.error("No se pudo repasar la agenda:", e);
+  }
+}
+setTimeout(repasarAgendas, 5000);
+setInterval(repasarAgendas, MEDIA_HORA).unref();

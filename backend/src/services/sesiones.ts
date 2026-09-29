@@ -383,3 +383,38 @@ export async function sincronizarSesionesConPlan(servicioId: string): Promise<Re
 
   return resultado;
 }
+
+// ---------------------------------------------------------------------------
+// Que un servicio recurrente nunca se quede sin su próxima jornada
+//
+// La siguiente jornada sólo se creaba al verificar la anterior. Entre que la
+// profesional cerraba la de hoy y alguien la verificaba —horas o días—, el
+// servicio indefinido no tenía ninguna jornada por delante: la profesional no
+// veía mañana en su panel y coordinación recibía un aviso de "sin próximas
+// visitas" que era falso. La siguiente tiene que existir en cuanto la actual se
+// cierra, no cuando se revisa.
+// ---------------------------------------------------------------------------
+export async function avanzarAgenda(servicioId: string): Promise<ResultadoSesiones> {
+  const servicio = await prisma.servicio.findUnique({ where: { id: servicioId }, select: { tipoServicio: true } });
+  if (servicio?.tipoServicio !== "RECURRENTE") return { creadas: [] };
+  const resultado = await asegurarSesiones(servicioId);
+  await anotarSiNoSeCreo(servicioId, resultado);
+  return resultado;
+}
+
+// El repaso de todos los servicios recurrentes en marcha. Se hace al arrancar y
+// cada media hora: un servicio que llegó a medianoche sin jornada por delante
+// (porque un día no tocaba, o porque la profesional estaba de baja) recupera la
+// suya sin esperar a que alguien lo toque.
+export async function mantenerAgendaDeTodos(): Promise<number> {
+  const servicios = await prisma.servicio.findMany({
+    where: { tipoServicio: "RECURRENTE", estado: { in: ["CONFIRMADO", "EN_CURSO"] } },
+    select: { id: true },
+  });
+  let creadas = 0;
+  for (const { id } of servicios) {
+    const r = await avanzarAgenda(id).catch(() => ({ creadas: [] as string[] }));
+    creadas += r.creadas.length;
+  }
+  return creadas;
+}

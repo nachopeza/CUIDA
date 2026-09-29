@@ -4,11 +4,11 @@ import { prisma } from "../lib/prisma.js";
 import { generarCodigo } from "../lib/codes.js";
 import { autenticar, requiereRol } from "../middleware/auth.js";
 import { registrarAuditoria } from "../services/audit.js";
-import { esGestorOrganizacion, puedeVerImportes, filtrarEconomia, ocultarTarifaSiProcede, sinIdentificarALaPersona, soloLoQueCobraElProfesional } from "../services/permisos.js";
+import { esGestorOrganizacion, puedeAccederPersona, puedeVerImportes, filtrarEconomia, ocultarTarifaSiProcede, sinIdentificarALaPersona, soloLoQueCobraElProfesional } from "../services/permisos.js";
 import { ausenteEse, carenciasDe } from "../services/rrhh.js";
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
-import { anotarSiNoSeCreo, asegurarSesiones } from "../services/sesiones.js";
+import { anotarSiNoSeCreo, aMedianoche, asegurarSesiones, diasPrevistosEntre } from "../services/sesiones.js";
 import { candidatosParaServicio } from "../services/candidatos.js";
 import { calcularReparto, minutosEntre } from "../services/economia.js";
 import { reglasDe } from "../services/motorTiempo.js";
@@ -271,6 +271,65 @@ serviciosRouter.delete("/:id/interes", requiereRol("PROFESIONAL"), async (req, r
   );
 
   res.status(204).end();
+});
+
+// Lo que viene, según el servicio. Un servicio indefinido no tiene fin ni una
+// lista de jornadas cerrada: la ficha enseñaba sólo las que ya estaban creadas
+// —una, como mucho— y parecía que no había nada previsto. Aquí se mezcla lo que
+// está en la agenda con lo que el plan dice que toca después.
+serviciosRouter.get("/:id/proximas", async (req, res) => {
+  const usuario = req.usuario!;
+  const servicio = await prisma.servicio.findUnique({
+    where: { id: req.params.id },
+    include: { visitas: true, solicitud: { include: { plan: true } } },
+  });
+  if (!servicio) return res.status(404).json({ error: "No encontrado" });
+  const esProfesional = usuario.rol === "PROFESIONAL" && usuario.profesionalId === servicio.profesionalId;
+  const esFamilia = ["PERSONA", "FAMILIAR"].includes(usuario.rol) && (await puedeAccederPersona(usuario, servicio.solicitud.personaId));
+  if (!esGestorOrganizacion(usuario) && !esProfesional && !esFamilia) return res.status(403).json({ error: "Sin permiso" });
+  if (esGestorOrganizacion(usuario) && usuario.rol !== "SUPERADMIN" && servicio.organizacionId !== usuario.organizacionId) {
+    return res.status(403).json({ error: "Sin permiso" });
+  }
+
+  const hoy = aMedianoche(new Date());
+  const plan = servicio.solicitud.plan;
+  const clave = (d: Date) => aMedianoche(d).toISOString().slice(0, 10);
+
+  const reales = servicio.visitas
+    .filter((v) => aMedianoche(v.fecha) >= hoy && ["PROGRAMADA", "CONFIRMADA", "EN_CURSO"].includes(v.estado))
+    .map((v) => ({
+      fecha: v.fecha,
+      horaInicio: v.horaInicioProg,
+      horaFin: v.horaFinProg,
+      estado: v.estado,
+      visitaId: v.id,
+      codigo: v.codigo,
+      prevista: false,
+    }));
+  const cubiertos = new Set(servicio.visitas.map((v) => clave(v.fecha)));
+
+  // Las previstas: lo que el plan dice que tocará y todavía no está en la
+  // agenda. Se dicen como previstas, no como programadas, porque no lo están.
+  const horizonte = new Date(hoy);
+  horizonte.setDate(horizonte.getDate() + 30);
+  const previstas = (await diasPrevistosEntre(servicio.id, hoy, horizonte))
+    .filter((d) => !cubiertos.has(clave(d)))
+    .map((d) => ({
+      fecha: d,
+      horaInicio: plan?.horaInicio ?? null,
+      horaFin: plan?.horaFin ?? null,
+      estado: "PREVISTA",
+      visitaId: null,
+      codigo: null,
+      prevista: true,
+    }));
+
+  const todas = [...reales, ...previstas].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+  res.json({
+    indefinido: plan != null && plan.fechaFin == null,
+    recurrencia: plan?.recurrencia ?? null,
+    proximas: todas.slice(0, 6),
+  });
 });
 
 serviciosRouter.get("/:id", async (req, res) => {
@@ -816,14 +875,27 @@ serviciosRouter.post("/:id/aceptar", requiereRol("PROFESIONAL"), async (req, res
     entidadId: servicio.id,
   });
 
+  // Qué se dice a coordinación importa: "el profesional ha aceptado el servicio
+  // SRV-000004" obligaba a abrir la ficha para saber quién, a quién atiende y
+  // desde cuándo. El aviso lo cuenta entero, y con él en la mano se puede
+  // llamar a la familia sin más.
+  const contexto = await prisma.solicitud.findUnique({
+    where: { id: servicio.solicitudId },
+    include: { persona: true, necesidad: true, plan: true },
+  });
+  const quien = await prisma.profesional.findUnique({ where: { id: servicio.profesionalId ?? "__none__" }, select: { nombre: true, apellidos: true } });
+  const desde = contexto?.plan?.fechaInicio
+    ? new Date(contexto.plan.fechaInicio).toLocaleDateString("es-ES", { day: "numeric", month: "long" })
+    : null;
+  const horario = contexto?.plan?.horaInicio && contexto.plan.horaFin ? `, de ${contexto.plan.horaInicio} a ${contexto.plan.horaFin}` : "";
   await notificarGestores(
     servicio.organizacionId,
     "servicio_aceptado",
-    `El profesional ha aceptado el servicio ${servicio.codigo}.`,
+    `${quien ? `${quien.nombre} ${quien.apellidos}` : "El profesional"} ha aceptado ${contexto?.necesidad.nombre ?? "el servicio"}${
+      contexto ? ` con ${contexto.persona.nombre} ${contexto.persona.apellidos}` : ""
+    } (${servicio.codigo})${desde ? ` · desde el ${desde}${horario}` : ""}. Ya está confirmado.`,
     servicio.solicitudId,
-  ).catch(
-    () => undefined,
-  );
+  ).catch(() => undefined);
 
   // "Se notifica al usuario la confirmación de su servicio": la persona
   // atendida y sus familiares deben enterarse de que ya hay alguien

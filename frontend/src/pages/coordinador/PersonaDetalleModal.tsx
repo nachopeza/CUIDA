@@ -4,6 +4,9 @@ import { api } from "../../lib/api.js";
 import { Modal } from "../../components/Modal.js";
 import { EstadoBadge } from "../../components/EstadoBadge.js";
 import { SolicitudFichaModal } from "../../components/SolicitudFichaModal.js";
+import { Avatar } from "../../components/Avatar.js";
+import { IconoNecesidad } from "../../lib/necesidadIconos.js";
+import { IconCalendar, IconClock, IconPin } from "../../components/icons.js";
 import { ConsentimientosPersona } from "../../components/ConsentimientosPersona.js";
 import type { PersonaConFamiliares, Solicitud } from "../../lib/types.js";
 
@@ -108,6 +111,10 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
     await cargar();
   }
 
+  const estaCerrada = (sol: Solicitud) => ["CERRADO", "VALIDADO", "CANCELADO", "CANCELADA", "CERRADA"].includes(sol.servicio?.estado ?? sol.estado);
+  const enMarcha = solicitudes.filter((sol) => !estaCerrada(sol));
+  const cerradas = solicitudes.filter(estaCerrada);
+
   if (!persona) {
     return (
       <Modal title="Cargando…" onClose={onClose} size="lg">
@@ -119,8 +126,95 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
   return (
     <Modal title={`${persona.nombre} ${persona.apellidos} · ${persona.codigo}`} onClose={onClose} size="lg">
       <div className="space-y-5">
-        {/* Datos */}
+        {/* Los servicios, lo primero. Es lo que se viene a mirar de una persona:
+            qué tiene contratado, con quién y cuándo es lo próximo. Los datos de
+            contacto y las cuentas van debajo, porque se consultan menos. */}
         <div>
+          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Servicios</p>
+            <p className="flex flex-wrap items-center gap-x-3 text-xs text-slate-500">
+              {(persona.municipio || persona.direccion) && (
+                <span className="flex items-center gap-1">
+                  <IconPin className="h-3.5 w-3.5 text-slate-400" />
+                  {[persona.zona, persona.municipio].filter(Boolean).join(" · ") || persona.direccion}
+                </span>
+              )}
+              <span>{enMarcha.length} en marcha</span>
+              {cerradas.length > 0 && <span className="text-slate-400">{cerradas.length} terminados</span>}
+            </p>
+          </div>
+
+          {solicitudes.length === 0 && <p className="rounded-xl bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">Todavía no ha solicitado ningún servicio.</p>}
+
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {[...enMarcha, ...cerradas].map((sol) => {
+              const srv = sol.servicio;
+              const plan = sol.plan;
+              const activa = !["CERRADO", "VALIDADO", "CANCELADO", "CANCELADA", "CERRADA"].includes(srv?.estado ?? sol.estado);
+              const proxima = (srv?.visitas ?? [])
+                .filter((v) => ["PROGRAMADA", "CONFIRMADA", "EN_CURSO"].includes(v.estado))
+                .sort((a, b) => a.fecha.localeCompare(b.fecha))[0];
+              return (
+                <li key={sol.id}>
+                  <button
+                    onClick={() => setFichaSolicitud(sol.id)}
+                    className={`flex h-full w-full flex-col gap-2 rounded-xl border p-3 text-left transition hover:border-brand-200 hover:bg-brand-50/30 ${activa ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50/60"}`}
+                  >
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand">
+                          <IconoNecesidad codigo={sol.necesidad.codigo} className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium text-slate-800">{sol.necesidad.nombre}</span>
+                          <span className="block text-[11px] text-slate-400">
+                            {sol.codigo}
+                            {srv?.tipoServicio === "RECURRENTE" ? " · recurrente" : ""}
+                          </span>
+                        </span>
+                      </span>
+                      <EstadoBadge estado={srv ? srv.estado : sol.estado} />
+                    </span>
+
+                    {srv?.profesional ? (
+                      <span className="flex items-center gap-1.5 text-xs text-slate-600">
+                        <Avatar foto={srv.profesional.foto} nombre={srv.profesional.nombre} apellidos={srv.profesional.apellidos} className="h-5 w-5" />
+                        {srv.profesional.nombre} {srv.profesional.apellidos}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-amber-700">Sin profesional todavía</span>
+                    )}
+
+                    {plan && (
+                      <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <IconClock className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        {plan.horaInicio && plan.horaFin ? `${plan.horaInicio}–${plan.horaFin}` : plan.franjaHoraria || "Horario a concretar"}
+                        {plan.recurrencia ? ` · ${plan.recurrencia}` : ""}
+                        {!plan.fechaFin ? " · indefinido" : ""}
+                      </span>
+                    )}
+
+                    {activa && (
+                      <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <IconCalendar className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        {proxima
+                          ? `Próxima: ${new Date(proxima.fecha).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}`
+                          : srv && ["CONFIRMADO", "EN_CURSO"].includes(srv.estado)
+                            ? "Sin jornada por delante"
+                            : "Sin fecha aún"}
+                      </span>
+                    )}
+
+                    {sol.descripcionLibre && <span className="line-clamp-2 text-xs italic text-slate-400">"{sol.descripcionLibre}"</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        {/* Datos */}
+        <div className="border-t border-slate-100 pt-4">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Datos</p>
             <span className="flex items-center gap-3">
@@ -254,24 +348,6 @@ export function PersonaDetalleModal({ personaId, onClose, onCambiado }: { person
               + Vincular otro familiar
             </button>
           )}
-        </div>
-
-        {/* Servicios solicitados */}
-        <div className="border-t border-slate-100 pt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Servicios solicitados</p>
-          {solicitudes.length === 0 && <p className="text-sm text-slate-500">Todavía no ha solicitado ningún servicio.</p>}
-          <ul className="divide-y divide-slate-100">
-            {solicitudes.map((s) => (
-              <li key={s.id}>
-                <button onClick={() => setFichaSolicitud(s.id)} className="flex w-full items-center justify-between py-2 text-left text-sm hover:bg-slate-50">
-                  <span>
-                    {s.necesidad.nombre} <span className="text-xs text-slate-400">· {s.codigo}</span>
-                  </span>
-                  <EstadoBadge estado={s.servicio ? s.servicio.estado : s.estado} />
-                </button>
-              </li>
-            ))}
-          </ul>
         </div>
       </div>
 
