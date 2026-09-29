@@ -1,3 +1,4 @@
+import { diaDe } from "../../lib/fechas.js";
 import { useState } from "react";
 import type { Solicitud } from "../../lib/types.js";
 
@@ -16,7 +17,7 @@ export function CargaTrabajo({ solicitudes }: { solicitudes: Solicitud[] }) {
   const dias = Array.from({ length: DIAS }, (_, i) => {
     const d = new Date(hoy);
     d.setDate(d.getDate() - (DIAS - 1 - i));
-    const iso = d.toISOString().slice(0, 10);
+    const iso = diaDe(d);
     return {
       iso,
       fecha: d,

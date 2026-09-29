@@ -36,5 +36,19 @@ export function etiquetaDia(fecha: Date): string {
 }
 
 export function aISO(fecha: Date): string {
-  return fecha.toISOString().slice(0, 10);
+  return diaDe(fecha);
+}
+
+// El día del calendario de una fecha, tal como lo ve quien mira.
+//
+// Cortar la cadena ISO en el décimo carácter da el día en UTC, y una jornada
+// guardada a la medianoche de España (22:00 UTC de la víspera) salía con el día
+// anterior: la del miércoles se trataba como de hoy el martes por la noche, con
+// su botón de fichar y su "llevas 10 h de retraso". El día es el de la zona de
+// quien lo mira, que es el que se lee en pantalla.
+export function diaDe(iso: string | Date | null | undefined): string {
+  if (!iso) return "";
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  if (Number.isNaN(d.getTime())) return typeof iso === "string" ? iso.slice(0, 10) : "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

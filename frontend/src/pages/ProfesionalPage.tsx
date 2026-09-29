@@ -1,3 +1,4 @@
+import { diaDe } from "../lib/fechas.js";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../lib/auth.js";
 import { useRegistrarInicio, useRegistrarMenuMovil } from "../lib/menuMovil.js";
@@ -182,7 +183,7 @@ export function ProfesionalPage() {
   // y las que se quedaron sin fichar. Lo que viene después se ve, pero aparte y
   // sin un botón de empezar que no se puede pulsar todavía.
   const hoyClave = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}-${String(ahora.getDate()).padStart(2, "0")}`;
-  const deHoy = visitasProximas.filter((v) => v.estado === "EN_CURSO" || v.fecha.slice(0, 10) <= hoyClave);
+  const deHoy = visitasProximas.filter((v) => v.estado === "EN_CURSO" || diaDe(v.fecha) <= hoyClave);
   const futuras = visitasProximas.filter((v) => !deHoy.includes(v));
   const LIMITE_PROXIMAS = 3;
   const jornadasVisibles = [...deHoy, ...(verTodasLasProximas ? futuras : futuras.slice(0, LIMITE_PROXIMAS))];

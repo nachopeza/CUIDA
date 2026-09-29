@@ -1,3 +1,4 @@
+import { diaDe } from "../lib/fechas.js";
 import { IconAlert, IconCalendar, IconPlay } from "./icons.js";
 import type { Visita } from "../lib/types.js";
 
@@ -25,7 +26,7 @@ export function AccionEntrada({
   onFichar: () => void;
   onAvisar: () => void;
 }) {
-  const dia = visita.fecha.slice(0, 10);
+  const dia = diaDe(visita.fecha);
   const horaProg = visita.horaInicioProg;
 
   if (dia > hoyClave) {

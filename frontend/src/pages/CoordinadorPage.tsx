@@ -1,3 +1,4 @@
+import { diaDe } from "../lib/fechas.js";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth.js";
@@ -397,7 +398,7 @@ export function CoordinadorPage() {
   const visitasDeHoy = useMemo(() => {
     const hoy = new Date();
     const iso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
-    return servicios.reduce((total, s) => total + (s.visitas ?? []).filter((v) => v.fecha.slice(0, 10) === iso).length, 0);
+    return servicios.reduce((total, s) => total + (s.visitas ?? []).filter((v) => diaDe(v.fecha) === iso).length, 0);
   }, [servicios]);
 
   const conteoEstados = useMemo(() => {

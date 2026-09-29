@@ -1,3 +1,4 @@
+import { diaDe } from "../../lib/fechas.js";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
@@ -20,13 +21,13 @@ interface Props {
 }
 
 function hoyISO() {
-  return new Date().toISOString().slice(0, 10);
+  return diaDe(new Date());
 }
 
 function diasAdelante(n: number) {
   const d = new Date();
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  return diaDe(d);
 }
 
 // Cobertura: demanda frente a capacidad. La pregunta que contesta es "¿voy a
@@ -69,7 +70,7 @@ export function CoberturaTab({ solicitudes, servicios, onAbrirSolicitud, onAbrir
     let minutos = 0;
     for (const servicio of servicios) {
       for (const visita of servicio.visitas ?? []) {
-        const dia = visita.fecha.slice(0, 10);
+        const dia = diaDe(visita.fecha);
         if (dia < hoy || dia > limite) continue;
         if (["REVISADA", "FINALIZADA"].includes(visita.estado)) continue;
         programadas += 1;
@@ -86,7 +87,7 @@ export function CoberturaTab({ solicitudes, servicios, onAbrirSolicitud, onAbrir
   const capacidad = useMemo(() => {
     const activos = plantilla.filter((p) => p.estado === "ACTIVO");
     const disponibles = activos.filter((p) => !p.bloqueado && !p.ausenciaHoy);
-    const ausentes = ausencias.filter((a) => a.estado === "APROBADA" && a.hasta.slice(0, 10) >= hoy && a.desde.slice(0, 10) <= limite);
+    const ausentes = ausencias.filter((a) => a.estado === "APROBADA" && diaDe(a.hasta) >= hoy && diaDe(a.desde) <= limite);
     // Horas de contrato de la semana: sólo de quien está en nómina. Una
     // autónoma no tiene jornada pactada, así que sumarla falsearía el dato.
     const minutosContratados = activos.reduce((acc, p) => acc + (p.horasSemanales ?? 0) * 60, 0);

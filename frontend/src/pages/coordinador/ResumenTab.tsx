@@ -1,3 +1,4 @@
+import { diaDe } from "../../lib/fechas.js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ResolverJornadaModal } from "../../components/ResolverJornadaModal.js";
 import { useAuth } from "../../lib/auth.js";
@@ -393,7 +394,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const agendaHoy = useMemo(
     () =>
       todasLasVisitas
-        .filter(({ visita }) => visita.fecha.slice(0, 10) === hoyISO)
+        .filter(({ visita }) => diaDe(visita.fecha) === hoyISO)
         .sort((a, b) => (a.visita.horaInicioProg ?? "99:99").localeCompare(b.visita.horaInicioProg ?? "99:99")),
     [todasLasVisitas, hoyISO],
   );
@@ -403,7 +404,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
   const agendaDelDia = useMemo(
     () =>
       todasLasVisitas
-        .filter(({ visita }) => visita.fecha.slice(0, 10) === diaAgenda)
+        .filter(({ visita }) => diaDe(visita.fecha) === diaAgenda)
         .sort((a, b) => (a.visita.horaInicioProg ?? "99:99").localeCompare(b.visita.horaInicioProg ?? "99:99")),
     [todasLasVisitas, diaAgenda],
   );

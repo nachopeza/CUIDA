@@ -1,3 +1,4 @@
+import { diaDe } from "../../lib/fechas.js";
 import { useEffect, useMemo, useState } from "react";
 import { IconCheck, IconChevronLeft, IconChevronRight, IconClock, IconEuro } from "../../components/icons.js";
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
@@ -55,7 +56,7 @@ export function MisJornadasTab({ visitas }: { visitas: Visita[] }) {
   const porFecha = useMemo(() => {
     const m = new Map<string, Visita[]>();
     for (const v of delMes) {
-      const k = v.fecha.slice(0, 10);
+      const k = diaDe(v.fecha);
       if (!m.has(k)) m.set(k, []);
       m.get(k)!.push(v);
     }

@@ -1,3 +1,4 @@
+import { diaDe } from "../lib/fechas.js";
 import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth.js";
 import { useRefrescoAutomatico } from "../lib/refresco.js";
@@ -49,8 +50,8 @@ export function PersonaPage() {
   }
 
   const enCurso = solicitudes.find((s) => s.servicio && !["CERRADO", "CANCELADO"].includes(s.servicio.estado));
-  const hoyISO = new Date().toISOString().slice(0, 10);
-  const proximaVisita = enCurso?.servicio?.visitas?.find((v) => v.fecha.slice(0, 10) >= hoyISO && v.estado !== "REVISADA");
+  const hoyISO = diaDe(new Date());
+  const proximaVisita = enCurso?.servicio?.visitas?.find((v) => diaDe(v.fecha) >= hoyISO && v.estado !== "REVISADA");
 
   return (
     // Sin barra de navegación —la persona atendida tiene una sola pantalla—,

@@ -1,3 +1,4 @@
+import { diaDe } from "../../lib/fechas.js";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
@@ -92,7 +93,7 @@ export function DisponibilidadTab() {
       for (const v of s.visitas ?? []) {
         const quien = v.profesionalId ?? s.profesionalId;
         if (!quien) continue;
-        if (v.fecha.slice(0, 10) < hoy) continue;
+        if (diaDe(v.fecha) < hoy) continue;
         if (["REVISADA", "FINALIZADA", "CANCELADA"].includes(v.estado)) continue;
         cuenta.set(quien, (cuenta.get(quien) ?? 0) + 1);
       }
@@ -101,7 +102,7 @@ export function DisponibilidadTab() {
   }, [servicios, hoy]);
 
   const ausenciasVigentes = useMemo(
-    () => ausencias.filter((a) => a.estado === "APROBADA" && a.desde.slice(0, 10) <= hoy && a.hasta.slice(0, 10) >= hoy),
+    () => ausencias.filter((a) => a.estado === "APROBADA" && diaDe(a.desde) <= hoy && diaDe(a.hasta) >= hoy),
     [ausencias, hoy],
   );
   const pedidas = ausencias.filter((a) => a.estado === "SOLICITADA");

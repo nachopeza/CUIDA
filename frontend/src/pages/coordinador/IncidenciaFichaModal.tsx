@@ -1,3 +1,4 @@
+import { diaDe } from "../../lib/fechas.js";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { api } from "../../lib/api.js";
@@ -32,7 +33,7 @@ const ROL_LEGIBLE: Record<string, string> = {
 function siguienteDia(iso: string): string {
   const d = new Date(iso);
   d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return diaDe(d);
 }
 
 function fechaCorta(iso?: string | null) {

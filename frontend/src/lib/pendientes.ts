@@ -1,3 +1,4 @@
+import { diaDe } from "./fechas.js";
 import type { Ausencia, Factura, FichaProfesional, Incidencia, Persona, Servicio, Solicitud, Visita } from "./types.js";
 
 type PersonaConCarencias = Persona;
@@ -103,7 +104,7 @@ function reloj(fecha: string | null | undefined, hora?: string | null): string |
   const d = new Date(fecha);
   if (Number.isNaN(d.getTime())) return undefined;
   const hhmm = hora ?? d.toTimeString().slice(0, 5);
-  const dia = hora ? fecha.slice(0, 10) : diaClave(d);
+  const dia = hora ? diaDe(fecha) : diaClave(d);
   const nombre = nombreDelDia(dia);
   if (nombre === "Hoy") return hhmm;
   return `${nombre ?? fechaCorta(dia)} ${hhmm}`;
@@ -113,7 +114,7 @@ function reloj(fecha: string | null | undefined, hora?: string | null): string |
 // día solo. Poner "00:00" sería inventarse una hora que nadie ha fijado.
 function soloDia(fecha: string | null | undefined): string | undefined {
   if (!fecha) return undefined;
-  const dia = fecha.slice(0, 10);
+  const dia = diaDe(fecha);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return undefined;
   return nombreDelDia(dia) ?? fechaCorta(dia);
 }
@@ -143,7 +144,7 @@ export function calcularPendientes(datos: {
 }): Asunto[] {
   const { solicitudes, servicios, incidencias, facturas, plantilla, personas = [], ausencias = [], yo } = datos;
   const asuntos: Omit<Asunto, "grupo">[] = [];
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = diaDe(new Date());
   const porServicio = new Map(solicitudes.filter((s) => s.servicio).map((s) => [s.servicio!.id, s]));
 
   for (const servicio of servicios) {
@@ -154,11 +155,11 @@ export function calcularPendientes(datos: {
     // entero —nadie asignado, nadie que confirme—, la hora que importa no es
     // la de ahora sino la del día en que alguien tiene que presentarse.
     const proxima = (servicio.visitas ?? [])
-      .filter((v) => v.fecha.slice(0, 10) >= hoy && !["REVISADA", "FINALIZADA", "CANCELADA"].includes(v.estado))
+      .filter((v) => diaDe(v.fecha) >= hoy && !["REVISADA", "FINALIZADA", "CANCELADA"].includes(v.estado))
       .sort((a, b) => `${a.fecha}${a.horaInicioProg ?? ""}`.localeCompare(`${b.fecha}${b.horaInicioProg ?? ""}`))[0];
 
     for (const visita of servicio.visitas ?? []) {
-      const esDeHoy = visita.fecha.slice(0, 10) === hoy;
+      const esDeHoy = diaDe(visita.fecha) === hoy;
 
       // Crítico: la hora ha pasado y nadie ha llegado a casa de la persona.
       if (esDeHoy && ["PROGRAMADA", "CONFIRMADA"].includes(visita.estado)) {
@@ -281,7 +282,7 @@ export function calcularPendientes(datos: {
     // delante, así que la semana que viene no irá nadie.
     if (["CONFIRMADO", "EN_CURSO"].includes(servicio.estado)) {
       const hayFuturas = (servicio.visitas ?? []).some(
-        (v) => v.fecha.slice(0, 10) >= hoy && !["REVISADA", "FINALIZADA"].includes(v.estado),
+        (v) => diaDe(v.fecha) >= hoy && !["REVISADA", "FINALIZADA"].includes(v.estado),
       );
       if (!hayFuturas) {
         asuntos.push({
@@ -402,7 +403,7 @@ export function calcularPendientes(datos: {
       persona: quien ? `${quien.nombre} ${quien.apellidos}` : "Alguien del equipo",
       servicio: "Vacaciones y permisos",
       cuando: soloDia(ausencia.desde),
-      detalle: `Pide del ${soloDia(ausencia.desde) ?? ausencia.desde.slice(0, 10)} al ${soloDia(ausencia.hasta) ?? ausencia.hasta.slice(0, 10)}${ausencia.motivo ? ` · ${ausencia.motivo}` : ""}`,
+      detalle: `Pide del ${soloDia(ausencia.desde) ?? diaDe(ausencia.desde)} al ${soloDia(ausencia.hasta) ?? diaDe(ausencia.hasta)}${ausencia.motivo ? ` · ${ausencia.motivo}` : ""}`,
       desde: Math.floor((Date.now() - new Date(ausencia.createdAt).getTime()) / 60000),
       accion: "Responder",
       destino: { tipo: "tab", tab: "disponibilidad", foco: ausencia.id },
