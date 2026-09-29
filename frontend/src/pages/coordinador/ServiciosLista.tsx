@@ -213,7 +213,7 @@ export function ServiciosLista({
       <p className="-mt-2 text-sm text-slate-500">Gestiona todos los servicios activos, sus profesionales, visitas y estado económico.</p>
 
       <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-5">
-        <KPI icono={<IconBriefcase className="h-5 w-5" />} valor={cuentas.todos} etiqueta="Todos los servicios" tono="azul" activo={estado === ""} onClick={() => setEstado("")} />
+        <KPI icono={<IconBriefcase className="h-5 w-5" />} valor={cuentas.todos} etiqueta="Todos" tono="azul" activo={estado === ""} onClick={() => setEstado("")} />
         <KPI icono={<IconPlay className="h-5 w-5" />} valor={cuentas.en_curso} etiqueta="En curso" tono="verde" activo={estado === "en_curso"} onClick={() => setEstado(estado === "en_curso" ? "" : "en_curso")} />
         <KPI icono={<IconClock className="h-5 w-5" />} valor={cuentas.por_verificar} etiqueta="Por verificar" tono="ambar" activo={estado === "por_verificar"} onClick={() => setEstado(estado === "por_verificar" ? "" : "por_verificar")} />
         <KPI icono={<IconCheck className="h-5 w-5" />} valor={cuentas.finalizada} etiqueta="Finalizados" tono="gris" activo={estado === "finalizada"} onClick={() => setEstado(estado === "finalizada" ? "" : "finalizada")} />
