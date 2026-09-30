@@ -247,7 +247,7 @@ export function MisJornadasTab({ visitas }: { visitas: Visita[] }) {
       {abierta && (
         <Modal title={`${abierta.codigo} · ${abierta.mes}`} onClose={() => setAbierta(null)} size="doc">
           <div className="mb-3 flex justify-end print:hidden">
-            <button onClick={() => window.print()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+            <button onClick={() => window.print()} className="boton-secundario-sm">
               Imprimir o guardar en PDF
             </button>
           </div>

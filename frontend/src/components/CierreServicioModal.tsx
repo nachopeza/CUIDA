@@ -195,7 +195,7 @@ export function CierreServicioModal({
             <button
               onClick={confirmar}
               disabled={enviando}
-              className={t.peligro ? "inline-flex items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-50" : "boton-principal"}
+              className={t.peligro ? "boton-peligro" : "boton-principal"}
             >
               {enviando ? "Un momento…" : t.boton}
             </button>

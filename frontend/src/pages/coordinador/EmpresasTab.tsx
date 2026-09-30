@@ -103,7 +103,7 @@ export function EmpresasTab() {
             Ver de baja ({deBaja})
           </label>
         )}
-        <button onClick={() => setNuevoAbierto(true)} className="ml-auto flex items-center gap-1 rounded-xl bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-800">
+        <button onClick={() => setNuevoAbierto(true)} className="boton-principal ml-auto">
           <IconPlus className="h-4 w-4" /> Nueva empresa
         </button>
       </div>

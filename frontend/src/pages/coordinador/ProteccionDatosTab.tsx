@@ -176,7 +176,7 @@ export function ProteccionDatosTab() {
           <button
             onClick={descargarRegistro}
             disabled={descargandoRegistro}
-            className="shrink-0 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
+            className="boton-secundario-sm shrink-0"
           >
             {descargandoRegistro ? "Generando…" : "Descargar registro"}
           </button>
@@ -196,7 +196,7 @@ export function ProteccionDatosTab() {
               value={politica.responsableNombre ?? ""}
               onChange={(e) => set("responsableNombre", e.target.value)}
               placeholder="CUIDA Cantabria S.L."
-              className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="campo mt-0.5 block"
             />
           </label>
           <label className="text-xs text-slate-500">
@@ -205,7 +205,7 @@ export function ProteccionDatosTab() {
               value={politica.responsableEmail ?? ""}
               onChange={(e) => set("responsableEmail", e.target.value)}
               placeholder="proteccion.datos@…"
-              className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="campo mt-0.5 block"
             />
           </label>
           <label className="text-xs text-slate-500">
@@ -213,7 +213,7 @@ export function ProteccionDatosTab() {
             <input
               value={politica.delegadoNombre ?? ""}
               onChange={(e) => set("delegadoNombre", e.target.value)}
-              className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="campo mt-0.5 block"
             />
           </label>
           <label className="text-xs text-slate-500">
@@ -221,7 +221,7 @@ export function ProteccionDatosTab() {
             <input
               value={politica.delegadoEmail ?? ""}
               onChange={(e) => set("delegadoEmail", e.target.value)}
-              className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="campo mt-0.5 block"
             />
           </label>
         </div>
@@ -258,7 +258,7 @@ export function ProteccionDatosTab() {
                     max={240}
                     value={politica[campo(v)] as number}
                     onChange={(e) => set(campo(v), Number(e.target.value) as never)}
-                    className="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-center text-sm"
+                    className="campo w-20 text-center"
                   />
                   meses
                   <span className="hidden text-slate-400 sm:inline">({enAnios(politica[campo(v)] as number)})</span>
@@ -282,7 +282,7 @@ export function ProteccionDatosTab() {
                       />
                       <button
                         onClick={() => purgar(v)}
-                        className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700"
+                        className="boton-peligro-sm"
                       >
                         Borrar definitivamente
                       </button>
@@ -328,7 +328,7 @@ export function ProteccionDatosTab() {
       <button
         onClick={guardar}
         disabled={guardando}
-        className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+        className="boton-principal"
       >
         {guardando ? "Guardando…" : "Guardar los plazos"}
       </button>

@@ -113,7 +113,7 @@ export function PersonasTab({ onAbrirFicha, refreshKey }: { onAbrirFicha: (id: s
         <select
           value={orden.campo ?? ""}
           onChange={(e) => e.target.value && orden.ordenarPor(e.target.value)}
-          className="rounded-md border border-slate-300 px-2 py-2 text-xs"
+          className="campo !w-auto !py-1.5 !text-xs"
         >
           <option value="">Ordenar por…</option>
           <option value="nombre">Nombre</option>
@@ -135,7 +135,7 @@ export function PersonasTab({ onAbrirFicha, refreshKey }: { onAbrirFicha: (id: s
         <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
           <label className="text-slate-500">
             Acceso a la app
-            <select value={conAcceso} onChange={(e) => setConAcceso(e.target.value)} className="mt-0.5 block rounded-md border border-slate-300 px-2 py-1.5">
+            <select value={conAcceso} onChange={(e) => setConAcceso(e.target.value)} className="campo !w-auto mt-0.5 block">
               <option value="">Todos</option>
               <option value="si">Con cuenta de acceso</option>
               <option value="no">Sin cuenta todavía</option>

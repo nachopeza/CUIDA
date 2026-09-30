@@ -79,7 +79,7 @@ export function PersonaPage() {
           {SERVICIO_CANCELABLE.includes(enCurso.servicio.estado) && (
             <button
               onClick={() => setCancelando(enCurso.servicio!.id)}
-              className="mt-3 rounded-lg border-2 border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50"
+              className="boton-peligro-suave mt-3 border-2"
             >
               Ya no lo necesito, cancelar
             </button>

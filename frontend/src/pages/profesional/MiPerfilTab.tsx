@@ -114,7 +114,7 @@ export function MiPerfilTab() {
             <DisponibilidadPicker value={disponibilidad} onChange={setDisponibilidad} />
           </div>
         </label>
-        <button type="submit" disabled={guardando} className="rounded-xl bg-brand px-4 py-2 font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2">
+        <button type="submit" disabled={guardando} className="boton-principal sm:col-span-2">
           {guardando ? "Guardando…" : "Guardar cambios"}
         </button>
       </form>

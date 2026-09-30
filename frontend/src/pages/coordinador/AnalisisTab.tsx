@@ -189,11 +189,11 @@ export function AnalisisTab({ seccion = "indicadores" }: { seccion?: SeccionAnal
         <div className="flex flex-wrap items-end gap-2">
           <label className="min-w-0 flex-1 text-xs text-slate-500 sm:flex-none">
             Desde
-            <input type="month" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} className="mt-0.5 block w-full min-w-0 max-w-[10rem] rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+            <input type="month" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} className="campo mt-0.5 block min-w-0 max-w-[10rem]" />
           </label>
           <label className="min-w-0 flex-1 text-xs text-slate-500 sm:flex-none">
             Hasta
-            <input type="month" value={hasta} min={desde} onChange={(e) => setHasta(e.target.value)} className="mt-0.5 block w-full min-w-0 max-w-[10rem] rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+            <input type="month" value={hasta} min={desde} onChange={(e) => setHasta(e.target.value)} className="campo mt-0.5 block min-w-0 max-w-[10rem]" />
           </label>
           <button
             onClick={() =>
@@ -213,7 +213,7 @@ export function AnalisisTab({ seccion = "indicadores" }: { seccion?: SeccionAnal
                 `cuida-analisis-${desde}-${hasta}.csv`,
               )
             }
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            className="boton-secundario-sm"
           >
             <IconDownload className="mr-1 inline h-3.5 w-3.5 align-text-bottom" aria-hidden />
             CSV

@@ -138,7 +138,7 @@ export function ExpedienteDocumentos({
           <select
             value={form.tipo}
             onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value as TipoDocumento }))}
-            className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="campo mt-0.5 block"
           >
             {TIPOS.map((t) => (
               <option key={t} value={t}>
@@ -154,16 +154,16 @@ export function ExpedienteDocumentos({
             value={form.nombre}
             onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
             placeholder={propio ? "Renovación del seguro de responsabilidad" : "Certificación negativa del Registro Central"}
-            className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="campo mt-0.5 block"
           />
         </label>
         <label className="text-xs text-slate-500">
           Emitido el
-          <input type="date" value={form.fechaEmision} onChange={(e) => setForm((f) => ({ ...f, fechaEmision: e.target.value }))} className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+          <input type="date" value={form.fechaEmision} onChange={(e) => setForm((f) => ({ ...f, fechaEmision: e.target.value }))} className="campo mt-0.5 block" />
         </label>
         <label className="text-xs text-slate-500">
           Caduca el
-          <input type="date" value={form.fechaCaducidad} onChange={(e) => setForm((f) => ({ ...f, fechaCaducidad: e.target.value }))} className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+          <input type="date" value={form.fechaCaducidad} onChange={(e) => setForm((f) => ({ ...f, fechaCaducidad: e.target.value }))} className="campo mt-0.5 block" />
         </label>
         <div className="sm:col-span-2">
           <ArchivoUpload valor={archivo} onSubido={alSubir} etiqueta="Subir el documento (PDF, JPG o PNG)" />
@@ -176,7 +176,7 @@ export function ExpedienteDocumentos({
         <button
           onClick={() => void anadir()}
           disabled={guardando || !form.nombre.trim()}
-          className="flex items-center justify-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2"
+          className="boton-principal-sm sm:col-span-2"
         >
           <IconPlus className="h-3.5 w-3.5" /> {guardando ? "Guardando…" : propio ? "Guardar en mi expediente" : "Añadir al expediente"}
         </button>

@@ -29,7 +29,7 @@ export function Pagination({ pagina, totalPaginas, onChange, total }: { pagina: 
         <button
           onClick={() => onChange(pagina - 1)}
           disabled={pagina <= 1}
-          className="rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-100 disabled:opacity-40"
+          className="boton-secundario-sm"
         >
           <IconChevronRight className="h-3.5 w-3.5 rotate-180" />
         </button>
@@ -39,7 +39,7 @@ export function Pagination({ pagina, totalPaginas, onChange, total }: { pagina: 
         <button
           onClick={() => onChange(pagina + 1)}
           disabled={pagina >= totalPaginas}
-          className="rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-100 disabled:opacity-40"
+          className="boton-secundario-sm"
         >
           <IconChevronRight className="h-3.5 w-3.5" />
         </button>

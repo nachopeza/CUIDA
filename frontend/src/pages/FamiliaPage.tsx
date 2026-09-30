@@ -411,7 +411,7 @@ export function FamiliaPage() {
                       </span>
                     )}
                     {SERVICIO_CANCELABLE.includes(s.servicio.estado) && (
-                      <button onClick={() => setCancelando(s.servicio!.id)} className="ml-auto rounded-md border border-rose-200 px-2 py-0.5 text-rose-600 hover:bg-rose-50">
+                      <button onClick={() => setCancelando(s.servicio!.id)} className="boton-peligro-suave-sm ml-auto">
                         Cancelar
                       </button>
                     )}
@@ -499,7 +499,7 @@ export function FamiliaPage() {
                       ahora la familia veía la cifra pero no el documento. */}
                   <button
                     onClick={() => abrirFactura(f.id)}
-                    className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                    className="boton-secundario-sm"
                   >
                     <IconFile className="h-3.5 w-3.5" /> Ver la factura
                   </button>
@@ -515,7 +515,7 @@ export function FamiliaPage() {
           <div className="mb-3 flex justify-end print:hidden">
             <button
               onClick={() => window.print()}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              className="boton-secundario-sm"
             >
               Imprimir o guardar en PDF
             </button>
@@ -551,7 +551,7 @@ export function FamiliaPage() {
           <button
             onClick={guardarEdicion}
             disabled={guardandoEdicion}
-            className="mt-3 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+            className="boton-principal mt-3"
           >
             {guardandoEdicion ? "Guardando…" : "Guardar cambios"}
           </button>

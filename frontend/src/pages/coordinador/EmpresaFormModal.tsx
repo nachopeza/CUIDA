@@ -95,7 +95,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: { empresa: Empre
                   type="date"
                   value={encargoFecha}
                   onChange={(e) => setEncargoFecha(e.target.value)}
-                  className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                  className="campo !w-auto !py-1.5 !text-xs"
                 />
               </label>
             )}
@@ -104,7 +104,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: { empresa: Empre
 
         {error && <p className="text-sm text-rose-600 sm:col-span-2">{error}</p>}
 
-        <button type="submit" disabled={guardando} className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2">
+        <button type="submit" disabled={guardando} className="boton-principal sm:col-span-2">
           {guardando ? "Guardando…" : empresa ? "Guardar cambios" : "Crear empresa colaboradora"}
         </button>
       </form>

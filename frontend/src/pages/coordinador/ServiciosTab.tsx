@@ -157,9 +157,9 @@ export function ServiciosTab() {
           placeholder="Nombre del servicio"
           value={form.nombre}
           onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-          className="rounded-md border border-slate-300 px-2 py-1.5 sm:col-span-2"
+          className="campo sm:col-span-2"
         />
-        <select value={form.ivaPorcentaje} onChange={(e) => setForm((f) => ({ ...f, ivaPorcentaje: e.target.value }))} className="rounded-md border border-slate-300 px-2 py-1.5">
+        <select value={form.ivaPorcentaje} onChange={(e) => setForm((f) => ({ ...f, ivaPorcentaje: e.target.value }))} className="campo !w-auto">
           <option value="4">IVA 4% (concertado)</option>
           <option value="10">IVA 10% (particular)</option>
           <option value="21">IVA 21% (general)</option>
@@ -171,16 +171,16 @@ export function ServiciosTab() {
           placeholder="Precio base €"
           value={form.precioBase}
           onChange={(e) => setForm((f) => ({ ...f, precioBase: e.target.value }))}
-          className="rounded-md border border-slate-300 px-2 py-1.5"
+          className="campo !w-auto"
         />
-        <button onClick={crear} disabled={creando || !form.nombre.trim()} className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50">
+        <button onClick={crear} disabled={creando || !form.nombre.trim()} className="boton-principal-sm">
           Añadir servicio
         </button>
         <input
           placeholder="Descripción (opcional)"
           value={form.descripcion}
           onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
-          className="rounded-md border border-slate-300 px-2 py-1.5 sm:col-span-5"
+          className="campo sm:col-span-5"
         />
       </div>
 
@@ -235,20 +235,20 @@ export function ServiciosTab() {
                     <input
                       value={edicion.nombre}
                       onChange={(e) => setEdicion((v) => ({ ...v, nombre: e.target.value }))}
-                      className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+                      className="campo"
                     />
                     <input
                       value={edicion.descripcion}
                       onChange={(e) => setEdicion((v) => ({ ...v, descripcion: e.target.value }))}
                       placeholder="Descripción"
-                      className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1 text-xs"
+                      className="campo !py-1.5 !text-xs mt-1"
                     />
                   </td>
                   <td className="px-4 py-2">
                     <select
                       value={edicion.ivaPorcentaje}
                       onChange={(e) => setEdicion((v) => ({ ...v, ivaPorcentaje: e.target.value }))}
-                      className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                      className="campo !w-auto !py-1.5 !text-xs"
                     >
                       <option value="4">4%</option>
                       <option value="10">10%</option>
@@ -262,15 +262,15 @@ export function ServiciosTab() {
                       step="0.01"
                       value={edicion.precioBase}
                       onChange={(e) => setEdicion((v) => ({ ...v, precioBase: e.target.value }))}
-                      className="w-24 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                      className="campo !py-1.5 !text-xs w-24"
                     />
                   </td>
                   <td className="px-4 py-2 text-xs text-slate-400">{s.codigo}</td>
                   <td className="px-4 py-2 text-right">
-                    <button onClick={() => guardarEdicion(s.id)} className="rounded-xl bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800">
+                    <button onClick={() => guardarEdicion(s.id)} className="boton-principal-sm">
                       Guardar
                     </button>
-                    <button onClick={() => setEditandoId(null)} className="ml-1.5 rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-100">
+                    <button onClick={() => setEditandoId(null)} className="boton-secundario-sm ml-1.5">
                       Cancelar
                     </button>
                   </td>
@@ -291,10 +291,10 @@ export function ServiciosTab() {
                   <td className="px-4 py-2.5 text-slate-600">{s.precioBase != null ? `${Number(s.precioBase).toFixed(2)} €` : "—"}</td>
                   <td className="px-4 py-2.5 text-xs text-slate-400">{s.codigo}</td>
                   <td className="px-4 py-2.5 text-right text-xs">
-                    <button onClick={() => abrirEdicion(s)} className="rounded-md border border-slate-300 px-2.5 py-1 hover:bg-slate-100">
+                    <button onClick={() => abrirEdicion(s)} className="boton-secundario-sm">
                       Editar
                     </button>
-                    <button onClick={() => toggleActivo(s)} className="ml-1.5 rounded-md border border-slate-300 px-2.5 py-1 hover:bg-slate-100">
+                    <button onClick={() => toggleActivo(s)} className="boton-secundario-sm ml-1.5">
                       {s.activo === false ? "Reactivar" : "Desactivar"}
                     </button>
                   </td>

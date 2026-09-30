@@ -190,7 +190,7 @@ export function CalendarioTab({ onAbrirSolicitud }: { onAbrirSolicitud: (solicit
           <button onClick={() => mover(-1)} aria-label="Anterior" className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50">
             <IconChevronLeft className="h-4 w-4" />
           </button>
-          <button onClick={() => setReferencia(new Date())} className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+          <button onClick={() => setReferencia(new Date())} className="boton-secundario-sm">
             Hoy
           </button>
           <button onClick={() => mover(1)} aria-label="Siguiente" className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50">
@@ -200,7 +200,7 @@ export function CalendarioTab({ onAbrirSolicitud }: { onAbrirSolicitud: (solicit
 
         <p className="text-sm font-semibold text-slate-700">{conMayusculaInicial(titulo)}</p>
 
-        <select value={profesionalFiltro} onChange={(e) => setProfesionalFiltro(e.target.value)} className="ml-auto rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+        <select value={profesionalFiltro} onChange={(e) => setProfesionalFiltro(e.target.value)} className="campo !w-auto !py-1.5 !text-xs ml-auto">
           <option value="">Todos los profesionales</option>
           {profesionales.map(([id, nombre]) => (
             <option key={id} value={id}>
@@ -208,7 +208,7 @@ export function CalendarioTab({ onAbrirSolicitud }: { onAbrirSolicitud: (solicit
             </option>
           ))}
         </select>
-        <select value={personaFiltro} onChange={(e) => setPersonaFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+        <select value={personaFiltro} onChange={(e) => setPersonaFiltro(e.target.value)} className="campo !w-auto !py-1.5 !text-xs">
           <option value="">Todas las personas</option>
           {personas.map(([id, nombre]) => (
             <option key={id} value={id}>

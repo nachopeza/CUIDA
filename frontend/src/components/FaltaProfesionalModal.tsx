@@ -94,7 +94,7 @@ export function FaltaProfesionalModal({
           <button
             onClick={registrar}
             disabled={guardando || texto.length < 3}
-            className="rounded-md bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+            className="boton-peligro"
           >
             {guardando ? "Registrando…" : "Registrar y abrir incidencia"}
           </button>

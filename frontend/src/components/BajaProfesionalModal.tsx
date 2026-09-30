@@ -145,7 +145,7 @@ export function BajaProfesionalModal({ profesionalId, nombre, onClose, onHecho }
               <button
                 onClick={() => void confirmar()}
                 disabled={enviando || motivo.trim().length < 3}
-                className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+                className="boton-peligro-sm"
               >
                 {enviando ? "Dando de baja…" : "Dar de baja"}
               </button>

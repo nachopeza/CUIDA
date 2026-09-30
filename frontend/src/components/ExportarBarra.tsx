@@ -49,11 +49,11 @@ export function ExportarBarra({
 
       <div className="ml-auto flex items-center gap-2">
         {onEliminar && seleccionadas > 0 && (
-          <button onClick={onEliminar} className="rounded-md border border-rose-300 px-2.5 py-1 font-medium text-rose-600 hover:bg-rose-50">
+          <button onClick={onEliminar} className="boton-peligro-suave-sm">
             <IconTrash className="h-3.5 w-3.5" /> {etiquetaEliminar} ({seleccionadas})
           </button>
         )}
-        <button onClick={onExportar} className="rounded-md border border-slate-300 px-2.5 py-1 font-medium hover:bg-slate-100">
+        <button onClick={onExportar} className="boton-secundario-sm">
           <IconDownload className="h-3.5 w-3.5" /> Exportar CSV{seleccionadas > 0 ? ` (${seleccionadas})` : ` (${total})`}
         </button>
       </div>

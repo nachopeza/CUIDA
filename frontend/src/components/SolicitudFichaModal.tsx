@@ -20,8 +20,7 @@ import { EstadoBadge } from "./EstadoBadge.js";
 import { Cronometro, horasTrabajadas } from "./Cronometro.js";
 import { TiempoTrabajadoModal, formatearDuracion } from "./TiempoTrabajadoModal.js";
 import { calcularReparto, duracion, euros, horaDe, minutosEntre, minutosFichados } from "../lib/economia.js";
-import { PersonaDetalleModal } from "../pages/coordinador/PersonaDetalleModal.js";
-import { ProfesionalFormModal } from "../pages/coordinador/ProfesionalFormModal.js";
+import { useFichas } from "../lib/fichas.js";
 import { IncidenciaFichaModal } from "../pages/coordinador/IncidenciaFichaModal.js";
 import { parsearDisponibilidad } from "../lib/disponibilidad.js";
 import { etiquetaTitulacion, zonaDe } from "../lib/territorio.js";
@@ -135,8 +134,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   const [datosAbiertos, setDatosAbiertos] = useState(false);
   const [perfilPersonaAbierto, setPerfilPersonaAbierto] = useState(false);
   const [perfilProfesionalAbierto, setPerfilProfesionalAbierto] = useState(false);
-  const [editarPersonaAbierto, setEditarPersonaAbierto] = useState(false);
-  const [editarProfesionalAbierto, setEditarProfesionalAbierto] = useState(false);
+  const { abrirPersona, abrirProfesional } = useFichas();
   const [incidenciaAbierta, setIncidenciaAbierta] = useState<string | null>(null);
   const [reemplazoAbierto, setReemplazoAbierto] = useState(false);
   const [tarifaAbierta, setTarifaAbierta] = useState(false);
@@ -635,7 +633,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             <div>
               <label className="text-xs text-slate-500">
                 Servicio
-                <select value={s.necesidad.id} onChange={(e) => clasificar(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+                <select value={s.necesidad.id} onChange={(e) => clasificar(e.target.value)} className="campo mt-0.5">
                   {necesidades.map((n) => (
                     <option key={n.id} value={n.id}>
                       {n.nombre}
@@ -655,7 +653,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                     type="date"
                     value={plan.fechaInicio}
                     onChange={(e) => setPlan((p) => moverInicio(p, e.target.value))}
-                    className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                    className="campo mt-0.5"
                   />
                 </label>
                 <label className="text-xs text-slate-500">
@@ -665,7 +663,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                     value={plan.fechaFin}
                     disabled={plan.indefinido}
                     onChange={(e) => setPlan((p) => ({ ...p, fechaFin: e.target.value }))}
-                    className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                    className="campo mt-0.5 disabled:bg-slate-100 disabled:text-slate-400"
                   />
                   <span className="mt-1 flex items-center gap-1.5 font-normal normal-case text-slate-500">
                     <input type="checkbox" checked={plan.indefinido} onChange={(e) => setPlan((p) => ({ ...p, indefinido: e.target.checked }))} />
@@ -674,11 +672,11 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 </label>
                 <label className="text-xs text-slate-500">
                   Hora inicio
-                  <input type="time" value={plan.horaInicio} onChange={(e) => setPlan((p) => ({ ...p, horaInicio: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+                  <input type="time" value={plan.horaInicio} onChange={(e) => setPlan((p) => ({ ...p, horaInicio: e.target.value }))} className="campo mt-0.5" />
                 </label>
                 <label className="text-xs text-slate-500">
                   Hora fin
-                  <input type="time" value={plan.horaFin} onChange={(e) => setPlan((p) => ({ ...p, horaFin: e.target.value }))} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+                  <input type="time" value={plan.horaFin} onChange={(e) => setPlan((p) => ({ ...p, horaFin: e.target.value }))} className="campo mt-0.5" />
                 </label>
               </div>
 
@@ -748,7 +746,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                   onChange={(e) => setPlan((p) => ({ ...p, tareasPrevistas: e.target.value }))}
                   rows={3}
                   placeholder={"Levantar\nDesayunar\nDuchar y vestir\nLimpiar la habitación"}
-                  className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                  className="campo mt-0.5"
                 />
               </label>
               <p className="mt-1 text-xs text-slate-400">Una por línea. Se convierten en la lista que marca la profesional en cada jornada.</p>
@@ -762,7 +760,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             <button
               onClick={guardarPlan}
               disabled={guardandoPlan}
-              className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              className="boton-principal-sm"
             >
               {guardandoPlan ? "Guardando…" : "Guardar"}
             </button>
@@ -833,10 +831,10 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 Piden cancelar este servicio: {cancelacionPendiente.descripcion}
               </p>
             <div className="mt-2 flex gap-2">
-              <button onClick={confirmarCancelacion} className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700">
+              <button onClick={confirmarCancelacion} className="boton-peligro-sm">
                 Confirmar cancelación
               </button>
-              <button onClick={rechazarCancelacion} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-100">
+              <button onClick={rechazarCancelacion} className="boton-secundario-sm">
                 Seguir con el servicio
               </button>
             </div>
@@ -870,7 +868,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             <div className="mb-1.5 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Persona / responsable</p>
               <div className="flex items-center gap-2">
-                <button onClick={() => setEditarPersonaAbierto(true)} className="text-xs font-medium text-brand underline decoration-dotted hover:text-brand-800">
+                <button onClick={() => { onClose(); abrirPersona(s.persona.id); }} className="text-xs font-medium text-brand underline decoration-dotted hover:text-brand-800">
                   Editar perfil completo
                 </button>
                 <button onClick={() => setPerfilPersonaAbierto((v) => !v)} className="text-xs text-slate-400 underline decoration-dotted hover:text-slate-600">
@@ -879,18 +877,18 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 </button>
               </div>
             </div>
-            <button onClick={() => setEditarPersonaAbierto(true)} className="text-sm font-medium text-slate-800 hover:text-brand hover:underline">
+            <button onClick={() => { onClose(); abrirPersona(s.persona.id); }} className="text-sm font-medium text-slate-800 hover:text-brand hover:underline">
               {s.persona.nombre} {s.persona.apellidos}
             </button>
             <div className="mt-1 flex flex-wrap gap-2 text-xs">
               {s.persona.telefono && (
-                <a href={`tel:${s.persona.telefono}`} className="rounded-md border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50">
+                <a href={`tel:${s.persona.telefono}`} className="boton-secundario-sm">
                   <IconPhone className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
                     {s.persona.telefono}
                 </a>
               )}
               {s.persona.usuario?.email && (
-                <a href={`mailto:${s.persona.usuario.email}`} className="rounded-md border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50">
+                <a href={`mailto:${s.persona.usuario.email}`} className="boton-secundario-sm">
                   <IconMail className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
                     {s.persona.usuario.email}
                 </a>
@@ -931,7 +929,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
               <div className="mb-1.5 flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Profesional</p>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setEditarProfesionalAbierto(true)} className="text-xs font-medium text-brand underline decoration-dotted hover:text-brand-800">
+                  <button onClick={() => { onClose(); if (srv?.profesional) abrirProfesional(srv.profesional.id); }} className="text-xs font-medium text-brand underline decoration-dotted hover:text-brand-800">
                     Editar perfil completo
                   </button>
                   <button onClick={() => setPerfilProfesionalAbierto((v) => !v)} className="text-xs text-slate-400 underline decoration-dotted hover:text-slate-600">
@@ -940,7 +938,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                   </button>
                 </div>
               </div>
-              <button onClick={() => setEditarProfesionalAbierto(true)} className="flex items-center gap-2 hover:text-brand">
+              <button onClick={() => { onClose(); if (srv?.profesional) abrirProfesional(srv.profesional.id); }} className="flex items-center gap-2 hover:text-brand">
                 <Avatar foto={srv.profesional.foto} nombre={srv.profesional.nombre} apellidos={srv.profesional.apellidos} className="h-8 w-8" />
                 <p className="text-sm font-medium text-slate-800 hover:underline">
                   {srv.profesional.nombre} {srv.profesional.apellidos}
@@ -948,7 +946,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
               </button>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                 {srv.profesional.telefono && (
-                  <a href={`tel:${srv.profesional.telefono}`} className="rounded-md border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50">
+                  <a href={`tel:${srv.profesional.telefono}`} className="boton-secundario-sm">
                     <IconPhone className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
                     {srv.profesional.telefono}
                   </a>
@@ -963,7 +961,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
               {reemplazoAbierto && (
                 <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2">
                   <p className="mb-1 text-xs text-amber-800">Si se ha puesto enfermo o deja el trabajo, elige quién lo sustituye. Las visitas ya hechas siguen contando para él.</p>
-                  <select defaultValue="" onChange={(e) => reemplazarProfesional(e.target.value)} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+                  <select defaultValue="" onChange={(e) => reemplazarProfesional(e.target.value)} className="campo !py-1.5 !text-xs">
                     <option value="" disabled>
                       Elegir sustituto…
                     </option>
@@ -1015,11 +1013,11 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 onClick={aceptarSolicitud}
                 disabled={!s.plan}
                 title={!s.plan ? "Guarda los días/horas antes de aceptar" : undefined}
-                className="rounded-xl bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="boton-principal"
               >
                 Aceptar y buscar profesional
               </button>
-              <button onClick={cancelarSolicitud} className="rounded-md border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50">
+              <button onClick={cancelarSolicitud} className="boton-peligro-suave">
                 Cancelar solicitud
               </button>
             </div>
@@ -1049,7 +1047,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                   <select
                     value={srv.estado}
                     onChange={(e) => cambiarEstadoServicio(e.target.value)}
-                    className="rounded-md border border-slate-300 px-2 py-1.5 text-xs font-medium"
+                    className="campo !w-auto !py-1.5 !text-xs font-medium"
                   >
                     <option value={srv.estado}>{srv.estado.replace(/_/g, " ")}</option>
                     {(TRANSICIONES_SERVICIO_MANUAL[srv.estado] ?? [])
@@ -1067,13 +1065,13 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                   <button
                     onClick={() => setCierre("terminar")}
                     title={motivoNoPuede(s, "terminar") ?? undefined}
-                    className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                    className="boton-secundario-sm"
                   >
                     Terminar
                   </button>
                 )}
                 {SERVICIO_CANCELABLE.includes(srv.estado) && (
-                  <button onClick={() => setCierre("cancelar")} className="rounded-md border border-rose-200 px-3 py-1 text-xs text-rose-600 hover:bg-rose-50">
+                  <button onClick={() => setCierre("cancelar")} className="boton-peligro-suave-sm">
                     Cancelar
                   </button>
                 )}
@@ -1159,7 +1157,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                               })()}
                               {i.mensaje && <span className="block truncate text-xs text-slate-500">"{i.mensaje}"</span>}
                             </button>
-                            <button onClick={() => asignar(i.profesional.id)} className="shrink-0 rounded-xl bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800">
+                            <button onClick={() => asignar(i.profesional.id)} className="boton-principal-sm shrink-0">
                               Elegir
                             </button>
                           </li>
@@ -1241,7 +1239,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                     key={srv.profesionalId ?? "sin-asignar"}
                     defaultValue={srv.profesionalId ?? ""}
                     onChange={(e) => asignar(e.target.value)}
-                    className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                    className="campo mt-0.5"
                   >
                     {(candidatosTodos.length > 0 ? candidatosTodos : profesionales.map((p) => ({ ...p, impide: false, motivo: "" }))).map((p) => (
                       <option key={p.id} value={p.id} disabled={"impide" in p && p.impide}>
@@ -1306,13 +1304,13 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                                 puede defender delante de la familia. */}
                             <button
                               onClick={() => setDesgloseDe(v.id)}
-                              className="rounded-md border border-slate-300 px-2 py-0.5 hover:bg-slate-100"
+                              className="boton-secundario-sm"
                               title="Ver de dónde sale el importe de esta jornada"
                             >
                               Desglose
                             </button>
                             {v.estado === "FINALIZADA" && (
-                              <button onClick={() => revisarVisita(v)} className="rounded-md border border-slate-300 px-2 py-0.5 hover:bg-slate-100">
+                              <button onClick={() => revisarVisita(v)} className="boton-secundario-sm">
                                 Verificar
                               </button>
                             )}
@@ -1339,31 +1337,31 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                             type="date"
                             value={nuevaVisita.fecha}
                             onChange={(e) => setNuevaVisita((v) => ({ ...v, fecha: e.target.value }))}
-                            className="rounded-md border border-slate-300 px-2 py-1.5"
+                            className="campo !w-auto"
                           />
                           <input
                             type="time"
                             value={nuevaVisita.horaInicio}
                             onChange={(e) => setNuevaVisita((v) => ({ ...v, horaInicio: e.target.value }))}
-                            className="rounded-md border border-slate-300 px-2 py-1.5"
+                            className="campo !w-auto"
                           />
                           <input
                             type="time"
                             value={nuevaVisita.horaFin}
                             onChange={(e) => setNuevaVisita((v) => ({ ...v, horaFin: e.target.value }))}
-                            className="rounded-md border border-slate-300 px-2 py-1.5"
+                            className="campo !w-auto"
                           />
                           <input
                             type="text"
                             placeholder="Tareas, separadas por coma"
                             value={nuevaVisita.tareas}
                             onChange={(e) => setNuevaVisita((v) => ({ ...v, tareas: e.target.value }))}
-                            className="rounded-md border border-slate-300 px-2 py-1.5"
+                            className="campo !w-auto"
                           />
                           <button
                             onClick={programarVisita}
                             disabled={!nuevaVisita.fecha}
-                            className="col-span-2 rounded-md border border-slate-300 px-2 py-1.5 hover:bg-slate-100 disabled:opacity-50 sm:col-span-4"
+                            className="boton-secundario-sm col-span-2 sm:col-span-4"
                           >
                             Añadir el día
                           </button>
@@ -1418,7 +1416,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                       <select
                         value={tarifa.empresaColaboradoraId}
                         onChange={(e) => setTarifa((t) => ({ ...t, empresaColaboradoraId: e.target.value }))}
-                        className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                        className="campo mt-0.5"
                       >
                         <option value="">Ninguna (independiente)</option>
                         {empresas.map((emp) => (
@@ -1433,7 +1431,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                       <select
                         value={tarifa.tarifaTipo}
                         onChange={(e) => setTarifa((t) => ({ ...t, tarifaTipo: e.target.value as typeof tarifa.tarifaTipo }))}
-                        className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                        className="campo mt-0.5"
                       >
                         <option value="">Sin definir</option>
                         <option value="PAGADO">Pagado</option>
@@ -1453,7 +1451,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                             step="0.01"
                             value={tarifa.precioHora}
                             onChange={(e) => setTarifa((t) => ({ ...t, precioHora: e.target.value }))}
-                            className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                            className="campo mt-0.5"
                           />
                         </label>
                         <label className="text-slate-500">
@@ -1466,7 +1464,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                             placeholder="15"
                             value={tarifa.comisionPorcentaje}
                             onChange={(e) => setTarifa((t) => ({ ...t, comisionPorcentaje: e.target.value }))}
-                            className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                            className="campo mt-0.5"
                           />
                         </label>
                         <label className="text-slate-500">
@@ -1479,7 +1477,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                             placeholder={String(Number(s.necesidad.ivaPorcentaje))}
                             value={tarifa.ivaPorcentaje}
                             onChange={(e) => setTarifa((t) => ({ ...t, ivaPorcentaje: e.target.value }))}
-                            className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                            className="campo mt-0.5"
                           />
                         </label>
                       </div>
@@ -1526,10 +1524,10 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                     placeholder="Notas del precio (opcional)"
                     value={tarifa.tarifaNotas}
                     onChange={(e) => setTarifa((t) => ({ ...t, tarifaNotas: e.target.value }))}
-                    className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                    className="campo !py-1.5 !text-xs"
                   />
 
-                  <button onClick={guardarTarifa} className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
+                  <button onClick={guardarTarifa} className="boton-principal-sm">
                     Guardar precio
                   </button>
 
@@ -1563,7 +1561,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 <li key={i.id}>
                   <button
                     onClick={() => setIncidenciaAbierta(i.id)}
-                    className="flex w-full items-center gap-2 rounded-md border border-slate-200 px-2.5 py-2 text-left text-xs hover:bg-slate-50"
+                    className="boton-secundario-sm w-full text-left"
                   >
                     <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PUNTO_PRIORIDAD[i.prioridad] ?? "bg-slate-300"}`} />
                     <span className="min-w-0 flex-1 truncate text-slate-700">{i.descripcion}</span>
@@ -1595,23 +1593,6 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
           </div>
         )}
       </div>
-
-      {editarPersonaAbierto && (
-        <PersonaDetalleModal
-          personaId={s.persona.id}
-          onClose={() => setEditarPersonaAbierto(false)}
-          onCambiado={recargar}
-        />
-      )}
-
-      {editarProfesionalAbierto && srv?.profesional && (
-        <ProfesionalFormModal
-          profesional={srv.profesional}
-          empresas={empresas}
-          onClose={() => setEditarProfesionalAbierto(false)}
-          onSaved={recargar}
-        />
-      )}
 
       {incidenciaAbierta && (
         <IncidenciaFichaModal incidenciaId={incidenciaAbierta} onClose={() => setIncidenciaAbierta(null)} onChanged={recargar} />

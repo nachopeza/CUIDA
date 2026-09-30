@@ -67,7 +67,7 @@ export function EquipoTab() {
         <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar…" className="ml-auto w-full sm:w-56" />
         <button
           onClick={() => setAlta(true)}
-          className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800"
+          className="boton-principal-sm"
         >
           <IconPlus className="h-3.5 w-3.5" /> Dar de alta
         </button>
@@ -283,7 +283,7 @@ function FichaMiembro({
           <button
             onClick={guardar}
             disabled={guardando || !puedeGuardar}
-            className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+            className="boton-principal"
           >
             <IconCheck className="h-4 w-4" /> {guardando ? "Guardando…" : esAlta ? "Dar de alta" : "Guardar"}
           </button>

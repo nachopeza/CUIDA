@@ -147,7 +147,7 @@ export function MiCuentaModal({ onClose }: { onClose: () => void }) {
             </label>
             {error && <p className="text-sm text-rose-600 sm:col-span-2">{error}</p>}
             {mensaje && <p className="text-sm text-brand-green-700 sm:col-span-2">{mensaje}</p>}
-            <button type="submit" disabled={guardando} className="rounded-xl bg-brand px-4 py-2 font-medium text-white hover:bg-brand-800 disabled:opacity-50 sm:col-span-2">
+            <button type="submit" disabled={guardando} className="boton-principal sm:col-span-2">
               {guardando ? "Guardando…" : "Guardar cambios"}
             </button>
           </form>
@@ -163,8 +163,8 @@ export function MiCuentaModal({ onClose }: { onClose: () => void }) {
 
               {creando && (
                 <form onSubmit={crearCoordinador} className="mb-3 grid grid-cols-1 gap-2 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-3">
-                  <input required placeholder="Nombre" value={nuevo.nombre} onChange={(e) => setNuevo((n) => ({ ...n, nombre: e.target.value }))} className="rounded-md border border-slate-300 px-2 py-1.5" />
-                  <input required type="email" placeholder="Email" value={nuevo.email} onChange={(e) => setNuevo((n) => ({ ...n, email: e.target.value }))} className="rounded-md border border-slate-300 px-2 py-1.5" />
+                  <input required placeholder="Nombre" value={nuevo.nombre} onChange={(e) => setNuevo((n) => ({ ...n, nombre: e.target.value }))} className="campo !w-auto" />
+                  <input required type="email" placeholder="Email" value={nuevo.email} onChange={(e) => setNuevo((n) => ({ ...n, email: e.target.value }))} className="campo !w-auto" />
                   <input
                     required
                     type="password"
@@ -172,9 +172,9 @@ export function MiCuentaModal({ onClose }: { onClose: () => void }) {
                     placeholder="Contraseña"
                     value={nuevo.password}
                     onChange={(e) => setNuevo((n) => ({ ...n, password: e.target.value }))}
-                    className="rounded-md border border-slate-300 px-2 py-1.5"
+                    className="campo !w-auto"
                   />
-                  <button type="submit" className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 sm:col-span-3">
+                  <button type="submit" className="boton-principal-sm sm:col-span-3">
                     Crear cuenta de coordinación
                   </button>
                 </form>
@@ -198,11 +198,11 @@ export function MiCuentaModal({ onClose }: { onClose: () => void }) {
                       )}
                     </div>
                     <div className="flex items-center gap-2 text-xs">
-                      <button onClick={() => resetear(c)} className="rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-50">
+                      <button onClick={() => resetear(c)} className="boton-secundario-sm">
                         Resetear contraseña
                       </button>
                       {c.id !== yo.id && (
-                        <button onClick={() => alternarActivo(c)} className="rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-50">
+                        <button onClick={() => alternarActivo(c)} className="boton-secundario-sm">
                           {c.activo ? "Desactivar" : "Reactivar"}
                         </button>
                       )}

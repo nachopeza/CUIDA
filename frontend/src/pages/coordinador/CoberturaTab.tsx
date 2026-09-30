@@ -313,7 +313,7 @@ export function CoberturaTab({ solicitudes, servicios, onAbrirSolicitud, onAbrir
                   <button
                     onClick={() => solicitud && onAbrirSolicitud(solicitud.id)}
                     disabled={!solicitud}
-                    className="shrink-0 rounded-md border border-brand px-2.5 py-1 text-xs font-medium text-brand transition hover:bg-brand hover:text-white disabled:opacity-50"
+                    className="boton-secundario-sm shrink-0"
                   >
                     {sinNadie ? "Asignar" : "Recordar"}
                   </button>

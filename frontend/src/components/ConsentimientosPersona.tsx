@@ -91,7 +91,7 @@ export function ConsentimientosPersona({ personaId }: { personaId: string }) {
         </p>
         <label className="flex items-center gap-1.5 text-xs text-slate-500">
           Recogido
-          <select value={canal} onChange={(e) => setCanal(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1 text-xs">
+          <select value={canal} onChange={(e) => setCanal(e.target.value)} className="campo !w-auto !py-1.5 !text-xs">
             {CANALES.map((c) => (
               <option key={c.valor} value={c.valor}>
                 {c.etiqueta}
@@ -152,7 +152,7 @@ export function ConsentimientosPersona({ personaId }: { personaId: string }) {
                 <button
                   onClick={() => revocar(c.tipo)}
                   disabled={ocupado === c.tipo}
-                  className="rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50 disabled:opacity-50"
+                  className="boton-secundario-sm"
                 >
                   Lo retira
                 </button>
@@ -160,7 +160,7 @@ export function ConsentimientosPersona({ personaId }: { personaId: string }) {
                 <button
                   onClick={() => responder(c.tipo, true)}
                   disabled={ocupado === c.tipo}
-                  className="rounded-xl bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+                  className="boton-principal-sm"
                 >
                   {c.tipo === "INFORMACION" ? "Se le ha informado" : "Lo autoriza"}
                 </button>
@@ -169,7 +169,7 @@ export function ConsentimientosPersona({ personaId }: { personaId: string }) {
                 <button
                   onClick={() => responder(c.tipo, false)}
                   disabled={ocupado === c.tipo}
-                  className="rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50 disabled:opacity-50"
+                  className="boton-secundario-sm"
                 >
                   Dice que no
                 </button>

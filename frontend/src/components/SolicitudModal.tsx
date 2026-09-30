@@ -296,7 +296,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
                       setFecha(e.target.value);
                       setError(null);
                     }}
-                    className="ml-2 rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
+                    className="campo !w-auto ml-2 text-slate-700"
                   />
                 </label>
                 {/* Una fecha pasada casi siempre es un dedazo, pero a veces se
@@ -334,7 +334,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
                         value={dias}
                         onChange={(e) => setDias(Math.max(1, Math.min(730, Number(e.target.value) || 1)))}
                         title="Número exacto de días"
-                        className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-center text-sm"
+                        className="campo w-16 text-center"
                       />
                     )}
                   </div>
@@ -368,7 +368,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
                     onChange={(e) => setNota(e.target.value)}
                     rows={2}
                     placeholder="Lo que haga falta saber: acceso a la vivienda, preferencias, contexto…"
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    className="campo mt-1"
                   />
                 </label>
                 <p className="text-xs text-slate-400">
@@ -457,7 +457,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
                     max={730}
                     value={dias}
                     onChange={(e) => setDias(Math.max(1, Math.min(730, Number(e.target.value) || 1)))}
-                    className="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-center text-sm"
+                    className="campo w-20 text-center"
                   />
                 </div>
               )}
@@ -501,7 +501,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
               type="button"
               onClick={() => setPaso((n) => Math.max(0, n - 1))}
               disabled={paso === 0}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:invisible"
+              className="boton-secundario"
             >
               <IconArrowLeft className="mr-1 inline h-3.5 w-3.5 align-text-bottom" aria-hidden />
               Atrás
@@ -515,7 +515,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
                   setError(null);
                   setPaso((n) => n + 1);
                 }}
-                className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800"
+                className="boton-principal"
               >
                 Siguiente
                 <IconArrowRight className="ml-1 inline h-3.5 w-3.5 align-text-bottom" aria-hidden />
@@ -524,7 +524,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
               <button
                 onClick={confirmar}
                 disabled={enviando || !personaSel || !necesidadSel}
-                className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50"
+                className="boton-principal"
               >
                 {enviando ? "Creando…" : "Crear solicitud"}
               </button>
@@ -540,7 +540,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
             <button
               onClick={confirmar}
               disabled={enviando || !personaSel || !necesidadSel}
-              className="w-full rounded-lg bg-brand px-4 py-3 text-base font-semibold text-white hover:bg-brand-800 disabled:opacity-50"
+              className="boton-principal w-full"
             >
               {enviando ? "Enviando…" : "Confirmar"}
             </button>

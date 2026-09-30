@@ -141,7 +141,7 @@ export function MiExpedienteTab({ profesionalId }: { profesionalId: string }) {
           <select
             value={form.tipo}
             onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value as TipoAusencia }))}
-            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="campo !w-auto"
           >
             {Object.entries(ETIQUETA_AUSENCIA).map(([clave, etiqueta]) => (
               <option key={clave} value={clave}>
@@ -149,12 +149,12 @@ export function MiExpedienteTab({ profesionalId }: { profesionalId: string }) {
               </option>
             ))}
           </select>
-          <input type="date" value={form.desde} onChange={(e) => setForm((f) => ({ ...f, desde: e.target.value }))} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-          <input type="date" value={form.hasta} onChange={(e) => setForm((f) => ({ ...f, hasta: e.target.value }))} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+          <input type="date" value={form.desde} onChange={(e) => setForm((f) => ({ ...f, desde: e.target.value }))} className="campo !w-auto" />
+          <input type="date" value={form.hasta} onChange={(e) => setForm((f) => ({ ...f, hasta: e.target.value }))} className="campo !w-auto" />
           <button
             onClick={pedirAusencia}
             disabled={pidiendo || !form.desde || !form.hasta}
-            className="flex items-center justify-center gap-1.5 rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+            className="boton-principal-sm"
           >
             <IconCalendar className="h-3.5 w-3.5" /> {pidiendo ? "Enviando…" : "Pedir días"}
           </button>
@@ -181,7 +181,7 @@ export function MiExpedienteTab({ profesionalId }: { profesionalId: string }) {
                 {!r.conformeAt && (
                   <button
                     onClick={() => darConformidad(r)}
-                    className="flex shrink-0 items-center gap-1 rounded-md bg-brand-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-green-700"
+                    className="boton-verde-sm shrink-0"
                   >
                     <IconCheck className="h-3.5 w-3.5" /> Doy mi conformidad
                   </button>
@@ -199,7 +199,7 @@ export function MiExpedienteTab({ profesionalId }: { profesionalId: string }) {
             <div className="mt-4 flex justify-end">
               <button
                 onClick={() => darConformidad(abierto)}
-                className="flex items-center gap-1.5 rounded-md bg-brand-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-green-700"
+                className="boton-verde"
               >
                 <IconCheck className="h-4 w-4" /> Doy mi conformidad
               </button>

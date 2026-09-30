@@ -52,8 +52,24 @@ pantalla, para que "tarjeta" quiera decir lo mismo en las veinte secciones:
   quince, con el radio de 8 px de la maqueta. El relleno teal oscuro para lo
   que hay que hacer ahora, el blanco con borde para lo demás, el verde para
   crear. Y sus dos tamaños pequeños (`-sm`) para dentro de una fila de tabla.
-- **`.campo`** — un solo estilo de campo para toda la aplicación.
+- **`.boton-peligro` / `.boton-peligro-suave`** (y `-sm`) — para lo que corta o no
+  se deshace: cancelar, eliminar, dar de baja. Sólido para confirmar, suave para
+  ofrecerlo.
+- **`.campo`** — un solo estilo de campo para toda la aplicación, con su etiqueta
+  encima (`text-xs text-slate-500`) y no sólo un texto de ayuda dentro.
 - **`.rotulo`** — el texto pequeño en versales que ordena una columna.
+
+## Las fichas de página
+
+Servicio, persona y profesional se abren igual, con las piezas de
+`components/ficha.tsx`: volver, título con su estado, acciones arriba a la derecha
+(la principal y «⋯»), dos tarjetas de contexto, una franja de datos, pestañas y, a
+la derecha, acciones rápidas, dinero e información adicional. La rejilla es
+`minmax(0,1fr)` + 20 rem: nada ensancha la página en una pantalla estrecha. Una
+ficha nueva se monta con esas piezas, no con clases sueltas.
+
+No se escriben botones ni campos con clases de utilidad (`rounded-md border…`,
+`bg-brand…`): se usan las clases de arriba. Así un cambio de estilo se hace una vez.
 
 ## El escritorio
 

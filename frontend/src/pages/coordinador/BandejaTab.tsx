@@ -146,7 +146,7 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
               setRefrescando(false);
             }}
             disabled={refrescando}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            className="boton-secundario-sm"
           >
             <IconRefresh className={`mr-1 inline h-3.5 w-3.5 align-text-bottom ${refrescando ? "animate-spin" : ""}`} aria-hidden />
             Actualizar
@@ -168,7 +168,7 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                 "cuida-bandeja.csv",
               )
             }
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            className="boton-secundario-sm"
           >
             <IconDownload className="mr-1 inline h-3.5 w-3.5 align-text-bottom" aria-hidden />
             CSV
@@ -238,7 +238,7 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
 
       <div className="flex flex-wrap items-center gap-2">
         <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por asunto, persona o detalle…" className="min-w-0 flex-1 sm:max-w-xs" />
-        <select value={tipo} onChange={(e) => setTipo(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+        <select value={tipo} onChange={(e) => setTipo(e.target.value)} className="campo !w-auto">
           <option value="">Todos los asuntos</option>
           {tipos.map((t) => (
             <option key={t} value={t}>
@@ -246,7 +246,7 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
             </option>
           ))}
         </select>
-        <select value={persona} onChange={(e) => setPersona(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+        <select value={persona} onChange={(e) => setPersona(e.target.value)} className="campo !w-auto">
           <option value="">Todas las personas</option>
           {personas.map((p) => (
             <option key={p} value={p}>
@@ -318,7 +318,7 @@ export function BandejaTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                     <td className="whitespace-nowrap px-3 py-2 text-right">
                       <button
                         onClick={() => abrir(a)}
-                        className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                        className="boton-secundario-sm"
                       >
                         {a.accion}
                         <IconArrowRight className="ml-1 inline h-3.5 w-3.5 align-text-bottom" aria-hidden />

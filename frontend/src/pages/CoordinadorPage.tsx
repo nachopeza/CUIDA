@@ -54,7 +54,6 @@ import { RANURA_BUSCADOR, useRanura } from "../lib/ranuras.js";
 import { duracion, minutosEntre } from "../lib/economia.js";
 import { PersonasTab } from "./coordinador/PersonasTab.js";
 import { NuevoUsuarioModal } from "./coordinador/NuevoUsuarioModal.js";
-import { PersonaDetalleModal } from "./coordinador/PersonaDetalleModal.js";
 import { ProfesionalesTab } from "./coordinador/ProfesionalesTab.js";
 import { CalendarioTab } from "./coordinador/CalendarioTab.js";
 import { ActividadTab } from "./coordinador/ActividadTab.js";
@@ -62,6 +61,9 @@ import { FacturacionTab } from "./coordinador/FacturacionTab.js";
 import { VerificacionTab } from "./coordinador/VerificacionTab.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
 import { ServicioPagina } from "../components/ServicioPagina.js";
+import { PersonaPagina } from "../components/PersonaPagina.js";
+import { ProfesionalPagina } from "../components/ProfesionalPagina.js";
+import { FichasProvider } from "../lib/fichas.js";
 import { IncidenciaFichaModal } from "./coordinador/IncidenciaFichaModal.js";
 import { IncidenciasTab } from "./coordinador/IncidenciasTab.js";
 import { AnalisisTab } from "./coordinador/AnalisisTab.js";
@@ -284,6 +286,7 @@ export function CoordinadorPage() {
   const [fichaAbierta, setFichaAbierta] = useState<string | null>(null);
   const [incidenciaFichaAbierta, setIncidenciaFichaAbierta] = useState<string | null>(null);
   const [personaAbierta, setPersonaAbierta] = useState<string | null>(null);
+  const [profesionalAbierto, setProfesionalAbierto] = useState<string | null>(null);
   const [personasRefreshKey, setPersonasRefreshKey] = useState(0);
   const [riesgos, setRiesgos] = useState<RiesgosCobertura | null>(null);
   // Sólo para las dos cifras de Finanzas del menú: cuántas facturas quedan
@@ -374,6 +377,11 @@ export function CoordinadorPage() {
     setFiltro((f ?? null) as Filtro);
     setFoco(fo ?? null);
     setMenuMovilAbierto(false);
+    // Ir a otra sección cierra la ficha que hubiera abierta: es una página, no una
+    // ventana que se quita con Escape.
+    setFichaAbierta(null);
+    setPersonaAbierta(null);
+    setProfesionalAbierto(null);
   }
 
   async function abrirNuevaSolicitud() {
@@ -532,6 +540,7 @@ export function CoordinadorPage() {
   );
 
   return (
+    <FichasProvider value={{ abrirPersona: setPersonaAbierta, abrirProfesional: setProfesionalAbierto }}>
     <Panel
       nav={
       <Navegacion
@@ -574,7 +583,31 @@ export function CoordinadorPage() {
       {ranuraBuscador && createPortal(buscador, ranuraBuscador)}
 
       <div className="min-w-0 flex-1">
-        {fichaAbierta && (
+        {personaAbierta && (
+          <PersonaPagina
+            personaId={personaAbierta}
+            onVolver={() => setPersonaAbierta(null)}
+            onChanged={alCrearUsuario}
+            onAbrirSolicitud={(id) => {
+              setPersonaAbierta(null);
+              setFichaAbierta(id);
+            }}
+            etiquetaVolver={fichaAbierta ? "Volver al servicio" : "Volver a personas"}
+          />
+        )}
+        {!personaAbierta && profesionalAbierto && (
+          <ProfesionalPagina
+            profesionalId={profesionalAbierto}
+            onVolver={() => setProfesionalAbierto(null)}
+            onChanged={cargar}
+            onAbrirSolicitud={(id) => {
+              setProfesionalAbierto(null);
+              setFichaAbierta(id);
+            }}
+            etiquetaVolver={fichaAbierta ? "Volver al servicio" : "Volver a profesionales"}
+          />
+        )}
+        {!personaAbierta && !profesionalAbierto && fichaAbierta && (
           <ServicioPagina
             solicitudId={fichaAbierta}
             onVolver={cerrarFicha}
@@ -582,7 +615,7 @@ export function CoordinadorPage() {
             etiquetaVolver={tab === "servicios" ? "Volver a servicios" : tab === "bandeja" ? "Volver a la bandeja" : "Volver"}
           />
         )}
-        <div className={fichaAbierta ? "hidden" : undefined}>
+        <div className={fichaAbierta || personaAbierta || profesionalAbierto ? "hidden" : undefined}>
         {/* El título de la sección. El escritorio no lo lleva: su tarjeta de
             saludo ya dice dónde estás. */}
         {/* El título de la sección y, a su derecha, lo que se crea desde
@@ -701,7 +734,7 @@ export function CoordinadorPage() {
               <select
                 value={ordenSolicitudes.campo ?? ""}
                 onChange={(e) => e.target.value && ordenSolicitudes.ordenarPor(e.target.value)}
-                className="rounded-md border border-slate-300 px-2 py-2 text-xs"
+                className="campo !w-auto !py-1.5 !text-xs"
               >
                 <option value="">Ordenar por…</option>
                 <option value="codigo">Código</option>
@@ -742,7 +775,7 @@ export function CoordinadorPage() {
               <div className="mb-3 grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs sm:grid-cols-2">
                 <label className="text-slate-500">
                   Tipo de servicio
-                  <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5">
+                  <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)} className="campo mt-0.5">
                     <option value="">Puntual y recurrente</option>
                     <option value="PUNTUAL">Puntual</option>
                     <option value="RECURRENTE">Recurrente</option>
@@ -750,7 +783,7 @@ export function CoordinadorPage() {
                 </label>
                 <label className="text-slate-500">
                   Profesional
-                  <select value={profesionalFiltro} onChange={(e) => setProfesionalFiltro(e.target.value)} className="mt-0.5 w-full rounded-md border border-slate-300 px-2 py-1.5">
+                  <select value={profesionalFiltro} onChange={(e) => setProfesionalFiltro(e.target.value)} className="campo mt-0.5">
                     <option value="">Todos</option>
                     <option value="__sin__">Sin profesional asignado</option>
                     {profesionales.map((p) => (
@@ -1014,14 +1047,6 @@ export function CoordinadorPage() {
           />
         )}
 
-        {personaAbierta && (
-          <PersonaDetalleModal
-            personaId={personaAbierta}
-            onClose={() => setPersonaAbierta(null)}
-            onCambiado={alCrearUsuario}
-          />
-        )}
-
         {incidenciaFichaAbierta && (
           <IncidenciaFichaModal
             incidenciaId={incidenciaFichaAbierta}
@@ -1038,5 +1063,6 @@ export function CoordinadorPage() {
         )}
       </div>
     </Panel>
+    </FichasProvider>
   );
 }

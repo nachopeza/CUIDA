@@ -22,7 +22,7 @@ body {
   /* Una etiqueta de estado o de prioridad. Siempre en píldora, siempre con
      el texto en su color, nunca sólo color. */
   .pastilla {
-    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium;
   }
 
   /* Rótulo de sección: el texto pequeño en versales que ordena una columna. */
@@ -45,6 +45,16 @@ body {
     @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-green-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-green-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-300 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
+  /* Lo que no se puede deshacer o corta algo: cancelar, eliminar, dar de baja.
+     Uno sólido, para confirmar; uno suave, para ofrecerlo sin gritar. */
+  .boton-peligro {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .boton-peligro-suave {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-white px-4 py-2.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
   /* Los dos tamaños pequeños, los de dentro de una fila de tabla. */
   .boton-principal-sm {
     @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50;
@@ -52,6 +62,14 @@ body {
 
   .boton-secundario-sm {
     @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .boton-peligro-sm {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .boton-peligro-suave-sm {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .boton-verde-sm {

@@ -377,12 +377,12 @@ export function ProfesionalPage() {
                       )}
 
                       <div className="mt-3 flex gap-2">
-                        <button onClick={() => aceptar(s.id)} className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
+                        <button onClick={() => aceptar(s.id)} className="boton-principal-sm">
                           Aceptar
                         </button>
                         <button
                           onClick={() => setRechazando(s)}
-                          className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                          className="boton-secundario-sm"
                         >
                           No me encaja
                         </button>
@@ -525,7 +525,7 @@ export function ProfesionalPage() {
                       onChange={(e) => setNotaTexto(e.target.value)}
                       className="flex-1 campo py-2"
                     />
-                    <button onClick={() => enviarNota(v.id)} className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
+                    <button onClick={() => enviarNota(v.id)} className="boton-principal-sm">
                       Guardar
                     </button>
                   </div>
@@ -553,7 +553,7 @@ export function ProfesionalPage() {
                           </option>
                         ))}
                       </select>
-                      <button onClick={() => enviarIncidencia(v.id)} className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700">
+                      <button onClick={() => enviarIncidencia(v.id)} className="boton-peligro-sm">
                         Enviar a coordinación
                       </button>
                     </div>
@@ -650,10 +650,10 @@ export function ProfesionalPage() {
               />
             </label>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setRechazando(null)} className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">
+              <button onClick={() => setRechazando(null)} className="boton-secundario">
                 Volver
               </button>
-              <button onClick={rechazar} className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
+              <button onClick={rechazar} className="boton-peligro">
                 Rechazar
               </button>
             </div>

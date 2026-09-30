@@ -250,7 +250,7 @@ export function PersonalTab({ focoProfesionalId, onFocoConsumido }: PropsPersona
                         <button
                           onClick={() => accion(a.id, () => api.post(`/personal/ausencias/${a.id}/estado`, { estado: "APROBADA" }, token), "Ausencia aprobada")}
                           disabled={ocupado === a.id}
-                          className="flex items-center gap-1 rounded-md bg-brand-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-green-700 disabled:opacity-50"
+                          className="boton-verde-sm"
                         >
                           <IconCheck className="h-3.5 w-3.5" /> Aprobar
                         </button>
@@ -260,7 +260,7 @@ export function PersonalTab({ focoProfesionalId, onFocoConsumido }: PropsPersona
                             if (respuesta !== null)
                               accion(a.id, () => api.post(`/personal/ausencias/${a.id}/estado`, { estado: "RECHAZADA", respuesta }, token), "Ausencia rechazada");
                           }}
-                          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                          className="boton-secundario-sm"
                         >
                           Rechazar
                         </button>
@@ -286,12 +286,12 @@ export function PersonalTab({ focoProfesionalId, onFocoConsumido }: PropsPersona
             <div className="flex flex-wrap items-end gap-2">
               <label className="text-xs text-slate-500">
                 Mes
-                <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="mt-0.5 block rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+                <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="campo !w-auto mt-0.5 block" />
               </label>
               <button
                 onClick={() => accion("cerrar", () => api.post("/personal/registros/cerrar", { mes }, token), "Mes cerrado")}
                 disabled={ocupado === "cerrar"}
-                className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+                className="boton-principal-sm"
               >
                 <IconFile className="h-3.5 w-3.5" />
                 {ocupado === "cerrar" ? "Cerrando…" : "Cerrar el mes"}
@@ -534,7 +534,7 @@ function ExpedienteModal({
             <select
               value={nuevaAusencia.tipo}
               onChange={(e) => setNuevaAusencia((a) => ({ ...a, tipo: e.target.value }))}
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="campo !w-auto"
             >
               {Object.entries(ETIQUETA_AUSENCIA).map(([clave, etiqueta]) => (
                 <option key={clave} value={clave}>
@@ -542,12 +542,12 @@ function ExpedienteModal({
                 </option>
               ))}
             </select>
-            <input type="date" value={nuevaAusencia.desde} onChange={(e) => setNuevaAusencia((a) => ({ ...a, desde: e.target.value }))} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-            <input type="date" value={nuevaAusencia.hasta} onChange={(e) => setNuevaAusencia((a) => ({ ...a, hasta: e.target.value }))} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+            <input type="date" value={nuevaAusencia.desde} onChange={(e) => setNuevaAusencia((a) => ({ ...a, desde: e.target.value }))} className="campo !w-auto" />
+            <input type="date" value={nuevaAusencia.hasta} onChange={(e) => setNuevaAusencia((a) => ({ ...a, hasta: e.target.value }))} className="campo !w-auto" />
             <button
               onClick={registrarAusencia}
               disabled={!nuevaAusencia.desde || !nuevaAusencia.hasta}
-              className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              className="boton-principal-sm"
             >
               Anotar ausencia
             </button>

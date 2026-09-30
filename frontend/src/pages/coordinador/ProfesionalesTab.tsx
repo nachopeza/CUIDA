@@ -1,3 +1,4 @@
+import { useFichas } from "../../lib/fichas.js";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth.js";
 import { QuitarEnLoteModal, type ElementoAQuitar } from "../../components/QuitarEnLoteModal.js";
@@ -25,7 +26,7 @@ export function ProfesionalesTab() {
   const [busqueda, setBusqueda] = useState("");
   const [empresaFiltro, setEmpresaFiltro] = useState("");
   const [nuevoAbierto, setNuevoAbierto] = useState(false);
-  const [editando, setEditando] = useState<Profesional | null>(null);
+  const { abrirProfesional } = useFichas();
 
   async function cargar() {
     const [pros, emps] = await Promise.all([
@@ -134,7 +135,7 @@ export function ProfesionalesTab() {
             </option>
           ))}
         </select>
-        <button onClick={() => setNuevoAbierto(true)} className="ml-auto flex items-center gap-1 rounded-xl bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-800">
+        <button onClick={() => setNuevoAbierto(true)} className="boton-principal ml-auto">
           <IconPlus className="h-4 w-4" /> Nuevo profesional
         </button>
       </div>
@@ -179,7 +180,7 @@ export function ProfesionalesTab() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {pagina.map((p) => (
-                  <tr key={p.id} onClick={() => setEditando(p)} className="cursor-pointer hover:bg-slate-50">
+                  <tr key={p.id} onClick={() => abrirProfesional(p.id)} className="cursor-pointer hover:bg-slate-50">
                     <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={seleccion.ids.has(p.id)} onChange={() => seleccion.toggle(p.id)} />
                     </td>
@@ -204,7 +205,6 @@ export function ProfesionalesTab() {
       )}
 
       {nuevoAbierto && <ProfesionalFormModal profesional={null} empresas={empresas} onClose={() => setNuevoAbierto(false)} onSaved={cargar} />}
-      {editando && <ProfesionalFormModal profesional={editando} empresas={empresas} onClose={() => setEditando(null)} onSaved={cargar} />}
     </div>
   );
 }

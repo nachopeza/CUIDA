@@ -142,7 +142,7 @@ export function EmpresaTab() {
         step={paso}
         value={(form[k] as number | null) ?? ""}
         onChange={(e) => set(k, (e.target.value === "" ? null : Number(e.target.value)) as never)}
-        className="mt-1 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+        className="campo mt-1 block"
       />
     </label>
   );
@@ -236,7 +236,7 @@ export function EmpresaTab() {
             value={form.serieFactura}
             onChange={(e) => set("serieFactura", e.target.value.toUpperCase())}
             maxLength={4}
-            className="mt-1 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="campo mt-1 block"
           />
           {/* La numeración tiene que ser correlativa y sin huecos dentro de cada
               serie: cambiarla a mitad de ejercicio con facturas ya emitidas es
@@ -267,7 +267,7 @@ export function EmpresaTab() {
             type="date"
             value={form.seguroVencimiento ? form.seguroVencimiento.slice(0, 10) : ""}
             onChange={(e) => set("seguroVencimiento", e.target.value || null)}
-            className="mt-1 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="campo mt-1 block"
           />
         </label>
         {campo("registroEntidadesNumero", "Nº de registro de entidades de servicios sociales")}
@@ -293,7 +293,7 @@ export function EmpresaTab() {
       <button
         onClick={guardar}
         disabled={guardando}
-        className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+        className="boton-principal"
       >
         {guardando ? "Guardando…" : "Guardar los datos de la empresa"}
       </button>

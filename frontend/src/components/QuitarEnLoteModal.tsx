@@ -112,7 +112,7 @@ export function QuitarEnLoteModal({
               <button onClick={onClose} className="boton-secundario-sm">
                 Cancelar
               </button>
-              <button onClick={() => void borrar()} className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700">
+              <button onClick={() => void borrar()} className="boton-peligro-sm">
                 Eliminar
               </button>
             </div>

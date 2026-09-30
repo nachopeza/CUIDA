@@ -871,7 +871,7 @@ export function ResumenTab({ solicitudes, servicios, incidencias, onIrA, onAbrir
                             <button
                               onClick={() => setIncidenciaFichaje({ visita, servicio })}
                               title="Abrir una incidencia de fichaje"
-                              className="rounded-lg border border-rose-200 px-2 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                              className="boton-peligro-suave-sm"
                             >
                               <IconAlert className="h-3.5 w-3.5" />
                             </button>

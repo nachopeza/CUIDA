@@ -277,7 +277,7 @@ export function ReglasTab() {
       <button
         onClick={guardar}
         disabled={guardando}
-        className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+        className="boton-principal"
       >
         {guardando ? "Guardando…" : "Guardar las reglas"}
       </button>
@@ -296,7 +296,7 @@ export function ReglasTab() {
           </div>
           <button
             onClick={() => setCreando((v) => !v)}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            className="boton-secundario-sm"
           >
             <IconPlus className="mr-1 inline h-3.5 w-3.5 align-text-bottom" aria-hidden />
             Nueva tarifa
@@ -305,8 +305,8 @@ export function ReglasTab() {
 
         {creando && (
           <div className="mb-3 grid gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-5">
-            <input value={nueva.nombre} onChange={(e) => setNueva({ ...nueva, nombre: e.target.value })} placeholder="Nombre" className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-            <select value={nueva.necesidadId} onChange={(e) => setNueva({ ...nueva, necesidadId: e.target.value })} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+            <input value={nueva.nombre} onChange={(e) => setNueva({ ...nueva, nombre: e.target.value })} placeholder="Nombre" className="campo !w-auto" />
+            <select value={nueva.necesidadId} onChange={(e) => setNueva({ ...nueva, necesidadId: e.target.value })} className="campo !w-auto">
               <option value="">Todos los servicios</option>
               {necesidades.map((n) => (
                 <option key={n.id} value={n.id}>
@@ -314,11 +314,11 @@ export function ReglasTab() {
                 </option>
               ))}
             </select>
-            <input type="number" step="0.01" value={nueva.precioHoraCliente} onChange={(e) => setNueva({ ...nueva, precioHoraCliente: e.target.value })} placeholder="€/h familia" className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-            <input type="number" step="0.01" value={nueva.precioHoraProfesional} onChange={(e) => setNueva({ ...nueva, precioHoraProfesional: e.target.value })} placeholder="€/h profesional" className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+            <input type="number" step="0.01" value={nueva.precioHoraCliente} onChange={(e) => setNueva({ ...nueva, precioHoraCliente: e.target.value })} placeholder="€/h familia" className="campo !w-auto" />
+            <input type="number" step="0.01" value={nueva.precioHoraProfesional} onChange={(e) => setNueva({ ...nueva, precioHoraProfesional: e.target.value })} placeholder="€/h profesional" className="campo !w-auto" />
             <div className="flex gap-2">
-              <input type="date" value={nueva.vigenteDesde} onChange={(e) => setNueva({ ...nueva, vigenteDesde: e.target.value })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-              <button onClick={crearTarifa} className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800">
+              <input type="date" value={nueva.vigenteDesde} onChange={(e) => setNueva({ ...nueva, vigenteDesde: e.target.value })} className="campo" />
+              <button onClick={crearTarifa} className="boton-principal-sm">
                 Crear
               </button>
             </div>
@@ -362,7 +362,7 @@ export function ReglasTab() {
                   </td>
                   <td className="py-1.5 text-right">
                     {t.activa ? (
-                      <button onClick={() => cerrarTarifa(t.id)} className="rounded-md border border-slate-300 px-2 py-0.5 text-xs hover:bg-slate-50">
+                      <button onClick={() => cerrarTarifa(t.id)} className="boton-secundario-sm">
                         Cerrar
                       </button>
                     ) : (

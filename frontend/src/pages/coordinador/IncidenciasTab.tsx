@@ -132,7 +132,7 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
             </button>
           ))}
         </div>
-        <select value={motivoFiltro} onChange={(e) => setMotivoFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-2 text-xs">
+        <select value={motivoFiltro} onChange={(e) => setMotivoFiltro(e.target.value)} className="campo !w-auto !py-1.5 !text-xs">
           <option value="">Todos los motivos</option>
           {MOTIVOS_INCIDENCIA.map((m) => (
             <option key={m.valor} value={m.valor}>
@@ -140,7 +140,7 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
             </option>
           ))}
         </select>
-        <select value={prioridadFiltro} onChange={(e) => setPrioridadFiltro(e.target.value)} className="rounded-md border border-slate-300 px-2 py-2 text-xs">
+        <select value={prioridadFiltro} onChange={(e) => setPrioridadFiltro(e.target.value)} className="campo !w-auto !py-1.5 !text-xs">
           <option value="">Todas las prioridades</option>
           <option value="ALTA">Alta</option>
           <option value="MEDIA">Media</option>
@@ -148,7 +148,7 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
         </select>
         <button
           onClick={() => setNuevaAbierta(true)}
-          className="ml-auto flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800"
+          className="boton-principal-sm ml-auto"
         >
           <IconPlus className="h-3.5 w-3.5" /> Incidencia
         </button>
@@ -276,13 +276,13 @@ export function IncidenciasTab({ incidencias, servicios, onAbrirFicha, onConfirm
                           <div className="flex gap-1.5">
                             <button
                               onClick={() => onConfirmarCancelacion(i.servicioId as string)}
-                              className="rounded-md bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700"
+                              className="boton-peligro-sm"
                             >
                               Cancelar
                             </button>
                             <button
                               onClick={() => onRechazarCancelacion(i.servicioId as string)}
-                              className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100"
+                              className="boton-secundario-sm"
                             >
                               Seguir
                             </button>

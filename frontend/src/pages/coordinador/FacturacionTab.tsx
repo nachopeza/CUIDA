@@ -258,11 +258,11 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
           <div className="flex flex-wrap items-end gap-2 tarjeta p-3">
             <label className="text-xs text-slate-500">
               Mes
-              <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="mt-0.5 block rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+              <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="campo !w-auto mt-0.5 block" />
             </label>
             <label className="min-w-[12rem] flex-1 text-xs text-slate-500">
               Persona
-              <select value={personaNueva} onChange={(e) => setPersonaNueva(e.target.value)} className="mt-0.5 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+              <select value={personaNueva} onChange={(e) => setPersonaNueva(e.target.value)} className="campo mt-0.5 block">
                 <option value="">Elige a quién facturar…</option>
                 {personas.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -276,7 +276,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
                 accion("generar", () => api.post("/facturas/generar", { personaId: personaNueva, mes }, token), "Factura creada en borrador")
               }
               disabled={!personaNueva || ocupado === "generar"}
-              className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              className="boton-principal-sm"
             >
               <IconPlus className="h-3.5 w-3.5" />
               {ocupado === "generar" ? "Creando…" : "Crear factura del mes"}
@@ -350,7 +350,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
                             <button
                               onClick={() => accion(f.id, () => api.post(`/facturas/${f.id}/emitir`, {}, token), "Factura emitida")}
                               disabled={ocupado === f.id}
-                              className="rounded-xl bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+                              className="boton-principal-sm"
                             >
                               {ocupado === f.id ? "…" : "Emitir"}
                             </button>
@@ -360,7 +360,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
                               <button
                                 onClick={() => accion(f.id, () => api.post(`/facturas/${f.id}/cobrar`, {}, token), "Factura cobrada")}
                                 disabled={ocupado === f.id}
-                                className="flex items-center gap-1 rounded-md bg-brand-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-green-700 disabled:opacity-50"
+                                className="boton-verde-sm"
                               >
                                 <IconCheck className="h-3.5 w-3.5" /> Cobrada
                               </button>
@@ -370,7 +370,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
                                     const motivo = window.prompt("¿Por qué se ha devuelto el recibo?");
                                     if (motivo) accion(f.id, () => api.post(`/facturas/${f.id}/impago`, { motivo }, token), "Marcada como impagada");
                                   }}
-                                  className="flex items-center gap-1 rounded-md border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                                  className="boton-peligro-suave-sm"
                                 >
                                   <IconAlert className="h-3.5 w-3.5" /> Devuelta
                                 </button>
@@ -383,7 +383,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
                                 setRectificando(f);
                                 setMotivoRectificacion("");
                               }}
-                              className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                              className="boton-secundario-sm"
                             >
                               Rectificar
                             </button>
@@ -412,12 +412,12 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
           <div className="flex flex-wrap items-end gap-2 tarjeta p-3">
             <label className="text-xs text-slate-500">
               Mes
-              <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="mt-0.5 block rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+              <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="campo !w-auto mt-0.5 block" />
             </label>
             <button
               onClick={() => accion("liq", () => api.post("/liquidaciones/generar", { mes }, token), "Liquidaciones calculadas")}
               disabled={ocupado === "liq"}
-              className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              className="boton-principal-sm"
             >
               <IconEuro className="h-3.5 w-3.5" />
               {ocupado === "liq" ? "Calculando…" : "Calcular el mes"}
@@ -483,7 +483,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
                             <button
                               onClick={() => accion(l.id, () => api.post(`/liquidaciones/${l.id}/aprobar`, {}, token), "Liquidación aprobada")}
                               disabled={ocupado === l.id}
-                              className="rounded-xl bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+                              className="boton-principal-sm"
                             >
                               {ocupado === l.id ? "…" : "Aprobar"}
                             </button>
@@ -492,7 +492,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
                             <button
                               onClick={() => accion(l.id, () => api.post(`/liquidaciones/${l.id}/pagar`, {}, token), "Liquidación pagada")}
                               disabled={ocupado === l.id}
-                              className="flex items-center gap-1 rounded-md bg-brand-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-green-700 disabled:opacity-50"
+                              className="boton-verde-sm"
                             >
                               <IconCheck className="h-3.5 w-3.5" /> Pagada
                             </button>
@@ -515,12 +515,12 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
           <div className="flex flex-wrap items-end gap-2 tarjeta p-3">
             <label className="text-xs text-slate-500">
               Mes
-              <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="mt-0.5 block rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+              <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="campo !w-auto mt-0.5 block" />
             </label>
             <button
               onClick={() => accion("rem", () => api.post("/cobros/remesas", { mes }, token), "Remesa generada")}
               disabled={ocupado === "rem"}
-              className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              className="boton-principal-sm"
             >
               <IconFile className="h-3.5 w-3.5" />
               {ocupado === "rem" ? "Generando…" : "Generar remesa del mes"}
@@ -574,7 +574,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
                             a.click();
                             URL.revokeObjectURL(url);
                           }}
-                          className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                          className="boton-secundario-sm"
                         >
                           <IconDownload className="h-3.5 w-3.5" /> Fichero para el banco
                         </a>
@@ -582,7 +582,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
                           <button
                             onClick={() => accion(r.id, () => api.post(`/cobros/remesas/${r.id}/estado`, { estado: "COBRADA" }, token), "Remesa cobrada")}
                             disabled={ocupado === r.id}
-                            className="rounded-md bg-brand-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-green-700 disabled:opacity-50"
+                            className="boton-verde-sm"
                           >
                             Dar por cobrada
                           </button>
@@ -600,7 +600,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
       {facturaAbierta && (
         <Modal title={referenciaFactura(facturaAbierta)} onClose={() => setFacturaAbierta(null)} size="doc">
           <div className="mb-3 flex justify-end print:hidden">
-            <button onClick={() => window.print()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+            <button onClick={() => window.print()} className="boton-secundario-sm">
               Imprimir o guardar en PDF
             </button>
           </div>
@@ -611,7 +611,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
       {liquidacionAbierta && (
         <Modal title={`${liquidacionAbierta.codigo} · ${liquidacionAbierta.mes}`} onClose={() => setLiquidacionAbierta(null)} size="doc">
           <div className="mb-3 flex justify-end print:hidden">
-            <button onClick={() => window.print()} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+            <button onClick={() => window.print()} className="boton-secundario-sm">
               Imprimir o guardar en PDF
             </button>
           </div>
@@ -647,7 +647,7 @@ export function FacturacionTab({ focoFacturaId, onFocoConsumido, vista = "factur
                 accion(f.id, () => api.post(`/facturas/${f.id}/rectificar`, { motivo: motivoRectificacion }, token), "Rectificativa emitida");
               }}
               disabled={!motivoRectificacion.trim()}
-              className="rounded-xl bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              className="boton-principal"
             >
               Emitir rectificativa
             </button>

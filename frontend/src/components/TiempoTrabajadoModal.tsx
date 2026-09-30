@@ -170,13 +170,13 @@ export function TiempoTrabajadoModal({
         {error && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">
+          <button onClick={onClose} className="boton-secundario">
             Cancelar
           </button>
           <button
             onClick={confirmar}
             disabled={guardando || horas === null}
-            className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+            className="boton-principal"
           >
             {guardando ? "Guardando…" : etiquetaConfirmar}
           </button>

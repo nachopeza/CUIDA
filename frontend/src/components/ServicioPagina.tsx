@@ -11,17 +11,17 @@ import { MOTIVOS_INCIDENCIA, infoMotivo, type MotivoIncidencia } from "../lib/in
 import { IconoNecesidad } from "../lib/necesidadIconos.js";
 import type { EstadoHistorialEntry, Solicitud, Visita } from "../lib/types.js";
 import { Avatar } from "./Avatar.js";
+import { Dato, Etiqueta, Fila, FichaCabecera, Pestanas, RejillaFicha } from "./ficha.js";
 import { EstadoBadge } from "./EstadoBadge.js";
 import { Modal } from "./Modal.js";
 import { ChatPanel } from "./ChatPanel.js";
 import { CierreServicioModal, motivoNoPuede, type ModoCierre } from "./CierreServicioModal.js";
 import { DesgloseVisitaModal } from "./DesgloseVisitaModal.js";
 import { ProximasJornadas } from "./ProximasJornadas.js";
-import { PerfilProfesionalModal } from "./PerfilProfesionalModal.js";
 import { ResolverJornadaModal } from "./ResolverJornadaModal.js";
 import { SolicitudFichaModal } from "./SolicitudFichaModal.js";
 import { TiempoTrabajadoModal } from "./TiempoTrabajadoModal.js";
-import { PersonaDetalleModal } from "../pages/coordinador/PersonaDetalleModal.js";
+import { useFichas } from "../lib/fichas.js";
 import { IncidenciaFichaModal } from "../pages/coordinador/IncidenciaFichaModal.js";
 import {
   IconAlert,
@@ -126,19 +126,6 @@ function proximaJornada(visitas: Visita[]): Visita | null {
   );
 }
 
-function Etiqueta({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{children}</p>;
-}
-
-function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <Etiqueta>{etiqueta}</Etiqueta>
-      <div className="mt-0.5 truncate text-sm font-medium text-slate-800">{children}</div>
-    </div>
-  );
-}
-
 export function ServicioPagina({
   solicitudId,
   onVolver,
@@ -157,12 +144,10 @@ export function ServicioPagina({
   const [jornadas, setJornadas] = useState<JornadaEconomia[]>([]);
   const [pestana, setPestana] = useState<Pestana>("resumen");
   const [verMas, setVerMas] = useState(false);
-  const [menuAbierto, setMenuAbierto] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
   const [editando, setEditando] = useState(false);
-  const [personaAbierta, setPersonaAbierta] = useState(false);
-  const [profesionalAbierto, setProfesionalAbierto] = useState(false);
+  const { abrirPersona, abrirProfesional } = useFichas();
   const [cierre, setCierre] = useState<ModoCierre | null>(null);
   const [incidenciaAbierta, setIncidenciaAbierta] = useState<string | null>(null);
   const [nuevaIncidencia, setNuevaIncidencia] = useState(false);
@@ -328,75 +313,35 @@ export function ServicioPagina({
 
   return (
     <div className="space-y-4">
-      {/* Cabecera */}
-      <div>
-        <button onClick={onVolver} className="mb-2 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800">
-          <IconArrowLeft className="h-4 w-4" /> {etiquetaVolver}
-        </button>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-2xl font-semibold text-slate-800">{srv ? `Servicio ${srv.codigo}` : `Solicitud ${s.codigo}`}</h1>
-              <span className={`pastilla ${info.badge}`}>
-                <info.Icono className="h-3.5 w-3.5" /> {info.etiqueta}
+      <FichaCabecera
+        volver={etiquetaVolver}
+        onVolver={onVolver}
+        titulo={srv ? `Servicio ${srv.codigo}` : `Solicitud ${s.codigo}`}
+        etiquetas={
+          <>
+            <span className={`pastilla ${info.badge}`}>
+              <info.Icono className="h-3.5 w-3.5" /> {info.etiqueta}
+            </span>
+            {conIncidencia && (
+              <span className="pastilla bg-rose-100 text-rose-700">
+                <IconAlert className="h-3.5 w-3.5" /> Incidencia abierta
               </span>
-              {conIncidencia && (
-                <span className="pastilla bg-rose-100 text-rose-700">
-                  <IconAlert className="h-3.5 w-3.5" /> Incidencia abierta
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-sm text-slate-500">
-              Solicitud creada el {fechaLarga(s.createdAt)}
-              {srv?.updatedAt && <> · Última actualización {fechaHora(srv.updatedAt)}</>}
-            </p>
-          </div>
-          <div className="relative flex items-center gap-2">
-            <button onClick={() => setEditando(true)} className="boton-secundario">
-              <IconPencil className="h-4 w-4" /> Editar servicio
-            </button>
-            {srv && (
-              <>
-                <button
-                  onClick={() => setMenuAbierto((v) => !v)}
-                  className="boton-secundario px-3"
-                  aria-label="Más acciones"
-                  aria-haspopup="menu"
-                  aria-expanded={menuAbierto}
-                >
-                  <span className="text-lg leading-none">⋯</span>
-                </button>
-                {menuAbierto && (
-                  <>
-                    <div className="fixed inset-0 z-30" onClick={() => setMenuAbierto(false)} />
-                    <div role="menu" className="absolute right-0 top-full z-40 mt-1 w-72 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
-                      {acciones.map(({ modo, etiqueta, Icono, peligro }) => {
-                        const razon = noPuede(modo);
-                        return (
-                          <button
-                            key={modo}
-                            role="menuitem"
-                            onClick={() => {
-                              setMenuAbierto(false);
-                              setCierre(modo);
-                            }}
-                            className={`flex w-full flex-col items-start rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 ${razon ? "opacity-60" : ""}`}
-                          >
-                            <span className={`flex items-center gap-2 font-medium ${peligro ? "text-rose-600" : "text-slate-700"}`}>
-                              <Icono className="h-4 w-4" /> {etiqueta}
-                            </span>
-                            {razon && <span className="mt-0.5 pl-6 text-xs text-slate-500">{razon}</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </>
             )}
-          </div>
-        </div>
-      </div>
+          </>
+        }
+        linea={
+          <>
+            Solicitud creada el {fechaLarga(s.createdAt)}
+            {srv?.updatedAt && <> · Última actualización {fechaHora(srv.updatedAt)}</>}
+          </>
+        }
+        acciones={
+          <button onClick={() => setEditando(true)} className="boton-secundario">
+            <IconPencil className="h-4 w-4" /> Editar servicio
+          </button>
+        }
+        menu={srv ? acciones.map((a) => ({ etiqueta: a.etiqueta, Icono: a.Icono, peligro: a.peligro, razon: noPuede(a.modo), alPulsar: () => setCierre(a.modo) })) : undefined}
+      />
 
       {aviso && (
         <div className="flex items-start justify-between gap-3 rounded-xl border border-brand-green-200 bg-brand-green-50 px-4 py-2.5 text-sm text-brand-green-800" role="status">
@@ -441,7 +386,7 @@ export function ServicioPagina({
             </div>
             <span className="pastilla mt-2 bg-slate-100 text-slate-600">{s.necesidad.nombre}</span>
           </div>
-          <button onClick={() => setPersonaAbierta(true)} className="boton-secundario-sm shrink-0">
+          <button onClick={() => abrirPersona(s.persona.id)} className="boton-secundario-sm shrink-0">
             Ver perfil
           </button>
         </div>
@@ -473,7 +418,7 @@ export function ServicioPagina({
                   </p>
                 </div>
               </div>
-              <button onClick={() => setProfesionalAbierto(true)} className="boton-secundario-sm shrink-0">
+              <button onClick={() => pro && abrirProfesional(pro.id)} className="boton-secundario-sm shrink-0">
                 Ver perfil
               </button>
             </>
@@ -541,24 +486,10 @@ export function ServicioPagina({
         )}
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <RejillaFicha>
         {/* Columna principal */}
         <div className="min-w-0 space-y-4">
-          <div className="flex gap-1 overflow-x-auto border-b border-slate-200" role="tablist">
-            {PESTANAS.map((p) => (
-              <button
-                key={p.clave}
-                role="tab"
-                aria-selected={pestana === p.clave}
-                onClick={() => setPestana(p.clave)}
-                className={`-mb-px whitespace-nowrap border-b-2 px-3.5 py-2 text-sm font-medium transition ${
-                  pestana === p.clave ? "border-brand text-brand" : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                {p.etiqueta}
-              </button>
-            ))}
-          </div>
+          <Pestanas valor={pestana} onCambiar={setPestana} opciones={PESTANAS} />
 
           {pestana === "resumen" && (
             <>
@@ -806,7 +737,7 @@ export function ServicioPagina({
                   Los documentos de <span className="font-medium text-slate-800">{s.persona.nombre}</span> (consentimientos, datos fiscales, mandato de domiciliación) están en su ficha.
                 </span>
               </p>
-              <button onClick={() => setPersonaAbierta(true)} className="boton-secundario-sm">
+              <button onClick={() => abrirPersona(s.persona.id)} className="boton-secundario-sm">
                 Abrir la ficha de {s.persona.nombre}
               </button>
               {pro && (
@@ -817,7 +748,7 @@ export function ServicioPagina({
                       El expediente de <span className="font-medium text-slate-800">{pro.nombre}</span> (certificado de delitos sexuales, titulación, contrato) está en su perfil.
                     </span>
                   </p>
-                  <button onClick={() => setProfesionalAbierto(true)} className="boton-secundario-sm">
+                  <button onClick={() => pro && abrirProfesional(pro.id)} className="boton-secundario-sm">
                     Abrir el perfil de {pro.nombre}
                   </button>
                 </>
@@ -875,7 +806,7 @@ export function ServicioPagina({
           <div className="tarjeta p-4">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-800">Información adicional</h2>
-              <button onClick={() => setPersonaAbierta(true)} className="text-xs font-medium text-brand hover:underline">
+              <button onClick={() => abrirPersona(s.persona.id)} className="text-xs font-medium text-brand hover:underline">
                 Editar
               </button>
             </div>
@@ -915,7 +846,7 @@ export function ServicioPagina({
             <Linea entradas={[...historial].reverse().slice(0, 5)} compacta />
           </div>
         </aside>
-      </div>
+      </RejillaFicha>
 
       {editando && (
         <SolicitudFichaModal
@@ -931,8 +862,6 @@ export function ServicioPagina({
         />
       )}
 
-      {personaAbierta && <PersonaDetalleModal personaId={s.persona.id} onClose={() => setPersonaAbierta(false)} onCambiado={recargarTodo} />}
-      {profesionalAbierto && pro && <PerfilProfesionalModal profesionalId={pro.id} onClose={() => setProfesionalAbierto(false)} />}
       {incidenciaAbierta && <IncidenciaFichaModal incidenciaId={incidenciaAbierta} onClose={() => setIncidenciaAbierta(null)} onChanged={recargarTodo} />}
 
       {cierre && srv && (
@@ -996,15 +925,6 @@ export function ServicioPagina({
       )}
 
       {desgloseDe && <DesgloseVisitaModal visitaId={desgloseDe} onClose={() => setDesgloseDe(null)} onCambio={recargarTodo} />}
-    </div>
-  );
-}
-
-function Fila({ etiqueta, valor, aviso, bueno }: { etiqueta: string; valor: string; aviso?: boolean; bueno?: boolean }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-slate-500">{etiqueta}</dt>
-      <dd className={`shrink-0 whitespace-nowrap font-semibold tabular-nums ${aviso ? "text-amber-600" : bueno ? "text-brand-green-700" : "text-slate-800"}`}>{valor}</dd>
     </div>
   );
 }

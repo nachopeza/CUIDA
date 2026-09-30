@@ -413,14 +413,14 @@ export function VerificacionTab({ solicitudes, servicios, focoVisitaId, onFocoCo
                           de dónde sale antes de firmarlo. */}
                       <button
                         onClick={() => setDesgloseDe(f.visita.id)}
-                        className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                        className="boton-secundario-sm"
                       >
                         <IconEuro className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
                         Desglose
                       </button>
                       <button
                         onClick={() => setIncidenciaPara(f)}
-                        className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                        className="boton-secundario-sm"
                       >
                         <IconAlert className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
                         No cuadra
@@ -433,7 +433,7 @@ export function VerificacionTab({ solicitudes, servicios, focoVisitaId, onFocoCo
                         <button
                           onClick={() => verificar(f)}
                           disabled={verificando === f.visita.id}
-                          className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+                          className="boton-principal-sm"
                         >
                           <IconCheck className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
                           {verificando === f.visita.id ? "Verificando…" : "Verificar"}

@@ -68,12 +68,12 @@ export function FotoUpload({ value, onChange, nombre }: { value: string; onChang
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={procesando}
-            className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            className="boton-secundario-sm"
           >
             {procesando ? "Procesando…" : value ? "Cambiar foto" : "Subir foto"}
           </button>
           {value && (
-            <button type="button" onClick={() => onChange("")} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-500 hover:bg-slate-50">
+            <button type="button" onClick={() => onChange("")} className="boton-secundario-sm">
               Quitar
             </button>
           )}

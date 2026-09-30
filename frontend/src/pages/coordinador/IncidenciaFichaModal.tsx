@@ -480,7 +480,7 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged, onAbrir
               <button
                 onClick={aplicarReemplazo}
                 disabled={aplicando || !sustitutoId}
-                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+                className="boton-principal w-full"
               >
                 <IconRefresh className="h-4 w-4" />
                 {aplicando ? "Aplicando…" : "Aplicar el reemplazo"}
@@ -569,7 +569,7 @@ export function IncidenciaFichaModal({ incidenciaId, onClose, onChanged, onAbrir
             <button
               onClick={enviarNota}
               disabled={enviandoNota || !nota.trim()}
-              className="rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 disabled:opacity-50"
+              className="boton-principal-sm"
             >
               Añadir
             </button>
