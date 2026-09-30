@@ -4,7 +4,7 @@ import { EstadoBadge } from "../../components/EstadoBadge.js";
 import { SearchBox } from "../../components/SearchBox.js";
 import { Pagination, usePaginacion } from "../../components/Pagination.js";
 import { IconoNecesidad } from "../../lib/necesidadIconos.js";
-import { IconAlert, IconCalendar, IconCheck, IconChat, IconClock, IconPencil, IconPhone, IconPin, IconPlay, IconBriefcase } from "../../components/icons.js";
+import { IconAlert, IconCalendar, IconCheck, IconChat, IconClock, IconPencil, IconPhone, IconPin, IconPlay, IconBriefcase, IconX } from "../../components/icons.js";
 import { duracion, euros, minutosEntre } from "../../lib/economia.js";
 import { diasPorSemana } from "../../lib/recurrencia.js";
 import { estadoDeSolicitud, tieneIncidencia, type ClaveEstado } from "../../lib/estadoUnificado.js";
@@ -137,9 +137,11 @@ export function ServiciosLista({
   const [historial, setHistorial] = useState<EstadoHistorialEntry[] | null>(null);
 
   // Sólo lo que ya es un servicio: lo que busca profesional o espera respuesta
-  // sigue siendo una solicitud.
+  // sigue siendo una solicitud. Los cancelados también están aquí, aunque la
+  // lista de trabajo no los cuente: preguntar «¿dónde ha quedado el servicio que
+  // cancelé?» tiene que tener respuesta en el mismo sitio donde se cancela.
   const servicios = useMemo(
-    () => solicitudes.filter((s) => s.servicio && ["en_curso", "por_verificar", "finalizada"].includes(estadoDeSolicitud(s))),
+    () => solicitudes.filter((s) => s.servicio && ["en_curso", "por_verificar", "finalizada", "cancelada"].includes(estadoDeSolicitud(s))),
     [solicitudes],
   );
 
@@ -147,7 +149,8 @@ export function ServiciosLista({
 
   const cuentas = useMemo(
     () => ({
-      todos: servicios.length,
+      todos: servicios.filter((s) => estadoDeSolicitud(s) !== "cancelada").length,
+      cancelada: servicios.filter((s) => estadoDeSolicitud(s) === "cancelada").length,
       en_curso: servicios.filter((s) => estadoDeSolicitud(s) === "en_curso").length,
       por_verificar: servicios.filter((s) => estadoDeSolicitud(s) === "por_verificar" || (s.servicio?.visitas ?? []).some((v) => v.estado === "FINALIZADA")).length,
       finalizada: servicios.filter((s) => estadoDeSolicitud(s) === "finalizada").length,
@@ -162,6 +165,9 @@ export function ServiciosLista({
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return servicios.filter((s) => {
+      // Sin elegir estado se ve lo vivo y lo terminado; los cancelados tienen su
+      // propio filtro.
+      if (!estado && estadoDeSolicitud(s) === "cancelada") return false;
       if (estado === "con_incidencia" && !conIncidencia(s)) return false;
       if (estado === "por_verificar" && !(estadoDeSolicitud(s) === "por_verificar" || (s.servicio?.visitas ?? []).some((v) => v.estado === "FINALIZADA"))) return false;
       if (estado && estado !== "con_incidencia" && estado !== "por_verificar" && estadoDeSolicitud(s) !== estado) return false;
@@ -212,11 +218,12 @@ export function ServiciosLista({
     <div className="space-y-4">
       <p className="-mt-2 text-sm text-slate-500">Gestiona todos los servicios activos, sus profesionales, visitas y estado económico.</p>
 
-      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-6">
         <KPI icono={<IconBriefcase className="h-5 w-5" />} valor={cuentas.todos} etiqueta="Todos" tono="azul" activo={estado === ""} onClick={() => setEstado("")} />
         <KPI icono={<IconPlay className="h-5 w-5" />} valor={cuentas.en_curso} etiqueta="En curso" tono="verde" activo={estado === "en_curso"} onClick={() => setEstado(estado === "en_curso" ? "" : "en_curso")} />
         <KPI icono={<IconClock className="h-5 w-5" />} valor={cuentas.por_verificar} etiqueta="Por verificar" tono="ambar" activo={estado === "por_verificar"} onClick={() => setEstado(estado === "por_verificar" ? "" : "por_verificar")} />
         <KPI icono={<IconCheck className="h-5 w-5" />} valor={cuentas.finalizada} etiqueta="Finalizados" tono="gris" activo={estado === "finalizada"} onClick={() => setEstado(estado === "finalizada" ? "" : "finalizada")} />
+        <KPI icono={<IconX className="h-5 w-5" />} valor={cuentas.cancelada} etiqueta="Cancelados" tono="gris" activo={estado === "cancelada"} onClick={() => setEstado(estado === "cancelada" ? "" : "cancelada")} />
         <KPI icono={<IconAlert className="h-5 w-5" />} valor={cuentas.con_incidencia} etiqueta="Con incidencia" tono="rojo" activo={estado === "con_incidencia"} onClick={() => setEstado(estado === "con_incidencia" ? "" : "con_incidencia")} />
       </div>
 
@@ -224,7 +231,7 @@ export function ServiciosLista({
         <SearchBox value={busqueda} onChange={setBusqueda} placeholder="Buscar por persona, servicio, profesional…" className="min-w-[14rem] flex-1 self-center" />
         <Selector etiqueta="Estado" valor={estado} onCambiar={(v) => setEstado(v as typeof estado)}>
           <option value="">Todos</option>
-          {(["en_curso", "por_verificar", "finalizada"] as ClaveEstado[]).map((c) => (
+          {(["en_curso", "por_verificar", "finalizada", "cancelada"] as ClaveEstado[]).map((c) => (
             <option key={c} value={c}>
               {ROTULO_ESTADO[c]}
             </option>

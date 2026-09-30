@@ -1,5 +1,10 @@
 import jwt from "jsonwebtoken";
 
+// Con el secreto por defecto cualquiera puede fabricarse un token de coordinación:
+// en producción no se arranca sin uno propio.
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  throw new Error("Falta JWT_SECRET: en producción hay que definir un secreto propio para firmar las sesiones.");
+}
 const JWT_SECRET = process.env.JWT_SECRET ?? "change-me-in-production";
 
 export interface TokenPayload {

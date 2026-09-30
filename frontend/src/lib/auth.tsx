@@ -50,6 +50,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsuario(null);
   }
 
+  useEffect(() => {
+    const alCaducar = () => {
+      setToken(null);
+      setUsuario(null);
+    };
+    window.addEventListener("cuida:sesion-caducada", alCaducar);
+    return () => window.removeEventListener("cuida:sesion-caducada", alCaducar);
+  }, []);
+
   return <AuthContext.Provider value={{ token, usuario, login, logout }}>{children}</AuthContext.Provider>;
 }
 

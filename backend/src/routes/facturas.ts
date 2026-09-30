@@ -57,10 +57,16 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
   // Antes esto se calculaba aquí otra vez, a partir de las horas fichadas y
   // del precio del servicio, y podía no coincidir con lo que el desglose le
   // había enseñado a la familia. Dos cuentas distintas para el mismo dinero.
+  //
+  // Entran también las de meses anteriores que se quedaron sin facturar: una
+  // jornada verificada después de emitir la factura de su mes no tiene dónde ir
+  // —ya existe una por persona y mes— y, buscando sólo por la fecha, no la
+  // recogía nunca ninguna factura. Se cobra en la siguiente, con su fecha en la
+  // línea.
   const visitasDelMes = await prisma.visita.findMany({
     where: {
       facturaId: null,
-      fecha: { gte: desde, lt: hasta },
+      fecha: { lt: hasta },
       importeCliente: { not: null },
       estado: { in: ["FINALIZADA", "REVISADA", "CANCELADA", "NO_PRESENTADO"] },
       servicio: {

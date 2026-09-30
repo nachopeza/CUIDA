@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Avatar } from "./Avatar.js";
 
 const LADO_MAX = 320;
 
@@ -55,7 +56,7 @@ export function FotoUpload({ value, onChange, nombre }: { value: string; onChang
   return (
     <div className="flex items-center gap-3">
       {value ? (
-        <img src={value} alt="" className="h-16 w-16 rounded-full object-cover" />
+        <Avatar foto={value} nombre={nombre} className="h-16 w-16 !text-xl" />
       ) : (
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-xl font-semibold text-slate-500">
           {nombre.slice(0, 1).toUpperCase() || "?"}

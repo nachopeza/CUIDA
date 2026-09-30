@@ -24,7 +24,13 @@ export function LoginPage() {
     try {
       await login(email, password);
     } catch (err) {
-      setError(err instanceof ApiError ? "Email o contraseña incorrectos" : "Error de conexión con el servidor");
+      setError(
+        err instanceof ApiError
+          ? err.status === 429
+            ? err.message.replace(/^"|"$/g, "")
+            : "Email o contraseña incorrectos"
+          : "Error de conexión con el servidor",
+      );
     } finally {
       setCargando(false);
     }

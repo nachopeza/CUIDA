@@ -620,15 +620,21 @@ serviciosRouter.post("/:id/asignar", requiereRol("COORDINADOR", "ORGANIZACION", 
   // Autorrelleno: si la profesional trabaja para una empresa colaboradora
   // (no es independiente) y el servicio no tenía ya una empresa asignada,
   // se copia — la coordinadora puede cambiarla luego a mano si hace falta.
-  const actualizado = await prisma.servicio.update({
-    where: { id: servicio.id },
+  // La escritura sólo vale si el servicio sigue como se leyó: con dos
+  // coordinadoras asignando a la vez, la segunda pisaba a la primera sin que
+  // ninguna se enterase, y las dos profesionales recibían la propuesta.
+  const escrito = await prisma.servicio.updateMany({
+    where: { id: servicio.id, estado: servicio.estado, profesionalId: servicio.profesionalId },
     data: {
       estado: "ASIGNADO",
       profesionalId: profesional.id,
       empresaColaboradoraId: servicio.empresaColaboradoraId ?? profesional.empresaColaboradoraId ?? undefined,
     },
-    include: INCLUDE_SERVICIO,
   });
+  if (escrito.count === 0) {
+    return res.status(409).json({ error: "Alguien acaba de tocar este servicio. Recarga la ficha y vuelve a intentarlo." });
+  }
+  const actualizado = await prisma.servicio.findUniqueOrThrow({ where: { id: servicio.id }, include: INCLUDE_SERVICIO });
 
   await registrarHistorial({
     entidadTipo: "Servicio",

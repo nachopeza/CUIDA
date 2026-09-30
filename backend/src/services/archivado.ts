@@ -133,7 +133,12 @@ export async function eliminarSolicitudSinActividad(solicitudId: string): Promis
   const incidencias = servicio ? await prisma.incidencia.findMany({ where: { servicioId: servicio.id }, select: { id: true } }) : [];
   const incidenciaIds = incidencias.map((i) => i.id);
 
+  // Los avisos que llevaban a esta ficha no pueden seguir apuntando a algo que
+  // ya no existe: se abrían con un «no encontrada».
+  const referencias = [solicitudId, ...(servicio ? [servicio.id] : [])];
+
   await prisma.$transaction([
+    prisma.notificacion.deleteMany({ where: { entidadId: { in: referencias } } }),
     prisma.correccionFichaje.deleteMany({ where: { visitaId: { in: visitaIds } } }),
     prisma.actuacion.deleteMany({ where: { visitaId: { in: visitaIds } } }),
     prisma.tarea.deleteMany({ where: { visitaId: { in: visitaIds } } }),

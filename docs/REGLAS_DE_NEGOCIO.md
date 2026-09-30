@@ -541,6 +541,46 @@ delante. Además, cada media hora el servidor repasa todos los recurrentes en
 marcha y repone los que se hayan quedado sin ella. Al cambiar el plan, la jornada
 única por delante se recoloca donde toca ahora, también «hacia antes».
 
+## La vida de un servicio, de punta a punta
+
+```
+PENDIENTE → ASIGNADO → CONFIRMADO → EN_CURSO → FINALIZADO → VALIDADO → CERRADO
+                                         ↘ CANCELADO (hasta que hay trabajo hecho)
+```
+
+Cada paso lo empuja un hecho, no un botón que alguien tenga que recordar pulsar:
+
+- **En curso**: la primera jornada que se ficha (o que coordinación ficha por la
+  profesional). Antes el servicio se quedaba en «confirmado» para siempre y no podía
+  terminar.
+- **Finalizado y validado**: todo lo hecho está verificado y no hay una incidencia
+  abierta. Un puntual avanza solo; un **recurrente** espera a que alguien lo dé por
+  **terminado**.
+- **Cerrado**: la familia ha pagado lo facturado **y** la profesional ha cobrado lo
+  suyo. Al cobrar una factura o pagar una liquidación se comprueba, y la solicitud se
+  cierra con el servicio. Un tiempo adicional sin decidir impide cerrar: hay un
+  importe que nadie ha cobrado ni pagado.
+- **Pagado a la profesional** sólo se marca cuando **toda** su parte del servicio está
+  en liquidaciones pagadas (con la primera liquidación de un recurrente decía
+  «pagado» con meses por pagar).
+
+**Lo verificado tarde no se pierde.** Hay una factura por persona y mes y una
+liquidación por profesional y mes. Una jornada que se verifica después de que la de
+su mes se haya emitido o aprobado se cobra y se paga en la **siguiente**, con su fecha
+en la línea. El servicio no se cierra hasta entonces.
+
+### Terminar, cancelar, eliminar
+
+| | Cuándo | Qué pasa |
+|---|---|---|
+| **Terminar** | Servicio confirmado o en curso con al menos una jornada trabajada; sin jornada abierta ni incidencia abierta | No se generan más jornadas (el plan acaba hoy), las que nadie ha empezado salen de la agenda sin cargo, lo trabajado se verifica, se cobra y se paga. Se cierra solo. |
+| **Cancelar** | Hasta que hay trabajo pendiente de cobrar (pendiente, asignado, confirmado, en curso) y sin jornada abierta | Jornadas sin empezar fuera de la agenda; solicitud cancelada; incidencias abiertas cerradas; se avisa a la profesional, a la persona, a la familia y a coordinación. Lo ya trabajado se conserva y se cobra. |
+| **Eliminar** | Sólo si nunca hubo actividad: ninguna jornada empezada, nada facturado ni liquidado, ningún documento | Desaparece del todo (jornadas, incidencias, historial, avisos que llevaban a ella). Con actividad hay historial contable que conservar: se cancela o se archiva. |
+
+Terminar y cancelar piden un **motivo** y explican antes de confirmar lo que
+provocan. Los servicios cancelados se ven en **Servicios › Cancelados** y en
+**Solicitudes › Canceladas**; nunca desaparecen de las listas.
+
 ## Dar de baja y archivar
 
 Lo que tiene historial no se borra. Se **archiva**, se **da de baja** o se

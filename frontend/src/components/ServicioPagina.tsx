@@ -412,13 +412,13 @@ export function ServicioPagina({
           <p className="font-medium">Servicio cancelado{motivoCancelacion ? ` el ${fechaLarga(motivoCancelacion.createdAt)}` : ""}.</p>
           {motivoCancelacion?.motivo && <p className="mt-0.5">Motivo: {motivoCancelacion.motivo}</p>}
           <p className="mt-1 text-rose-700/80">
-            Sigue en Servicios con el filtro «Cancelada» y en Solicitudes › Canceladas. Su historial y lo ya trabajado se conservan.
+            Lo encuentras en Servicios › Cancelados y en Solicitudes › Canceladas. Su historial y lo ya trabajado se conservan.
           </p>
         </div>
       )}
 
       {/* Persona y profesional */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2">
         <div className="tarjeta flex items-start gap-4 p-4">
           <Avatar nombre={s.persona.nombre} apellidos={s.persona.apellidos} className="h-14 w-14 !text-sm" />
           <div className="min-w-0 flex-1">
@@ -541,7 +541,7 @@ export function ServicioPagina({
         )}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
         {/* Columna principal */}
         <div className="min-w-0 space-y-4">
           <div className="flex gap-1 overflow-x-auto border-b border-slate-200" role="tablist">
@@ -622,7 +622,7 @@ export function ServicioPagina({
                 <TablaFichaje visitas={visitas.filter((v) => v.estado !== "CANCELADA").slice(-5).reverse()} onDesglose={setDesgloseDe} />
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
                 <div className="tarjeta p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <h2 className="text-sm font-semibold text-slate-800">Precio y reparto</h2>

@@ -20,6 +20,11 @@ async function request<T>(path: string, options: RequestInit & { token?: string 
     },
   });
 
+  // Una petición con sesión que el servidor rechaza por no autenticada es una
+  // sesión caducada o una cuenta dada de baja: la aplicación vuelve a la entrada
+  // en vez de quedarse mostrando errores en cada pantalla.
+  if (res.status === 401 && token) window.dispatchEvent(new Event("cuida:sesion-caducada"));
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
     throw new ApiError(res.status, body.error ? JSON.stringify(body.error) : res.statusText);

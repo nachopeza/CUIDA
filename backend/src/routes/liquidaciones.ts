@@ -70,7 +70,7 @@ liquidacionesRouter.post("/generar", soloGestion, async (req, res) => {
   const parsed = generarSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const organizacionId = req.usuario!.organizacionId!;
-  const { desde, hasta } = rangoMes(parsed.data.mes);
+  const { hasta } = rangoMes(parsed.data.mes);
 
   const profesionales = await prisma.profesional.findMany({
     where: {
@@ -84,14 +84,29 @@ liquidacionesRouter.post("/generar", soloGestion, async (req, res) => {
   const saltadas: string[] = [];
 
   for (const profesional of profesionales) {
+    // Lo que ya está en una liquidación —salvo el borrador de este mismo mes, que
+    // se rehace— no vuelve a entrar. Con esto, una jornada verificada después de
+    // aprobar la liquidación de su mes se paga en la siguiente en vez de
+    // quedarse sin pagar para siempre.
+    const yaLiquidadas = (
+      await prisma.lineaLiquidacion.findMany({
+        where: {
+          visitaId: { not: null },
+          liquidacion: { profesionalId: profesional.id, NOT: { mes: parsed.data.mes, estado: "BORRADOR" } },
+        },
+        select: { visitaId: true },
+      })
+    ).map((l) => l.visitaId as string);
+
     const visitas = await prisma.visita.findMany({
       where: {
+        id: { notIn: yaLiquidadas },
         // Una jornada cancelada o con la persona ausente también se le paga,
         // en el porcentaje que digan las reglas: reservó el hueco o se
         // desplazó. Lo que nunca se liquida es un tiempo sin decidir.
         estado: { in: ["REVISADA", "CANCELADA", "NO_PRESENTADO"] },
         ajusteEstado: { not: "PENDIENTE" },
-        fecha: { gte: desde, lt: hasta },
+        fecha: { lt: hasta },
         OR: [{ profesionalId: profesional.id }, { profesionalId: null, servicio: { profesionalId: profesional.id } }],
         servicio: { organizacionId, tarifaTipo: "PAGADO" },
       },

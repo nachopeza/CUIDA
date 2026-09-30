@@ -107,12 +107,16 @@ export function conMayusculaInicial(texto: string): string {
 // Lo que cobra el profesional por una jornada. Si trabajó más o menos de lo
 // previsto, cobra en proporción: es el sentido de facturar por tiempo.
 export function cobroDeJornada(v: {
+  // Lo que el motor de tiempo dejó escrito al cerrar la jornada: es lo que de
+  // verdad acaba en la liquidación. Sólo si aún no existe se estima.
+  importeProfesional?: string | number | null;
   horaInicioProg?: string | null;
   horaFinProg?: string | null;
   horaInicioReal?: string | null;
   horaFinReal?: string | null;
   servicio?: { importeProfesional?: string | number | null } | null;
 }): number {
+  if (v.importeProfesional != null) return Number(v.importeProfesional);
   const importe = Number(v.servicio?.importeProfesional ?? 0);
   if (!importe) return 0;
   const previstos = minutosEntre(v.horaInicioProg, v.horaFinProg);
