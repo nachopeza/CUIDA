@@ -61,7 +61,7 @@ import { ActividadTab } from "./coordinador/ActividadTab.js";
 import { FacturacionTab } from "./coordinador/FacturacionTab.js";
 import { VerificacionTab } from "./coordinador/VerificacionTab.js";
 import { SolicitudModal } from "../components/SolicitudModal.js";
-import { SolicitudFichaModal } from "../components/SolicitudFichaModal.js";
+import { ServicioPagina } from "../components/ServicioPagina.js";
 import { IncidenciaFichaModal } from "./coordinador/IncidenciaFichaModal.js";
 import { IncidenciasTab } from "./coordinador/IncidenciasTab.js";
 import { AnalisisTab } from "./coordinador/AnalisisTab.js";
@@ -574,6 +574,15 @@ export function CoordinadorPage() {
       {ranuraBuscador && createPortal(buscador, ranuraBuscador)}
 
       <div className="min-w-0 flex-1">
+        {fichaAbierta && (
+          <ServicioPagina
+            solicitudId={fichaAbierta}
+            onVolver={cerrarFicha}
+            onChanged={cargar}
+            etiquetaVolver={tab === "servicios" ? "Volver a servicios" : tab === "bandeja" ? "Volver a la bandeja" : "Volver"}
+          />
+        )}
+        <div className={fichaAbierta ? "hidden" : undefined}>
         {/* El título de la sección. El escritorio no lo lleva: su tarjeta de
             saludo ya dice dónde estás. */}
         {/* El título de la sección y, a su derecha, lo que se crea desde
@@ -980,6 +989,8 @@ export function CoordinadorPage() {
 
         {tab === "historial" && <ActividadTab />}
 
+        </div>
+
         {nuevaSolicitud && (
           <SolicitudModal
             personas={personas}
@@ -1011,7 +1022,6 @@ export function CoordinadorPage() {
           />
         )}
 
-        {fichaAbierta && <SolicitudFichaModal solicitudId={fichaAbierta} onClose={cerrarFicha} onChanged={cargar} />}
         {incidenciaFichaAbierta && (
           <IncidenciaFichaModal
             incidenciaId={incidenciaFichaAbierta}

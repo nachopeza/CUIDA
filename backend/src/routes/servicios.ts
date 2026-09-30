@@ -1026,6 +1026,41 @@ serviciosRouter.post("/:id/estado", async (req, res) => {
   res.json(actualizado);
 });
 
+// El dinero de un servicio, jornada a jornada: qué se ha facturado y a quién,
+// qué falta por cobrar a la familia y qué falta por pagar a la profesional. Es lo
+// que hace visible que el ciclo termina en el cobro y en el pago, no en «verificado».
+serviciosRouter.get("/:id/economia", async (req, res) => {
+  const usuario = req.usuario!;
+  if (!esGestorOrganizacion(usuario)) return res.status(403).json({ error: "Sin permiso" });
+  const servicio = await prisma.servicio.findUnique({
+    where: { id: req.params.id },
+    include: { visitas: { orderBy: { fecha: "asc" }, include: { factura: { select: { id: true, codigo: true, estado: true } } } } },
+  });
+  if (!servicio) return res.status(404).json({ error: "No encontrado" });
+  if (servicio.organizacionId !== usuario.organizacionId) return res.status(403).json({ error: "Sin permiso" });
+
+  const lineas = await prisma.lineaLiquidacion.findMany({
+    where: { visitaId: { in: servicio.visitas.map((v) => v.id) } },
+    include: { liquidacion: { select: { id: true, codigo: true, estado: true } } },
+  });
+  const liqDe = new Map(lineas.map((l) => [l.visitaId, l.liquidacion]));
+  res.json({
+    jornadas: servicio.visitas
+      .filter((v) => v.estado !== "CANCELADA")
+      .map((v) => ({
+        id: v.id,
+        codigo: v.codigo,
+        fecha: v.fecha,
+        estado: v.estado,
+        importeCliente: v.importeCliente != null ? Number(v.importeCliente) : null,
+        importeProfesional: v.importeProfesional != null ? Number(v.importeProfesional) : null,
+        importeCuida: v.importeCuida != null ? Number(v.importeCuida) : null,
+        factura: v.factura,
+        liquidacion: liqDe.get(v.id) ?? null,
+      })),
+  });
+});
+
 const cierreSchema = z.object({ motivo: z.string().trim().min(3, "Cuenta brevemente por qué").max(500) });
 
 async function servicioDeGestor(req: import("express").Request, res: import("express").Response) {

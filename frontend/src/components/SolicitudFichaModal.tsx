@@ -27,6 +27,7 @@ import { parsearDisponibilidad } from "../lib/disponibilidad.js";
 import { etiquetaTitulacion, zonaDe } from "../lib/territorio.js";
 import { resumenDisponibilidad } from "./DisponibilidadPicker.js";
 import { PerfilProfesionalModal } from "./PerfilProfesionalModal.js";
+import { CierreServicioModal, motivoNoPuede, type ModoCierre } from "./CierreServicioModal.js";
 import { PeticionLibre } from "./PeticionLibre.js";
 import { ProximasJornadas } from "./ProximasJornadas.js";
 import type { Candidato, EmpresaColaboradora, Necesidad, Profesional, Solicitud, TarifaVigente, Visita } from "../lib/types.js";
@@ -139,6 +140,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   const [incidenciaAbierta, setIncidenciaAbierta] = useState<string | null>(null);
   const [reemplazoAbierto, setReemplazoAbierto] = useState(false);
   const [tarifaAbierta, setTarifaAbierta] = useState(false);
+  const [cierre, setCierre] = useState<ModoCierre | null>(null);
   const [modoAsignacion, setModoAsignacion] = useState<"mercado" | "directo">("mercado");
   const [soloDisponibles, setSoloDisponibles] = useState(true);
 
@@ -414,14 +416,6 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
     if (!s?.servicio || estado === s.servicio.estado) return;
     await intentar(async () => {
       await api.post(`/servicios/${s!.servicio!.id}/estado`, { estado }, token);
-      await recargar();
-    });
-  }
-
-  async function cancelarServicio() {
-    if (!s?.servicio) return;
-    await intentar(async () => {
-      await api.post(`/servicios/${s!.servicio!.id}/estado`, { estado: "CANCELADO" }, token);
       await recargar();
     });
   }
@@ -1069,8 +1063,17 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 ) : (
                   <EstadoBadge estado={srv.estado} />
                 )}
+                {["CONFIRMADO", "EN_CURSO"].includes(srv.estado) && (
+                  <button
+                    onClick={() => setCierre("terminar")}
+                    title={motivoNoPuede(s, "terminar") ?? undefined}
+                    className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                  >
+                    Terminar
+                  </button>
+                )}
                 {SERVICIO_CANCELABLE.includes(srv.estado) && (
-                  <button onClick={cancelarServicio} className="rounded-md border border-rose-200 px-3 py-1 text-xs text-rose-600 hover:bg-rose-50">
+                  <button onClick={() => setCierre("cancelar")} className="rounded-md border border-rose-200 px-3 py-1 text-xs text-rose-600 hover:bg-rose-50">
                     Cancelar
                   </button>
                 )}
@@ -1630,6 +1633,17 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
             await recargar();
           }}
           onClose={() => setPidiendoTiempo(null)}
+        />
+      )}
+
+      {cierre && srv && (
+        <CierreServicioModal
+          solicitud={s}
+          modo={cierre}
+          onClose={() => setCierre(null)}
+          onHecho={() => {
+            void recargar();
+          }}
         />
       )}
 
