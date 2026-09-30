@@ -9,7 +9,7 @@ import { puedeAccederPersona, esGestorOrganizacion, filtrarEconomia, puedeVerImp
 import { validaciones, registrarHistorial, TransicionInvalidaError } from "../services/estados.js";
 import { notificarGestores, notificarUsuario } from "../services/notificaciones.js";
 import { asegurarSesiones, sincronizarSesionesConPlan } from "../services/sesiones.js";
-import { ArchivadoRechazado, archivarSolicitud } from "../services/archivado.js";
+import { ArchivadoRechazado, archivarSolicitud, eliminarSolicitudSinActividad } from "../services/archivado.js";
 
 export const solicitudesRouter = Router();
 solicitudesRouter.use(autenticar);
@@ -118,10 +118,9 @@ solicitudesRouter.post("/", async (req, res) => {
 });
 
 // Eliminar (sección "si selecciono todas las solicitudes pueda
-// eliminarlo"): solo mientras todavía no exista un Servicio — en cuanto se
-// acepta y se lanza la búsqueda de profesional, ya hay historial operativo
-// (y potencialmente facturación) que no debe poder desaparecer; a partir de
-// ahí la vía correcta es cancelarla, no borrarla.
+// eliminarlo"): mientras no haya actividad real detrás —ninguna jornada
+// empezada, nada facturado ni liquidado—. Con actividad hay historial contable
+// que no debe desaparecer; ahí la vía es cancelar o archivar.
 solicitudesRouter.delete("/:id", async (req, res) => {
   const usuario = req.usuario!;
   if (!esGestorOrganizacion(usuario)) return res.status(403).json({ error: "Sin permiso" });
@@ -129,16 +128,17 @@ solicitudesRouter.delete("/:id", async (req, res) => {
   const solicitud = await prisma.solicitud.findUnique({ where: { id: req.params.id }, include: { servicio: true } });
   if (!solicitud) return res.status(404).json({ error: "No encontrada" });
   if (solicitud.organizacionId !== usuario.organizacionId) return res.status(403).json({ error: "Sin permiso" });
-  if (solicitud.servicio) {
-    return res.status(409).json({ error: "Ya tiene un servicio en marcha; cancélala en vez de eliminarla" });
+  const asignado = solicitud.servicio?.profesionalId
+    ? await prisma.usuario.findFirst({ where: { profesionalId: solicitud.servicio.profesionalId }, select: { id: true } })
+    : null;
+  try {
+    await eliminarSolicitudSinActividad(solicitud.id);
+  } catch (e) {
+    if (e instanceof ArchivadoRechazado) return res.status(409).json({ error: e.message });
+    throw e;
   }
 
-  await prisma.$transaction([
-    prisma.estadoHistorial.deleteMany({ where: { solicitudId: solicitud.id } }),
-    prisma.plan.deleteMany({ where: { solicitudId: solicitud.id } }),
-    prisma.solicitud.delete({ where: { id: solicitud.id } }),
-  ]);
-
+  if (asignado) await notificarUsuario(asignado.id, "servicio_cancelado", `El servicio ${solicitud.servicio?.codigo} se ha retirado: ya no tienes que ir.`).catch(() => undefined);
   await registrarAuditoria({
     usuarioId: usuario.sub,
     organizacionId: usuario.organizacionId,

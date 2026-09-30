@@ -11,6 +11,7 @@ import { notificarGestores, notificarUsuario } from "../services/notificaciones.
 import { anotarSiNoSeCreo, aMedianoche, asegurarSesiones, diasPrevistosEntre } from "../services/sesiones.js";
 import { candidatosParaServicio } from "../services/candidatos.js";
 import { retirarJornadasSinEmpezar } from "../services/archivado.js";
+import { CicloRechazado, cancelarServicio, terminarServicio } from "../services/ciclo.js";
 import { calcularReparto, minutosEntre } from "../services/economia.js";
 import { reglasDe } from "../services/motorTiempo.js";
 
@@ -969,6 +970,19 @@ serviciosRouter.post("/:id/estado", async (req, res) => {
     }
   }
 
+  // Cancelar tiene consecuencias (agenda, solicitud, avisos): las hace un solo
+  // sitio, el mismo que usa el botón «Cancelar servicio».
+  if (parsed.data.estado === "CANCELADO") {
+    try {
+      await cancelarServicio(servicio.id, parsed.data.motivo?.trim() || "Servicio cancelado");
+    } catch (err) {
+      if (err instanceof CicloRechazado) return res.status(409).json({ error: err.message });
+      throw err;
+    }
+    await registrarAuditoria({ usuarioId: usuario.sub, organizacionId: servicio.organizacionId, accion: "cancelar_servicio", entidadTipo: "Servicio", entidadId: servicio.id, detalle: parsed.data.motivo });
+    return res.json(await prisma.servicio.findUnique({ where: { id: servicio.id } }));
+  }
+
   const actualizado = await prisma.servicio.update({
     where: { id: servicio.id },
     data: { estado: parsed.data.estado },
@@ -991,10 +1005,6 @@ serviciosRouter.post("/:id/estado", async (req, res) => {
     detalle: `${servicio.estado} → ${parsed.data.estado}`,
   });
 
-  if (parsed.data.estado === "CANCELADO") {
-    await retirarJornadasSinEmpezar(servicio.id, "Servicio cancelado");
-  }
-
   // Si coordinación mueve el servicio a mano hasta confirmado o en curso, la
   // jornada también sale sola: el camino largo y el atajo dejan el servicio
   // en el mismo sitio.
@@ -1014,6 +1024,50 @@ serviciosRouter.post("/:id/estado", async (req, res) => {
   }
 
   res.json(actualizado);
+});
+
+const cierreSchema = z.object({ motivo: z.string().trim().min(3, "Cuenta brevemente por qué").max(500) });
+
+async function servicioDeGestor(req: import("express").Request, res: import("express").Response) {
+  const servicio = await prisma.servicio.findUnique({ where: { id: req.params.id } });
+  if (!servicio) { res.status(404).json({ error: "No encontrado" }); return null; }
+  if (!esGestorOrganizacion(req.usuario!) || servicio.organizacionId !== req.usuario!.organizacionId) { res.status(403).json({ error: "Sin permiso" }); return null; }
+  return servicio;
+}
+
+// Dar por terminado un servicio en marcha (un recurrente que se acaba, o uno al
+// que ya no hace falta volver). Lo hecho se verifica, se cobra y se paga; lo que
+// nadie ha empezado sale de la agenda.
+serviciosRouter.post("/:id/terminar", async (req, res) => {
+  const parsed = cierreSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Motivo obligatorio" });
+  const servicio = await servicioDeGestor(req, res);
+  if (!servicio) return;
+  try {
+    const r = await terminarServicio(servicio.id, parsed.data.motivo);
+    await registrarAuditoria({ usuarioId: req.usuario!.sub, organizacionId: servicio.organizacionId, accion: "terminar_servicio", entidadTipo: "Servicio", entidadId: servicio.id, detalle: parsed.data.motivo });
+    res.json(r);
+  } catch (err) {
+    if (err instanceof CicloRechazado) return res.status(409).json({ error: err.message });
+    throw err;
+  }
+});
+
+// Cancelar un servicio: no sigue, sus jornadas sin empezar salen de la agenda, su
+// solicitud queda cancelada y se avisa a la profesional y a la familia.
+serviciosRouter.post("/:id/cancelar", async (req, res) => {
+  const parsed = cierreSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Motivo obligatorio" });
+  const servicio = await servicioDeGestor(req, res);
+  if (!servicio) return;
+  try {
+    const r = await cancelarServicio(servicio.id, parsed.data.motivo);
+    await registrarAuditoria({ usuarioId: req.usuario!.sub, organizacionId: servicio.organizacionId, accion: "cancelar_servicio", entidadTipo: "Servicio", entidadId: servicio.id, detalle: parsed.data.motivo });
+    res.json(r);
+  } catch (err) {
+    if (err instanceof CicloRechazado) return res.status(409).json({ error: err.message });
+    throw err;
+  }
 });
 
 const crearVisitaSchema = z.object({
@@ -1166,26 +1220,11 @@ serviciosRouter.post("/:id/confirmar-cancelacion", requiereRol("COORDINADOR", "O
   if (!incidencia) return res.status(409).json({ error: "No hay ninguna solicitud de cancelación pendiente" });
 
   try {
-    validaciones.servicio(servicio.estado, "CANCELADO");
+    await cancelarServicio(servicio.id, parsed.data.motivo ?? "Cancelación confirmada por coordinación");
   } catch (err) {
-    if (err instanceof TransicionInvalidaError) return res.status(409).json({ error: err.message });
+    if (err instanceof CicloRechazado) return res.status(409).json({ error: err.message });
     throw err;
   }
-
-  await prisma.servicio.update({ where: { id: servicio.id }, data: { estado: "CANCELADO" } });
-  await registrarHistorial({
-    entidadTipo: "Servicio",
-    estadoAnterior: servicio.estado,
-    estadoNuevo: "CANCELADO",
-    motivo: parsed.data.motivo ?? "Cancelación confirmada por coordinación",
-    servicioId: servicio.id,
-  });
-
-  await prisma.solicitud.update({ where: { id: servicio.solicitudId }, data: { estado: "CANCELADA" } }).catch(() => undefined);
-  // Cancelado el servicio, sus jornadas sin empezar salen de la agenda: si no,
-  // seguían en el panel de la profesional y la bandeja avisaba de visitas que
-  // no iniciaba nadie de un servicio que ya no existía.
-  await retirarJornadasSinEmpezar(servicio.id, "Servicio cancelado");
 
   await prisma.incidencia.update({ where: { id: incidencia.id }, data: { estado: "RESUELTA" } });
   await registrarHistorial({
@@ -1204,18 +1243,7 @@ serviciosRouter.post("/:id/confirmar-cancelacion", requiereRol("COORDINADOR", "O
     entidadId: servicio.id,
   });
 
-  const personaConUsuario = await prisma.persona.findUnique({ where: { id: servicio.solicitud.personaId }, include: { usuario: true } });
-  if (personaConUsuario?.usuario) {
-    await notificarUsuario(personaConUsuario.usuario.id, "cancelacion_confirmada", `Tu servicio ${servicio.codigo} ha sido cancelado.`, servicio.solicitudId);
-  }
-  const familiares = await prisma.familiarRelacion.findMany({
-    where: { personaId: servicio.solicitud.personaId, revocadoAt: null },
-    select: { usuarioId: true },
-  });
-  for (const f of familiares) {
-    await notificarUsuario(f.usuarioId, "cancelacion_confirmada", `El servicio ${servicio.codigo} ha sido cancelado.`, servicio.solicitudId);
-  }
-
+  // El aviso a la persona, a la familia y a la profesional lo da cancelarServicio.
   res.json({ ok: true });
 });
 

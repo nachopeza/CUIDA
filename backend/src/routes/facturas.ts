@@ -1,3 +1,4 @@
+import { cierreTrasMovimiento } from "../services/ciclo.js";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
@@ -412,6 +413,8 @@ facturasRouter.post("/:id/cobrar", requiereRol("COORDINADOR", "ORGANIZACION", "A
     entidadTipo: "Factura",
     entidadId: factura.id,
   });
+  const cobradas = await prisma.visita.findMany({ where: { facturaId: factura.id }, select: { id: true } });
+  await cierreTrasMovimiento(cobradas.map((v) => v.id));
   res.json(actualizada);
 });
 

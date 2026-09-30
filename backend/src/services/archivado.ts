@@ -101,3 +101,62 @@ export async function archivarSolicitud(solicitudId: string, motivo: string): Pr
   await registrarHistorial({ entidadTipo: "Solicitud", estadoAnterior: solicitud.estado, estadoNuevo: "CERRADA", motivo, solicitudId: solicitud.id });
   return { resultado: "CERRADA", jornadasRetiradas };
 }
+
+// Eliminar de verdad —que no quede rastro en las listas— sólo se puede si el
+// servicio nunca llegó a existir en la práctica: ninguna jornada empezada, nada
+// facturado ni liquidado, ningún documento. Con actividad real hay historial
+// contable que conservar (y la ley lo exige): ahí la salida es cancelar/archivar.
+export async function eliminarSolicitudSinActividad(solicitudId: string): Promise<{ codigo: string }> {
+  const solicitud = await prisma.solicitud.findUnique({
+    where: { id: solicitudId },
+    include: { servicio: { include: { visitas: true } } },
+  });
+  if (!solicitud) throw new ArchivadoRechazado("Solicitud no encontrada");
+  const servicio = solicitud.servicio;
+  const visitas = servicio?.visitas ?? [];
+  const visitaIds = visitas.map((v) => v.id);
+
+  if (servicio) {
+    const conActividad = visitas.some((v) => v.horaInicioReal || v.facturaId || !["PROGRAMADA", "CONFIRMADA", "CANCELADA"].includes(v.estado));
+    if (conActividad) {
+      throw new ArchivadoRechazado("Ya hay jornadas trabajadas o facturadas: no se puede borrar, pero sí cancelar o archivar para sacarlo de las listas.");
+    }
+    const [enFactura, enLiquidacion, documentos] = await Promise.all([
+      prisma.lineaFactura.count({ where: { visitaId: { in: visitaIds } } }),
+      prisma.lineaLiquidacion.count({ where: { visitaId: { in: visitaIds } } }),
+      prisma.documento.count({ where: { OR: [{ servicioId: servicio.id }, { visitaId: { in: visitaIds } }] } }),
+    ]);
+    if (enFactura + enLiquidacion > 0) throw new ArchivadoRechazado("Tiene importes facturados o liquidados: cancélalo o archívalo, no se puede borrar.");
+    if (documentos > 0) throw new ArchivadoRechazado("Tiene documentos adjuntos: cancélalo o archívalo, no se puede borrar.");
+  }
+
+  const incidencias = servicio ? await prisma.incidencia.findMany({ where: { servicioId: servicio.id }, select: { id: true } }) : [];
+  const incidenciaIds = incidencias.map((i) => i.id);
+
+  await prisma.$transaction([
+    prisma.correccionFichaje.deleteMany({ where: { visitaId: { in: visitaIds } } }),
+    prisma.actuacion.deleteMany({ where: { visitaId: { in: visitaIds } } }),
+    prisma.tarea.deleteMany({ where: { visitaId: { in: visitaIds } } }),
+    prisma.estadoHistorial.deleteMany({
+      where: {
+        OR: [
+          { solicitudId },
+          ...(servicio ? [{ servicioId: servicio.id }] : []),
+          { visitaId: { in: visitaIds } },
+          { incidenciaId: { in: incidenciaIds } },
+        ],
+      },
+    }),
+    prisma.incidencia.deleteMany({ where: { id: { in: incidenciaIds } } }),
+    prisma.visita.deleteMany({ where: { id: { in: visitaIds } } }),
+    ...(servicio
+      ? [
+          prisma.servicioInteres.deleteMany({ where: { servicioId: servicio.id } }),
+          prisma.servicio.delete({ where: { id: servicio.id } }),
+        ]
+      : []),
+    prisma.plan.deleteMany({ where: { solicitudId } }),
+    prisma.solicitud.delete({ where: { id: solicitudId } }),
+  ]);
+  return { codigo: solicitud.codigo };
+}

@@ -7,6 +7,7 @@ import { validaciones, registrarHistorial, TransicionInvalidaError, TRANSICIONES
 import { notificarGestores } from "../services/notificaciones.js";
 import { esGestorOrganizacion, ocultarTarifaSiProcede, soloLoQueCobraElProfesional } from "../services/permisos.js";
 import { anotarSiNoSeCreo, aMedianoche, asegurarSesiones, avanzarAgenda } from "../services/sesiones.js";
+import { avanzarSiEstaVerificado, servicioEnCurso } from "../services/ciclo.js";
 import { formatearDuracion, minutosFichados } from "../services/economia.js";
 import { generarCodigo } from "../lib/codes.js";
 import { liquidarVisita, tarifaAplicable } from "../services/visitaEconomia.js";
@@ -170,6 +171,9 @@ visitasRouter.post("/:id/iniciar", async (req, res) => {
     estadoNuevo: "EN_CURSO",
     visitaId: visita.id,
   });
+
+  // Fichar la primera jornada es lo que pone el servicio en marcha.
+  await servicioEnCurso(visita.servicioId);
 
   await registrarAuditoria({
     usuarioId: req.usuario!.sub,
@@ -407,38 +411,11 @@ visitasRouter.post("/:id/revisar", requiereRol("COORDINADOR", "ORGANIZACION", "A
     entidadId: visita.id,
   });
 
-  // Bug conocido: verificar la visita dejaba el servicio parado para
-  // siempre en EN_CURSO — nunca llegaba a FINALIZADO/VALIDADO, así que
-  // "Finalizadas" siempre aparecía vacío. Para un servicio PUNTUAL, una vez
-  // todas sus visitas están verificadas (y no hay incidencia general
-  // abierta), avanzamos el servicio automáticamente: la propia verificación
-  // ya es la confirmación con la familia que exige el paso a VALIDADO. Un
-  // servicio RECURRENTE nunca se cierra así: sigue esperando más visitas.
-  const servicioActualizado = await prisma.servicio.findUnique({
-    where: { id: visita.servicioId },
-    include: { visitas: true, incidencias: true },
-  });
-  if (servicioActualizado && servicioActualizado.tipoServicio !== "RECURRENTE") {
-    const todasRevisadas = servicioActualizado.visitas.every((v) => v.estado === "REVISADA");
-    const incidenciaAbierta = servicioActualizado.incidencias.some(
-      (i) => i.tipo === "GENERAL" && !["RESUELTA", "CERRADA"].includes(i.estado),
-    );
-    if (todasRevisadas && !incidenciaAbierta) {
-      let estadoActual = servicioActualizado.estado;
-      for (const siguiente of ["FINALIZADO", "VALIDADO"] as const) {
-        if (!(TRANSICIONES_SERVICIO[estadoActual] ?? []).includes(siguiente)) break;
-        await prisma.servicio.update({ where: { id: servicioActualizado.id }, data: { estado: siguiente } });
-        await registrarHistorial({
-          entidadTipo: "Servicio",
-          estadoAnterior: estadoActual,
-          estadoNuevo: siguiente,
-          motivo: "Todas las visitas verificadas con la familia",
-          servicioId: servicioActualizado.id,
-        });
-        estadoActual = siguiente;
-      }
-    }
-  }
+  // Verificada la jornada, el servicio avanza solo si con ella queda todo
+  // verificado (un puntual termina; un recurrente sigue esperando más jornadas
+  // salvo que ya se le haya dado fin).
+  await avanzarSiEstaVerificado(visita.servicioId);
+  const servicioActualizado = await prisma.servicio.findUnique({ where: { id: visita.servicioId }, select: { id: true, estado: true, tipoServicio: true } });
 
   // Un servicio recurrente no se cierra al verificar una jornada: genera la
   // siguiente. Así el contrato queda siempre con un día por delante en la
@@ -818,6 +795,7 @@ visitasRouter.post("/:id/fichar-por", requiereRol("COORDINADOR", "ORGANIZACION",
     ],
   });
 
+  await servicioEnCurso(visita.servicioId);
   const liquidada = await liquidarVisita(visita.id);
 
   await registrarHistorial({

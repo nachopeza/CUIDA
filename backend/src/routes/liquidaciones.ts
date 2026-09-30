@@ -1,3 +1,4 @@
+import { cierreTrasMovimiento, marcarPagoProfesional } from "../services/ciclo.js";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
@@ -269,16 +270,12 @@ liquidacionesRouter.post("/:id/pagar", soloGestion, async (req, res) => {
     include: INCLUDE_LIQ,
   });
 
-  // Los servicios de esas jornadas quedan marcados como pagados al
-  // profesional: es el dato que ya existía y que ahora se rellena solo.
+  // Los servicios de esas jornadas quedan marcados como pagados a la
+  // profesional cuando toda su parte está pagada, y se cierran si además la
+  // familia ya ha pagado.
   const visitaIds = liquidacion.lineas.map((l) => l.visitaId).filter((v): v is string => v != null);
-  if (visitaIds.length > 0) {
-    const visitas = await prisma.visita.findMany({ where: { id: { in: visitaIds } }, select: { servicioId: true } });
-    await prisma.servicio.updateMany({
-      where: { id: { in: Array.from(new Set(visitas.map((v) => v.servicioId))) } },
-      data: { pagoProfesionalEstado: "PAGADO" },
-    });
-  }
+  await marcarPagoProfesional(visitaIds);
+  await cierreTrasMovimiento(visitaIds);
 
   const cuenta = await prisma.usuario.findFirst({ where: { profesionalId: liquidacion.profesionalId }, select: { id: true } });
   if (cuenta) {
