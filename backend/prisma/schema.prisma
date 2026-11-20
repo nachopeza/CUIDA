@@ -32,6 +32,7 @@ enum EstadoOrganizacion {
 
 model Organizacion {
   id                 String             @id @default(cuid())
+  contratosHogar     ContratoHogar[]
   codigo             String             @unique // ORG-00017
   nombre             String
   estado             EstadoOrganizacion @default(PRUEBA)
@@ -193,8 +194,9 @@ enum EstadoPersona {
 }
 
 model Persona {
-  id              String        @id @default(cuid())
-  codigo          String        @unique // CUI-000184 (identificador permanente)
+  id              String          @id @default(cuid())
+  contratosHogar  ContratoHogar[]
+  codigo          String          @unique // CUI-000184 (identificador permanente)
   nombre          String
   apellidos       String
   fechaNacimiento DateTime?
@@ -216,9 +218,9 @@ model Persona {
   medicacion      String?
   medico          String? // médico/centro de referencia
   recomendaciones String?
-  estado          EstadoPersona @default(PENDIENTE)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  estado          EstadoPersona   @default(PENDIENTE)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   organizacionId String
   organizacion   Organizacion @relation(fields: [organizacionId], references: [id])
@@ -349,6 +351,7 @@ enum EstadoProfesional {
 
 model Profesional {
   id             String                  @id @default(cuid())
+  contratosHogar ContratoHogar[]
   codigo         String                  @unique // PRO-00031
   nombre         String
   apellidos      String
@@ -919,7 +922,11 @@ model LineaFactura {
   ivaPorcentaje  Decimal @default(0) @db.Decimal(5, 2)
   ivaImporte     Decimal @default(0) @db.Decimal(10, 2)
 
-  visitaId String?
+  visitaId        String?
+  // La cuota de gestión de un contrato de empleo de hogar: no es tiempo, es el
+  // servicio de gestoría de ese mes.
+  contratoHogarId String?
+  contratoHogar   ContratoHogar? @relation(fields: [contratoHogarId], references: [id])
 
   @@map("lineas_factura")
 }
@@ -1691,4 +1698,123 @@ enum CanalConsentimiento {
   TELEFONO
   APLICACION
   PAPEL_FIRMADO
+}
+
+// ---------------------------------------------------------------------------
+// Empleo de hogar gestionado
+//
+// Otro modelo de servicio: la familia contrata a una empleada de hogar fija y es
+// ella la empleadora (Sistema Especial de Empleados de Hogar de la Seguridad
+// Social). CUIDA no presta las horas: se ocupa de todo el papeleo —alta,
+// contrato, nóminas, cotizaciones, vacaciones, baja— y cobra por ello una cuota
+// de gestión mensual. Por eso no tiene jornadas que fichar: tiene trámites que
+// hacer y una nómina cada mes.
+// ---------------------------------------------------------------------------
+
+enum EstadoContratoHogar {
+  EN_TRAMITE
+  ACTIVO
+  FINALIZADO
+}
+
+enum JornadaHogar {
+  EXTERNA // por horas, no vive en el domicilio
+  INTERNA // vive en el domicilio
+}
+
+enum EstadoTramite {
+  PENDIENTE
+  EN_CURSO
+  HECHO
+  NO_APLICA
+}
+
+enum EstadoNominaHogar {
+  PREPARADA
+  ENVIADA
+  PAGADA
+}
+
+model ContratoHogar {
+  id             String              @id @default(cuid())
+  codigo         String              @unique // HOG-000001
+  estado         EstadoContratoHogar @default(EN_TRAMITE)
+  organizacionId String
+  organizacion   Organizacion        @relation(fields: [organizacionId], references: [id])
+
+  // El hogar: la persona atendida, y quien firma como empleador (ella misma o
+  // un familiar).
+  personaId     String
+  persona       Persona @relation(fields: [personaId], references: [id])
+  titularNombre String
+  titularNif    String?
+  solicitudId   String? @unique
+
+  // La trabajadora. No tiene por qué ser de la plantilla de CUIDA: la contrata
+  // la familia. Si viene de la bolsa, queda enlazada a su ficha.
+  trabajadoraNombre    String
+  trabajadoraApellidos String
+  trabajadoraDni       String?
+  trabajadoraNaf       String? // número de afiliación a la Seguridad Social
+  trabajadoraTelefono  String?
+  trabajadoraIban      String?
+  profesionalId        String?
+  profesional          Profesional? @relation(fields: [profesionalId], references: [id])
+
+  jornada             JornadaHogar @default(EXTERNA)
+  horasSemanales      Int
+  horario             String?
+  salarioBrutoMensual Decimal      @db.Decimal(10, 2)
+  pagasExtra          Int          @default(2)
+  prorrateaPagas      Boolean      @default(false)
+  fechaInicio         DateTime
+  fechaFin            DateTime?
+  motivoFin           String?
+
+  // Lo que cobra CUIDA: una cuota cada mes y, si se pacta, una de alta.
+  cuotaGestionMensual Decimal  @db.Decimal(10, 2)
+  cuotaAlta           Decimal? @db.Decimal(10, 2)
+  notas               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  tramites      TramiteHogar[]
+  nominas       NominaHogar[]
+  lineasFactura LineaFactura[]
+
+  @@map("contratos_hogar")
+}
+
+model TramiteHogar {
+  id             String        @id @default(cuid())
+  contratoId     String
+  contrato       ContratoHogar @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  clave          String // ALTA_TRABAJADORA, CONTRATO…
+  titulo         String
+  ayuda          String?
+  orden          Int           @default(0)
+  // Sin este trámite hecho la trabajadora no puede empezar.
+  imprescindible Boolean       @default(false)
+  estado         EstadoTramite @default(PENDIENTE)
+  fecha          DateTime?
+  notas          String?
+  updatedAt      DateTime      @updatedAt
+
+  @@map("tramites_hogar")
+}
+
+model NominaHogar {
+  id         String            @id @default(cuid())
+  contratoId String
+  contrato   ContratoHogar     @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  mes        String // AAAA-MM
+  bruto      Decimal           @db.Decimal(10, 2)
+  neto       Decimal?          @db.Decimal(10, 2)
+  estado     EstadoNominaHogar @default(PREPARADA)
+  notas      String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@unique([contratoId, mes])
+  @@map("nominas_hogar")
 }

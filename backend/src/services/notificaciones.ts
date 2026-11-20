@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma.js";
 // A qué ficha lleva el aviso al pincharlo. Antes solo se sabía apuntar a una
 // solicitud y el resto de notificaciones nacían muertas: se pinchaban y no
 // pasaba nada.
-export type Referencia = { tipo: "Solicitud" | "Incidencia"; id: string };
+export type Referencia = { tipo: "Solicitud" | "Incidencia" | "ContratoHogar"; id: string };
 
 function referenciaDe(ref?: Referencia | string) {
   // Se admite el id de solicitud suelto por compatibilidad con las llamadas

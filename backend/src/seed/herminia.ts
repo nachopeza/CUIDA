@@ -117,6 +117,7 @@ async function limpiarOrganizacion(organizacionId: string) {
   await prisma.registroJornada.deleteMany({ where: { profesionalId: { in: profesionalIds } } });
   await prisma.ausencia.deleteMany({ where: { profesionalId: { in: profesionalIds } } });
   await prisma.lineaFactura.deleteMany({ where: { factura: { personaId: { in: personaIds } } } });
+  await prisma.contratoHogar.deleteMany({ where: { organizacionId } });
   await prisma.factura.updateMany({ where: { personaId: { in: personaIds } }, data: { remesaId: null, mandatoSepaId: null } });
   await prisma.remesa.deleteMany({ where: { organizacionId } });
   await prisma.mandatoSepa.deleteMany({ where: { datosFacturacion: { personaId: { in: personaIds } } } });
@@ -215,6 +216,15 @@ async function main() {
     { codigo: "paseo", nombre: "Paseo", descripcion: "Paseo y actividad física acompañada", ivaPorcentaje: 4, precioBase: 10 },
     { codigo: "citas", nombre: "Citas médicas", descripcion: "Acompañamiento a citas médicas", ivaPorcentaje: 4, precioBase: 12 },
     { codigo: "apoyo_puntual", nombre: "Apoyo puntual", descripcion: "Apoyo puntual no recurrente", ivaPorcentaje: 10, precioBase: 15 },
+    // Otro modelo: no son horas de CUIDA, es la gestión de una empleada de hogar
+    // contratada por la familia. Lleva el IVA general porque es gestoría.
+    {
+      codigo: "empleo_hogar",
+      nombre: "Empleada de hogar · gestión integral",
+      descripcion: "Buscamos a la persona y nos ocupamos del alta, el contrato, las nóminas y la Seguridad Social",
+      ivaPorcentaje: 21,
+      precioBase: 45,
+    },
   ];
   for (const n of catalogo) {
     await prisma.necesidadCatalogo.upsert({ where: { codigo: n.codigo }, update: { ivaPorcentaje: n.ivaPorcentaje, precioBase: n.precioBase }, create: n });
@@ -1536,6 +1546,74 @@ async function main() {
   });
   for (const v of yaFichadas) await liquidarVisita(v.id);
   console.log(`\nMotor de tiempo: reglas de la casa, 3 tarifas (vigente: ${tarifaGeneral.nombre}) y ${yaFichadas.length} jornadas con su desglose calculado.`);
+
+  // Empleo de hogar gestionado: Herminia ya tiene a su empleada dada de alta y
+  // Manuel está en plena contratación, con el alta todavía por hacer.
+  const { TRAMITES_ALTA, crearTramites, brutoDelMes } = await import("../services/hogar.js");
+  const inicioMarisol = new Date();
+  inicioMarisol.setMonth(inicioMarisol.getMonth() - 2, 1);
+  inicioMarisol.setHours(0, 0, 0, 0);
+  const contratoHerminia = await prisma.contratoHogar.create({
+    data: {
+      codigo: "HOG-000001",
+      estado: "ACTIVO",
+      organizacionId: organizacion.id,
+      personaId: herminia.id,
+      titularNombre: "Isabel Ruiz Campos (hija)",
+      titularNif: "12345678Z",
+      trabajadoraNombre: "Marisol",
+      trabajadoraApellidos: "Quintero Ruiz",
+      trabajadoraDni: "X1234567L",
+      trabajadoraNaf: "39/12345678/90",
+      trabajadoraTelefono: "600 222 333",
+      trabajadoraIban: "ES00 2222 2222 2222 2222 2222",
+      jornada: "EXTERNA",
+      horasSemanales: 20,
+      horario: "De lunes a viernes, de 9:00 a 13:00",
+      salarioBrutoMensual: 720,
+      pagasExtra: 2,
+      prorrateaPagas: false,
+      fechaInicio: inicioMarisol,
+      cuotaGestionMensual: 45,
+      cuotaAlta: 90,
+      notas: "Le gusta que Marisol le lea el periódico mientras desayuna.",
+      tramites: {
+        create: crearTramites(TRAMITES_ALTA).map((t) => ({ ...t, estado: t.clave === "CALENDARIO" ? ("EN_CURSO" as const) : ("HECHO" as const), fecha: t.clave === "CALENDARIO" ? null : inicioMarisol })),
+      },
+    },
+  });
+  for (let k = 2; k >= 1; k--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - k, 1);
+    const mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    await prisma.nominaHogar.create({ data: { contratoId: contratoHerminia.id, mes, bruto: brutoDelMes(contratoHerminia, mes), estado: "PAGADA" } });
+  }
+  const contratoManuel = await prisma.contratoHogar.create({
+    data: {
+      codigo: "HOG-000002",
+      estado: "EN_TRAMITE",
+      organizacionId: organizacion.id,
+      personaId: manuel.persona.id,
+      titularNombre: "Manuel Prats Soler",
+      trabajadoraNombre: "Rocío",
+      trabajadoraApellidos: "Gil Ortega",
+      trabajadoraDni: "23456789T",
+      trabajadoraTelefono: "600 444 777",
+      jornada: "INTERNA",
+      horasSemanales: 40,
+      horario: "Interna, descanso de sábado tarde a lunes",
+      salarioBrutoMensual: 1300,
+      pagasExtra: 2,
+      prorrateaPagas: true,
+      fechaInicio: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1),
+      cuotaGestionMensual: 55,
+      cuotaAlta: 120,
+      tramites: {
+        create: crearTramites(TRAMITES_ALTA).map((t) => ({ ...t, estado: t.clave === "DOCUMENTACION" ? ("HECHO" as const) : t.clave === "ALTA_EMPLEADOR" ? ("EN_CURSO" as const) : ("PENDIENTE" as const) })),
+      },
+    },
+  });
+  console.log(`\nEmpleo de hogar: ${contratoHerminia.codigo} (Herminia, activo) · ${contratoManuel.codigo} (Manuel, en trámite)`);
 
   console.log(`Organización: ${organizacion.codigo} · Persona: ${herminia.codigo} · Solicitud: ${solicitud.codigo} · Servicio: ${servicio.codigo} · Visita: ${visita.codigo}`);
   console.log("\nSolicitudes adicionales de ejemplo (todos los estados del panel):");

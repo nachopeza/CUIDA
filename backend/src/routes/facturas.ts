@@ -116,7 +116,23 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
   // parte, y la parte es la factura siguiente.
   const regularizaciones = await cobrosPendientes(persona.id, usuario.organizacionId!, hasta);
 
-  if (servicios.length === 0 && visitasDelMes.length === 0 && regularizaciones.length === 0) {
+  // La cuota de gestión de los contratos de empleo de hogar vigentes ese mes. No
+  // es tiempo, es gestoría: lleva el IVA general y es entera de CUIDA. La cuota
+  // de alta, si se pactó, va en la primera factura en la que entra el contrato.
+  const contratosHogar = (
+    await prisma.contratoHogar.findMany({
+      where: {
+        organizacionId: usuario.organizacionId!,
+        personaId: persona.id,
+        estado: { in: ["ACTIVO", "FINALIZADO"] },
+        fechaInicio: { lt: hasta },
+        OR: [{ fechaFin: null }, { fechaFin: { gte: desde } }],
+      },
+      include: { lineasFactura: { include: { factura: { select: { mes: true } } } } },
+    })
+  ).filter((c) => (Number(c.cuotaGestionMensual) > 0 || Number(c.cuotaAlta ?? 0) > 0) && !c.lineasFactura.some((l) => l.factura.mes === parsed.data.mes));
+
+  if (servicios.length === 0 && visitasDelMes.length === 0 && regularizaciones.length === 0 && contratosHogar.length === 0) {
     return res.status(409).json({ error: "No hay servicios ni jornadas pendientes de facturar para esa persona en ese mes" });
   }
 
@@ -144,6 +160,7 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
     ivaPorcentaje: number;
     ivaImporte: number;
     visitaId?: string | null;
+    contratoHogarId?: string | null;
   }[] = [];
 
   let importeTotal = 0;
@@ -224,6 +241,21 @@ facturasRouter.post("/generar", requiereRol("COORDINADOR", "ORGANIZACION", "ADMI
     const delProfesional = redondear((r.minutos / 60) * Number(visita?.precioHoraProfesional ?? 0));
     comisionTotal += redondear(r.importe - delProfesional);
     importeProfesionales += delProfesional;
+  }
+
+  const IVA_GESTION = 21;
+  for (const c of contratosHogar) {
+    const cuotas: { concepto: string; importe: number }[] = [];
+    if (Number(c.cuotaGestionMensual) > 0) cuotas.push({ concepto: `Gestión de empleo de hogar · ${c.trabajadoraNombre} ${c.trabajadoraApellidos} · ${parsed.data.mes}`, importe: Number(c.cuotaGestionMensual) });
+    if (Number(c.cuotaAlta ?? 0) > 0 && c.lineasFactura.length === 0) cuotas.push({ concepto: `Alta y contratación de empleo de hogar · ${c.codigo}`, importe: Number(c.cuotaAlta) });
+    for (const q of cuotas) {
+      const iva = redondear(q.importe * (IVA_GESTION / 100));
+      lineas.push({ orden: orden++, concepto: q.concepto, minutos: null, cantidad: 1, precioUnitario: q.importe, importe: q.importe, ivaPorcentaje: IVA_GESTION, ivaImporte: iva, contratoHogarId: c.id });
+      importeTotal += q.importe;
+      ivaTotal += iva;
+      totalConIva += q.importe + iva;
+      comisionTotal += q.importe;
+    }
   }
 
   // Camino antiguo, solo para lo que no pasó por el motor.
