@@ -725,3 +725,59 @@ export interface Candidato {
   motivo: string;
   orden: number;
 }
+
+// Empleo de hogar gestionado: la familia es la empleadora y CUIDA hace el
+// papeleo a cambio de una cuota de gestión.
+export type EstadoContratoHogar = "EN_TRAMITE" | "ACTIVO" | "FINALIZADO";
+export type EstadoTramite = "PENDIENTE" | "EN_CURSO" | "HECHO" | "NO_APLICA";
+
+export interface TramiteHogar {
+  id: string;
+  clave: string;
+  titulo: string;
+  ayuda: string | null;
+  orden: number;
+  imprescindible: boolean;
+  estado: EstadoTramite;
+  fecha: string | null;
+  notas: string | null;
+}
+
+export interface NominaHogar {
+  id: string;
+  mes: string;
+  bruto: string | number;
+  neto: string | number | null;
+  estado: "PREPARADA" | "ENVIADA" | "PAGADA";
+}
+
+export interface ContratoHogar {
+  id: string;
+  codigo: string;
+  estado: EstadoContratoHogar;
+  persona: Pick<Persona, "id" | "codigo" | "nombre" | "apellidos" | "telefono" | "direccion" | "municipio">;
+  titularNombre: string;
+  titularNif: string | null;
+  trabajadoraNombre: string;
+  trabajadoraApellidos: string;
+  trabajadoraDni: string | null;
+  trabajadoraNaf: string | null;
+  trabajadoraTelefono: string | null;
+  trabajadoraIban: string | null;
+  profesional: Pick<Profesional, "id" | "codigo" | "nombre" | "apellidos" | "foto"> | null;
+  jornada: "EXTERNA" | "INTERNA";
+  horasSemanales: number;
+  horario: string | null;
+  salarioBrutoMensual: string | number;
+  pagasExtra: number;
+  prorrateaPagas: boolean;
+  fechaInicio: string;
+  fechaFin: string | null;
+  motivoFin: string | null;
+  cuotaGestionMensual: string | number;
+  cuotaAlta: string | number | null;
+  notas: string | null;
+  createdAt: string;
+  tramites: TramiteHogar[];
+  nominas: NominaHogar[];
+}

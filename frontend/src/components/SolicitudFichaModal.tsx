@@ -21,6 +21,7 @@ import { Cronometro, horasTrabajadas } from "./Cronometro.js";
 import { TiempoTrabajadoModal, formatearDuracion } from "./TiempoTrabajadoModal.js";
 import { calcularReparto, duracion, euros, horaDe, minutosEntre, minutosFichados } from "../lib/economia.js";
 import { useFichas } from "../lib/fichas.js";
+import { NuevoContratoHogarModal } from "./ContratoHogarFormulario.js";
 import { parsearDisponibilidad } from "../lib/disponibilidad.js";
 import { etiquetaTitulacion, zonaDe } from "../lib/territorio.js";
 import { resumenDisponibilidad } from "./DisponibilidadPicker.js";
@@ -124,6 +125,14 @@ interface Props {
 // solo sitio, en vez de repartidos entre las pestañas Solicitudes/Servicios.
 // Dinámica pero minimalista: solo se muestran los controles de la fase
 // actual, para que rellenarla desde coordinación no invite a errores.
+// Lo que la familia pidió al solicitar una empleada de hogar va escrito en la
+// descripción ("Jornada interna de unas 40 h a la semana…"). Se recupera para
+// que el contrato no empiece con otras condiciones que las que pidió.
+function condicionesPedidas(texto: string | null | undefined): { jornada?: "EXTERNA" | "INTERNA"; horasSemanales?: string } {
+  const m = /jornada (externa|interna) de unas (\d+) h/i.exec(texto ?? "");
+  return m ? { jornada: m[1].toUpperCase() as "EXTERNA" | "INTERNA", horasSemanales: m[2] } : {};
+}
+
 export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) {
   const { token } = useAuth();
   const [s, setS] = useState<Solicitud | null>(null);
@@ -133,7 +142,8 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   const [datosAbiertos, setDatosAbiertos] = useState(false);
   const [perfilPersonaAbierto, setPerfilPersonaAbierto] = useState(false);
   const [perfilProfesionalAbierto, setPerfilProfesionalAbierto] = useState(false);
-  const { abrirPersona, abrirProfesional, abrirIncidencia } = useFichas();
+  const { abrirPersona, abrirProfesional, abrirIncidencia, abrirHogar } = useFichas();
+  const [convirtiendoHogar, setConvirtiendoHogar] = useState(false);
   // La incidencia es una página: se cierra esta ventana y se abre encima.
   function verIncidencia(id: string) {
     onClose();
@@ -1003,12 +1013,31 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
         </div>
         {/* Mientras no hay servicio, esto es toda la solicitud. En cuanto
             lo hay, se muestra dentro del recuadro del servicio. */}
-        {!srv && bloqueQueYCuando}
+        {/* El empleo de hogar no tiene días ni horas de CUIDA que planificar. */}
+        {!srv && s.necesidad.codigo !== "empleo_hogar" && bloqueQueYCuando}
 
 
         {/* Fase 1: pendiente de revisión — sin servicio todavía. Una sola
             decisión posible: aceptar o cancelar. */}
-        {!srv && !cancelada && (
+        {/* Pide una empleada de hogar: no son horas de CUIDA, es un contrato de
+            la familia que gestionamos. Se convierte en eso y deja de ser una
+            solicitud de servicio. */}
+        {!srv && !cancelada && s.necesidad.codigo === "empleo_hogar" && !["CERRADA"].includes(s.estado) && (
+          <div className="rounded-xl border border-brand-green-200 bg-brand-green-50 p-3">
+            <p className="text-sm font-medium text-brand-900">Es un servicio de empleo de hogar con gestión integral.</p>
+            <p className="mb-2 text-sm text-slate-600">La empleada la contrata la familia y CUIDA tramita el alta, el contrato y las nóminas. No hace falta buscar profesional ni horas.</p>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => setConvirtiendoHogar(true)} className="boton-verde">
+                Crear el contrato de hogar
+              </button>
+              <button onClick={cancelarSolicitud} className="boton-peligro-suave">
+                Cancelar solicitud
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!srv && !cancelada && s.necesidad.codigo !== "empleo_hogar" && (
           <div className="rounded-xl border border-brand-100 bg-brand-50 p-3">
             <p className="mb-2 text-sm text-slate-700">Pendiente de revisión por coordinación.</p>
             <div className="flex flex-wrap gap-2">
@@ -1624,6 +1653,20 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
           onClose={() => setCierre(null)}
           onHecho={() => {
             void recargar();
+          }}
+        />
+      )}
+
+      {convirtiendoHogar && (
+        <NuevoContratoHogarModal
+          personaId={s.persona.id}
+          solicitudId={s.id}
+          inicial={condicionesPedidas(s.descripcionLibre)}
+          onClose={() => setConvirtiendoHogar(false)}
+          onCreado={(c) => {
+            onChanged();
+            onClose();
+            abrirHogar(c.id);
           }}
         />
       )}

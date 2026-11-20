@@ -610,3 +610,44 @@ lista de lo mismo tapaba lo que hay que resolver. Sí lleva los **tiempos sin
 decidir**, las **incidencias** (con «sólo las mías» y las que no tienen
 responsable) y las **solicitudes sin gestionar**: sin revisar, sin profesional
 —diciendo cuántas personas se han apuntado— o sin que nadie haya aceptado.
+
+## Empleo de hogar: el servicio fijo
+
+Además de los servicios por horas, CUIDA ofrece un servicio fijo: la familia
+contrata a su empleada de hogar y CUIDA se ocupa de todo el papeleo a cambio de
+una **cuota de gestión mensual**. La empleada trabaja para la familia, que es la
+empleadora, en el Sistema Especial de Empleados de Hogar de la Seguridad Social;
+no es una profesional de CUIDA ni sus horas pasan por las jornadas.
+
+- **Cómo llega.** La familia lo pide desde «Solicitar ayuda» → «Empleada de hogar
+  · gestión integral». No se pide por días: se dice cuándo empezaría, si es
+  externa o interna y cuántas horas a la semana, más o menos. No se crea plan de
+  días. Coordinación abre la solicitud y pulsa «Crear el contrato de hogar»; el
+  formulario sale con la jornada y las horas que pidió la familia, y la solicitud
+  queda cerrada. También se puede dar de alta directamente desde «Empleo de
+  hogar» o desde la ficha de la persona.
+- **Los trámites.** Cada contrato nace con su lista: documentación de la
+  trabajadora, alta de la familia como empleadora, **alta de la trabajadora en la
+  Seguridad Social**, **contrato firmado**, domiciliación de las cuotas,
+  evaluación de riesgos y vacaciones. Los dos marcados como imprescindibles no
+  pueden ponerse en «no aplica».
+- **Cuándo empieza.** El contrato está **en trámite** hasta que el alta y el
+  contrato firmado están hechos; entonces pasa solo a **activo** y se avisa a la
+  familia. Si el primer día de trabajo está a una semana o menos y no hay alta,
+  la ficha lo avisa en rojo: trabajar sin alta es una infracción.
+- **Las nóminas.** Sólo con el contrato activo y desde el mes de inicio, una por
+  mes. El bruto es el salario pactado; con las pagas prorrateadas, salario ×
+  (12 + pagas) / 12; sin prorratear, junio y diciembre llevan la paga extra (con
+  una sola paga, sólo diciembre). Se prepara, se envía a la familia (le llega
+  aviso) y se marca pagada.
+- **Lo que se factura.** En la factura mensual de la persona entra una línea
+  «Gestión de empleo de hogar» por cada contrato vigente ese mes, y la **cuota de
+  alta**, si se pactó, sólo en la primera. Es gestoría, no tiempo: lleva el IVA
+  general (21 %) y es entera de CUIDA. El salario y las cotizaciones no pasan por
+  CUIDA: los paga la familia.
+- **Terminar.** Con fecha y motivo. Se añaden los trámites de salida: baja en la
+  Seguridad Social, finiquito y certificado de empresa. El mes en que termina
+  todavía se factura.
+- **Quién lo ve.** Coordinación, todo. La persona y su familia ven su contrato en
+  el resumen —quién es la empleada, qué trámites faltan y cómo va la nómina—,
+  sin poder cambiarlo.

@@ -66,6 +66,14 @@ verificada tarde) y los permisos. Antes se comprobaba con scripts sueltos:
    cada jornada conserva la suya, pero el «pagado a la profesional» del servicio sólo se
    marca cuando las dos partes están pagadas. Está bien, pero conviene una prueba
    automática.
-10. **Fichas de persona y profesional** siguen siendo ventanas emergentes con
-    formulario. La del servicio ya es una página completa; falta llevarles el mismo
-    diseño (hace falta la maqueta de cada una).
+10. **Empleo de hogar: la nómina sólo lleva el bruto.** No calcula cotizaciones ni
+    retención, y el neto se apunta a mano. Para el volumen de hoy basta; con muchos
+    contratos haría falta el cálculo o la conexión con un programa de nóminas.
+11. **Empleo de hogar: lo que pidió la familia va en el texto de la solicitud.** La
+    jornada y las horas se recuperan leyendo la descripción para rellenar el
+    contrato. Si alguien edita ese texto, el contrato sale con los valores por
+    defecto (se ve y se corrige en el formulario). Lo limpio es guardarlo en campos
+    propios de la solicitud.
+12. **Empleo de hogar: los documentos no se generan.** El contrato, las nóminas y el
+    finiquito se hacen fuera y se marca el trámite como hecho; no hay plantilla ni
+    archivo adjunto al trámite.

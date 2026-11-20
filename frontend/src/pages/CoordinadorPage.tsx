@@ -22,6 +22,7 @@ import {
   IconArrowDown,
   IconArrowUp,
   IconBriefcase,
+  IconBroom,
   IconCalendar,
   IconCheckCircle,
   IconClipboard,
@@ -65,6 +66,8 @@ import { PersonaPagina } from "../components/PersonaPagina.js";
 import { ProfesionalPagina } from "../components/ProfesionalPagina.js";
 import { IncidenciaPagina } from "../components/IncidenciaPagina.js";
 import { EmpresaPagina } from "../components/EmpresaPagina.js";
+import { HogarPagina } from "../components/HogarPagina.js";
+import { HogarTab } from "./coordinador/HogarTab.js";
 import { FichasProvider } from "../lib/fichas.js";
 import { IncidenciasTab } from "./coordinador/IncidenciasTab.js";
 import { AnalisisTab } from "./coordinador/AnalisisTab.js";
@@ -83,6 +86,7 @@ type Tab =
   // Operación
   | "solicitudes"
   | "servicios"
+  | "hogar"
   | "visitas"
   | "calendario"
   // Personas
@@ -137,6 +141,8 @@ const AREAS: AreaNav[] = [
     items: [
       { key: "solicitudes", label: "Solicitudes", icon: IconClipboard },
       { key: "servicios", label: "Servicios", icon: IconBriefcase },
+      // El servicio fijo: la familia contrata y CUIDA tramita.
+      { key: "hogar", label: "Empleo de hogar", icon: IconBroom },
       // Verificar es una pestaña de aquí dentro, no otra entrada: era la
       // misma tabla con otro filtro.
       { key: "visitas", label: "Jornadas", icon: IconWalk },
@@ -199,6 +205,7 @@ const TITULOS: Record<Tab, string> = {
   escritorio: "Inicio",
   solicitudes: "Solicitudes",
   servicios: "Servicios",
+  hogar: "Empleo de hogar",
   visitas: "Jornadas",
   calendario: "Calendario",
   personas: "Personas atendidas",
@@ -264,6 +271,7 @@ const TITULO_VOLVER: Record<string, string> = {
   bandeja: "Volver a la bandeja",
   solicitudes: "Volver a solicitudes",
   servicios: "Volver a servicios",
+  hogar: "Volver a empleo de hogar",
   visitas: "Volver a jornadas",
   verificacion: "Volver a jornadas",
   calendario: "Volver al calendario",
@@ -305,6 +313,7 @@ export function CoordinadorPage() {
   const [personaAbierta, setPersonaAbierta] = useState<string | null>(null);
   const [profesionalAbierto, setProfesionalAbierto] = useState<string | null>(null);
   const [empresaAbierta, setEmpresaAbierta] = useState<string | null>(null);
+  const [hogarAbierto, setHogarAbierto] = useState<string | null>(null);
   const [personasRefreshKey, setPersonasRefreshKey] = useState(0);
   const [riesgos, setRiesgos] = useState<RiesgosCobertura | null>(null);
   // Sólo para las dos cifras de Finanzas del menú: cuántas facturas quedan
@@ -402,6 +411,7 @@ export function CoordinadorPage() {
     setProfesionalAbierto(null);
     setEmpresaAbierta(null);
     setIncidenciaFichaAbierta(null);
+    setHogarAbierto(null);
   }
 
   async function abrirNuevaSolicitud() {
@@ -560,7 +570,7 @@ export function CoordinadorPage() {
   );
 
   return (
-    <FichasProvider value={{ abrirPersona: setPersonaAbierta, abrirProfesional: setProfesionalAbierto, abrirIncidencia: setIncidenciaFichaAbierta, abrirEmpresa: setEmpresaAbierta }}>
+    <FichasProvider value={{ abrirPersona: setPersonaAbierta, abrirProfesional: setProfesionalAbierto, abrirIncidencia: setIncidenciaFichaAbierta, abrirEmpresa: setEmpresaAbierta, abrirHogar: setHogarAbierto }}>
     <Panel
       nav={
       <Navegacion
@@ -608,35 +618,38 @@ export function CoordinadorPage() {
             incidencia sobre servicio), o a la lista si no hay ninguna. */}
         {(() => {
           const lista = TITULO_VOLVER[tab] ?? "Volver";
-          const debajoDe = (nivel: number) =>
-            nivel < 2 && profesionalAbierto
-              ? "Volver a la profesional"
-              : nivel < 3 && empresaAbierta
-                ? "Volver a la empresa"
-                : nivel < 4 && incidenciaFichaAbierta
-                  ? "Volver a la incidencia"
-                  : nivel < 5 && fichaAbierta
-                    ? "Volver al servicio"
-                    : lista;
+          // De arriba abajo: la primera abierta es la que se ve; «volver» lleva a
+          // la siguiente abierta, o a la lista.
+          const pila = [
+            { abierta: personaAbierta, volverA: "Volver a la persona" },
+            { abierta: profesionalAbierto, volverA: "Volver a la profesional" },
+            { abierta: empresaAbierta, volverA: "Volver a la empresa" },
+            { abierta: incidenciaFichaAbierta, volverA: "Volver a la incidencia" },
+            { abierta: hogarAbierto, volverA: "Volver al contrato de hogar" },
+            { abierta: fichaAbierta, volverA: "Volver al servicio" },
+          ];
+          const debajoDe = (nivel: number) => pila.slice(nivel + 1).find((p) => p.abierta)?.volverA ?? lista;
           const abrirServicio = (id: string) => {
             setPersonaAbierta(null);
             setProfesionalAbierto(null);
             setEmpresaAbierta(null);
             setIncidenciaFichaAbierta(null);
+            setHogarAbierto(null);
             setFichaAbierta(id);
           };
           if (personaAbierta)
-            return <PersonaPagina personaId={personaAbierta} onVolver={() => setPersonaAbierta(null)} onChanged={alCrearUsuario} onAbrirSolicitud={abrirServicio} etiquetaVolver={debajoDe(1)} />;
+            return <PersonaPagina personaId={personaAbierta} onVolver={() => setPersonaAbierta(null)} onChanged={alCrearUsuario} onAbrirSolicitud={abrirServicio} etiquetaVolver={debajoDe(0)} />;
           if (profesionalAbierto)
-            return <ProfesionalPagina profesionalId={profesionalAbierto} onVolver={() => setProfesionalAbierto(null)} onChanged={cargar} onAbrirSolicitud={abrirServicio} etiquetaVolver={debajoDe(2)} />;
+            return <ProfesionalPagina profesionalId={profesionalAbierto} onVolver={() => setProfesionalAbierto(null)} onChanged={cargar} onAbrirSolicitud={abrirServicio} etiquetaVolver={debajoDe(1)} />;
           if (empresaAbierta)
-            return <EmpresaPagina empresaId={empresaAbierta} onVolver={() => setEmpresaAbierta(null)} onChanged={cargar} onAbrirSolicitud={abrirServicio} etiquetaVolver={debajoDe(3) === TITULO_VOLVER.configuracion ? "Volver a empresas" : debajoDe(3)} />;
+            return <EmpresaPagina empresaId={empresaAbierta} onVolver={() => setEmpresaAbierta(null)} onChanged={cargar} onAbrirSolicitud={abrirServicio} etiquetaVolver={debajoDe(2) === TITULO_VOLVER.configuracion ? "Volver a empresas" : debajoDe(2)} />;
           if (incidenciaFichaAbierta)
-            return <IncidenciaPagina incidenciaId={incidenciaFichaAbierta} onVolver={cerrarIncidencia} onChanged={cargar} onAbrirSolicitud={abrirServicio} etiquetaVolver={debajoDe(4)} />;
+            return <IncidenciaPagina incidenciaId={incidenciaFichaAbierta} onVolver={cerrarIncidencia} onChanged={cargar} onAbrirSolicitud={abrirServicio} etiquetaVolver={debajoDe(3)} />;
+          if (hogarAbierto) return <HogarPagina contratoId={hogarAbierto} onVolver={() => setHogarAbierto(null)} onChanged={cargar} etiquetaVolver={debajoDe(4)} />;
           if (fichaAbierta) return <ServicioPagina solicitudId={fichaAbierta} onVolver={cerrarFicha} onChanged={cargar} etiquetaVolver={lista} />;
           return null;
         })()}
-        <div className={fichaAbierta || personaAbierta || profesionalAbierto || empresaAbierta || incidenciaFichaAbierta ? "hidden" : undefined}>
+        <div className={fichaAbierta || personaAbierta || profesionalAbierto || empresaAbierta || incidenciaFichaAbierta || hogarAbierto ? "hidden" : undefined}>
         {/* El título de la sección. El escritorio no lo lleva: su tarjeta de
             saludo ya dice dónde estás. */}
         {/* El título de la sección y, a su derecha, lo que se crea desde
@@ -676,6 +689,8 @@ export function CoordinadorPage() {
             onCambiado={cargar}
           />
         )}
+
+        {tab === "hogar" && <HogarTab />}
 
         {tab === "servicios" && (
           <ServiciosLista

@@ -10,6 +10,25 @@ import type { Necesidad, Persona } from "../lib/types.js";
 
 const FRANJAS = ["Mañana", "Tarde", "Todo el día"];
 
+// El empleo de hogar no se pide por días sueltos: es un servicio fijo, un
+// contrato. Lo que hay que saber para empezar es qué jornada y cuántas horas,
+// más o menos; el resto se habla con la familia.
+const CODIGO_HOGAR = "empleo_hogar";
+const JORNADAS = [
+  { valor: "Externa", detalle: "Por horas, no vive en casa" },
+  { valor: "Interna", detalle: "Vive en el domicilio" },
+];
+const HORAS = [10, 20, 30, 40];
+
+function ExplicaHogar() {
+  return (
+    <p className="rounded-xl border border-brand-green-200 bg-brand-green-50 px-3 py-2.5 text-sm text-brand-green-800">
+      Es un servicio fijo: la empleada trabaja para vosotros y nosotros nos ocupamos del alta en la Seguridad Social, el contrato, las nóminas y todo el
+      papeleo. Os llamamos para conocer lo que necesitáis.
+    </p>
+  );
+}
+
 // Presets habituales (sección "si fuera que Herminia necesita una persona
 // durante 5 días, o dos meses ¿cómo lo selecciona?"): cubren el rango
 // típico con un toque; el número exacto siempre queda editable a mano.
@@ -126,6 +145,8 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
   const [indefinido, setIndefinido] = useState(false);
   const [franja, setFranja] = useState("Mañana");
   const [nota, setNota] = useState("");
+  const [jornada, setJornada] = useState("Externa");
+  const [horas, setHoras] = useState(20);
   const [enviando, setEnviando] = useState(false);
   const [masOpciones, setMasOpciones] = useState(false);
   const [buscaPersona, setBuscaPersona] = useState("");
@@ -135,6 +156,9 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
   const diasVisibles = proximosDias(masOpciones ? 14 : 3);
   const necesidadNombre = necesidad?.nombre ?? necesidades?.find((n) => n.id === necesidadSel)?.nombre ?? "";
   const personaNombre = personas?.find((p) => p.id === personaSel);
+  const esHogar = (necesidad?.codigo ?? necesidades?.find((n) => n.id === necesidadSel)?.codigo) === CODIGO_HOGAR;
+  const fechaLarga = new Date(fecha).toLocaleDateString("es-ES", { day: "numeric", month: "long" });
+  const queHogar = `jornada ${jornada.toLowerCase()} de unas ${horas} h a la semana`;
 
   const personasFiltradas = (personas ?? []).filter((p) => {
     const q = buscaPersona.trim().toLowerCase();
@@ -145,7 +169,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
   const hechos = [
     personaNombre ? `${personaNombre.nombre} ${personaNombre.apellidos}` : "",
     necesidadNombre,
-    `${new Date(fecha).toLocaleDateString("es-ES", { day: "numeric", month: "short" })} · ${indefinido ? "indefinido" : `${dias} ${dias === 1 ? "día" : "días"}`}`,
+    `${new Date(fecha).toLocaleDateString("es-ES", { day: "numeric", month: "short" })} · ${esHogar ? `${horas} h/sem` : indefinido ? "indefinido" : `${dias} ${dias === 1 ? "día" : "días"}`}`,
     "",
   ];
 
@@ -161,13 +185,17 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
 
   // Resumen en lenguaje natural antes de confirmar: es la comprobación que
   // evita crear la solicitud a la persona equivocada o con la fecha de ayer.
-  const resumen = [
-    necesidadNombre || "Servicio sin elegir",
-    personaNombre ? `para ${personaNombre.nombre} ${personaNombre.apellidos}` : null,
-    `desde el ${new Date(fecha).toLocaleDateString("es-ES", { day: "numeric", month: "long" })}`,
-    indefinido ? "de forma indefinida" : `durante ${dias} ${dias === 1 ? "día" : "días"}`,
-    `por la ${franja.toLowerCase()}`,
-  ]
+  const resumen = (
+    esHogar
+      ? [necesidadNombre, personaNombre ? `para ${personaNombre.nombre} ${personaNombre.apellidos}` : null, queHogar, `a partir del ${fechaLarga}`]
+      : [
+          necesidadNombre || "Servicio sin elegir",
+          personaNombre ? `para ${personaNombre.nombre} ${personaNombre.apellidos}` : null,
+          `desde el ${fechaLarga}`,
+          indefinido ? "de forma indefinida" : `durante ${dias} ${dias === 1 ? "día" : "días"}`,
+          `por la ${franja.toLowerCase()}`,
+        ]
+  )
     .filter(Boolean)
     .join(", ");
 
@@ -175,19 +203,24 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
     setEnviando(true);
     setError(null);
     try {
-      const creada = await api.post<{ id?: string }>(
-        "/solicitudes",
-        {
-          personaId: personaSel,
-          necesidadId: necesidadSel,
-          descripcionLibre: nota ? `Necesito ayuda: ${necesidadNombre}. ${nota}` : `Necesito ayuda: ${necesidadNombre}`,
-          fechaInicio: new Date(fecha).toISOString(),
-          dias: indefinido ? undefined : dias,
-          indefinido: indefinido || undefined,
-          franjaHoraria: franja,
-        },
-        token,
-      );
+      // El empleo de hogar no lleva plan de días: lo pedido va en la
+      // descripción y coordinación lo convierte en contrato.
+      const cuerpo = esHogar
+        ? {
+            personaId: personaSel,
+            necesidadId: necesidadSel,
+            descripcionLibre: `Necesito ayuda: ${necesidadNombre}. Jornada ${jornada.toLowerCase()} de unas ${horas} h a la semana, a partir del ${fechaLarga}.${nota ? ` ${nota}` : ""}`,
+          }
+        : {
+            personaId: personaSel,
+            necesidadId: necesidadSel,
+            descripcionLibre: nota ? `Necesito ayuda: ${necesidadNombre}. ${nota}` : `Necesito ayuda: ${necesidadNombre}`,
+            fechaInicio: new Date(fecha).toISOString(),
+            dias: indefinido ? undefined : dias,
+            indefinido: indefinido || undefined,
+            franjaHoraria: franja,
+          };
+      const creada = await api.post<{ id?: string }>("/solicitudes", cuerpo, token);
       onCreated(creada?.id);
       onClose();
     } catch (e) {
@@ -307,7 +340,32 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
                   </p>
                 )}
 
-                <div>
+                {esHogar && (
+                  <>
+                    <div>
+                      <p className="mb-1.5 text-xs font-medium text-slate-500">Jornada</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {JORNADAS.map((j) => (
+                          <Chip key={j.valor} activo={jornada === j.valor} onClick={() => setJornada(j.valor)}>
+                            {j.valor}
+                          </Chip>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="mb-1.5 text-xs font-medium text-slate-500">Horas a la semana, más o menos</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {HORAS.map((h) => (
+                          <Chip key={h} activo={horas === h} onClick={() => setHoras(h)}>
+                            {h} h
+                          </Chip>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div hidden={esHogar}>
                   <p className="mb-1.5 text-xs font-medium text-slate-500">Cuánto tiempo</p>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {DURACIONES.map((d) => (
@@ -340,7 +398,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
                   </div>
                 </div>
 
-                <div>
+                <div hidden={esHogar}>
                   <p className="mb-1.5 text-xs font-medium text-slate-500">A qué hora del día</p>
                   <div className="flex flex-wrap gap-1.5">
                     {FRANJAS.map((f) => (
@@ -399,8 +457,10 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
               </div>
             )}
 
+            {esHogar && <ExplicaHogar />}
+
             <div>
-              <label className="mb-1 block text-base text-slate-700">¿Cuándo empieza?</label>
+              <label className="mb-1 block text-base text-slate-700">{esHogar ? "¿Cuándo os gustaría que empezara?" : "¿Cuándo empieza?"}</label>
               {/* Botones grandes en vez del calendario nativo: más cómodo para
                   personas mayores que teclear o abrir un selector emergente
                   (sección Usuario: "el calendario... es incómodo"). */}
@@ -428,7 +488,47 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
               )}
             </div>
 
-            <div>
+            {esHogar && (
+              <>
+                <div>
+                  <label className="mb-1 block text-base text-slate-700">¿Qué jornada?</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {JORNADAS.map((j) => (
+                      <button
+                        key={j.valor}
+                        type="button"
+                        onClick={() => setJornada(j.valor)}
+                        className={`rounded-lg border-2 px-3 py-2.5 text-left text-sm font-medium ${
+                          jornada === j.valor ? "border-brand bg-brand text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        {j.valor}
+                        <span className={`block text-xs font-normal ${jornada === j.valor ? "text-white/80" : "text-slate-400"}`}>{j.detalle}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-base text-slate-700">¿Cuántas horas a la semana, más o menos?</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {HORAS.map((h) => (
+                      <button
+                        key={h}
+                        type="button"
+                        onClick={() => setHoras(h)}
+                        className={`rounded-lg border-2 px-2 py-2 text-center text-sm font-medium ${
+                          horas === h ? "border-brand bg-brand text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        {h} h
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div hidden={esHogar}>
               <label className="mb-1 block text-base text-slate-700">¿Cuánto tiempo lo necesita?</label>
               <div className="grid grid-cols-3 gap-2">
                 {DURACIONES.map((d) => (
@@ -468,7 +568,7 @@ export function SolicitudModal({ necesidad, necesidades, personaId, personas, on
               </label>
             </div>
 
-            <div>
+            <div hidden={esHogar}>
               <label className="mb-1 block text-base text-slate-700">¿Mañana o tarde?</label>
               <div className="flex gap-2">
                 {FRANJAS.map((f) => (

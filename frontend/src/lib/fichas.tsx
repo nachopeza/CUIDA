@@ -9,10 +9,11 @@ interface Fichas {
   abrirProfesional: (id: string) => void;
   abrirIncidencia: (id: string) => void;
   abrirEmpresa: (id: string) => void;
+  abrirHogar: (id: string) => void;
 }
 
 const nada = () => undefined;
-const FichasContext = createContext<Fichas>({ abrirPersona: nada, abrirProfesional: nada, abrirIncidencia: nada, abrirEmpresa: nada });
+const FichasContext = createContext<Fichas>({ abrirPersona: nada, abrirProfesional: nada, abrirIncidencia: nada, abrirEmpresa: nada, abrirHogar: nada });
 
 export const FichasProvider = FichasContext.Provider;
 export const useFichas = () => useContext(FichasContext);

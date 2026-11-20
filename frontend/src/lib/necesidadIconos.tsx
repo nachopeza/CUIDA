@@ -6,6 +6,7 @@ import {
   IconChat,
   IconHandshake,
   IconHelp,
+  IconHome,
   IconMeal,
   IconStethoscope,
   IconTree,
@@ -29,6 +30,7 @@ const POR_CODIGO: Record<string, Pinta> = {
   citas: IconStethoscope,
   apoyo_puntual: IconHandshake,
   aseo: IconWalk,
+  empleo_hogar: IconHome,
 };
 
 export function iconoNecesidad(codigo: string | null | undefined): Pinta {

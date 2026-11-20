@@ -4,13 +4,17 @@ import { api } from "../lib/api.js";
 import { useRefrescoAutomatico } from "../lib/refresco.js";
 import { diaDe } from "../lib/fechas.js";
 import { IconoNecesidad } from "../lib/necesidadIconos.js";
-import type { PersonaConFamiliares, Solicitud } from "../lib/types.js";
+import type { ContratoHogar, PersonaConFamiliares, Solicitud } from "../lib/types.js";
+import { useFichas } from "../lib/fichas.js";
+import { euros } from "../lib/economia.js";
+import { ESTADO_HOGAR } from "./HogarPagina.js";
+import { NuevoContratoHogarModal } from "./ContratoHogarFormulario.js";
 import { Avatar } from "./Avatar.js";
 import { EstadoBadge } from "./EstadoBadge.js";
 import { ConsentimientosPersona } from "./ConsentimientosPersona.js";
 import { Indicadores, TarjetaMarca } from "./identidad.js";
 import { Bloque, Dato, Etiqueta, FichaCabecera, Pestanas, RejillaFicha, AccionesRapidas } from "./ficha.js";
-import { IconBriefcase, IconCalendar, IconCheck, IconCheckCircle, IconClock, IconDownload, IconFamily, IconKey, IconMedical, IconNote, IconPencil, IconPhone, IconPin, IconPlus, IconShield, IconSparkle, IconUsers } from "./icons.js";
+import { IconBriefcase, IconBroom, IconCalendar, IconCheck, IconCheckCircle, IconClock, IconDownload, IconFamily, IconKey, IconMedical, IconNote, IconPencil, IconPhone, IconPin, IconPlus, IconShield, IconSparkle, IconUsers } from "./icons.js";
 
 // ---------------------------------------------------------------------------
 // La página de una persona
@@ -50,6 +54,9 @@ export function PersonaPagina({
   const { token } = useAuth();
   const [persona, setPersona] = useState<PersonaConFamiliares | null>(null);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
+  const [hogar, setHogar] = useState<ContratoHogar[]>([]);
+  const [nuevoHogar, setNuevoHogar] = useState(false);
+  const { abrirHogar } = useFichas();
   const [error, setError] = useState<string | null>(null);
   const [pestana, setPestana] = useState<Pestana>("resumen");
   const [aviso, setAviso] = useState<string | null>(null);
@@ -67,6 +74,7 @@ export function PersonaPagina({
       const [p, sols] = await Promise.all([api.get<PersonaConFamiliares>(`/personas/${personaId}`, token), api.get<Solicitud[]>("/solicitudes", token)]);
       setPersona(p);
       setSolicitudes(sols.filter((s) => s.persona.id === personaId));
+      setHogar(await api.get<ContratoHogar[]>(`/hogar?personaId=${personaId}`, token).catch(() => []));
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message.replace(/^"|"$/g, "") : "No se ha podido cargar la ficha");
@@ -345,6 +353,38 @@ export function PersonaPagina({
               <Bloque titulo="Servicios" Icono={IconBriefcase} tono="verde">
                 {solicitudes.length === 0 ? <p className="text-sm text-slate-400">Todavía no ha solicitado ningún servicio.</p> : tarjetasServicio([...enMarcha, ...terminadas])}
               </Bloque>
+              <Bloque
+                titulo="Empleo de hogar"
+                Icono={IconBroom}
+                tono="verde"
+                accion={
+                  <button onClick={() => setNuevoHogar(true)} className="boton-secundario-sm">
+                    <IconPlus className="h-3.5 w-3.5" /> Contrato de hogar
+                  </button>
+                }
+              >
+                {hogar.length === 0 ? (
+                  <p className="text-sm text-slate-400">No tiene empleada de hogar gestionada por CUIDA.</p>
+                ) : (
+                  <ul className="divide-y divide-slate-100">
+                    {hogar.map((c) => (
+                      <li key={c.id}>
+                        <button onClick={() => abrirHogar(c.id)} className="flex w-full items-center justify-between gap-3 py-2 text-left hover:bg-slate-50">
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-medium text-slate-700">
+                              {c.trabajadoraNombre} {c.trabajadoraApellidos} · {c.horasSemanales} h/semana
+                            </span>
+                            <span className="text-xs text-slate-400">
+                              {c.codigo} · gestión {euros(c.cuotaGestionMensual)}/mes
+                            </span>
+                          </span>
+                          <span className={`pastilla ${ESTADO_HOGAR[c.estado].clase}`}>{ESTADO_HOGAR[c.estado].etiqueta}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Bloque>
               <Bloque titulo="Salud y cuidados" Icono={IconMedical} tono="rose">
                 <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
                   <Dato etiqueta="Medicación">{persona.medicacion || "—"}</Dato>
@@ -523,6 +563,16 @@ export function PersonaPagina({
           <TarjetaMarca titulo={<>Personas que<br />importan</>} texto={`Todo lo que sabemos de ${persona.nombre} está aquí para cuidarla mejor, y solo para eso.`} />
         </aside>
       </RejillaFicha>
+      {nuevoHogar && (
+        <NuevoContratoHogarModal
+          personaId={persona.id}
+          onClose={() => setNuevoHogar(false)}
+          onCreado={(c) => {
+            void cargar();
+            abrirHogar(c.id);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { Modal } from "../components/Modal.js";
 import { FacturaDocumento, referenciaFactura } from "../components/FacturaDocumento.js";
 import { ConfirmModal } from "../components/ConfirmModal.js";
 import { ConversacionesPanel } from "../components/ConversacionesPanel.js";
+import { HogarFamilia } from "../components/HogarFamilia.js";
 import { IconoNecesidad } from "../lib/necesidadIconos.js";
 import type { Factura, Incidencia, Necesidad, PersonaConFamiliares, Solicitud } from "../lib/types.js";
 import {
@@ -340,6 +341,8 @@ export function FamiliaPage() {
               )}
             </div>
           )}
+
+          <HogarFamilia />
 
           {personas.map((p) => (
             <Card key={p.id} title={`${p.nombre} ${p.apellidos}`}>

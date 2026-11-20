@@ -154,7 +154,10 @@ hogarRouter.post("/:id/nominas", async (req, res) => {
   const parsed = z.object({ mes: z.string().regex(/^\d{4}-\d{2}$/) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Mes no válido (AAAA-MM)" });
   if (c.estado !== "ACTIVO") return res.status(409).json({ error: "Todavía no está dada de alta con contrato firmado: no hay nómina que preparar." });
-  if (parsed.data.mes < c.fechaInicio.toISOString().slice(0, 7)) return res.status(409).json({ error: "Ese mes es anterior al inicio del contrato." });
+  // El mes de inicio en hora local: toISOString daría el mes anterior para un
+  // contrato que empieza el día 1 (medianoche en Madrid es la víspera en UTC).
+  const mesInicio = `${c.fechaInicio.getFullYear()}-${String(c.fechaInicio.getMonth() + 1).padStart(2, "0")}`;
+  if (parsed.data.mes < mesInicio) return res.status(409).json({ error: "Ese mes es anterior al inicio del contrato." });
   if (c.nominas.some((n) => n.mes === parsed.data.mes)) return res.status(409).json({ error: `La nómina de ${parsed.data.mes} ya está preparada.` });
   const nomina = await prisma.nominaHogar.create({ data: { contratoId: c.id, mes: parsed.data.mes, bruto: brutoDelMes(c, parsed.data.mes) } });
   res.status(201).json(nomina);

@@ -52,15 +52,15 @@ export function Indicadores({ items }: { items: Indicador[] }) {
           <Caja
             key={etiqueta}
             onClick={onClick}
-            className={`flex min-w-0 items-center gap-3 rounded-tarjeta border border-slate-200/60 bg-gradient-to-br p-3.5 text-left shadow-tarjeta ${t.caja} ${onClick ? "transition hover:brightness-[0.98]" : ""}`}
+            className={`flex min-w-0 flex-col items-start gap-2 rounded-tarjeta border border-slate-200/60 bg-gradient-to-br p-3.5 text-left shadow-tarjeta sm:flex-row sm:items-center sm:gap-3 ${t.caja} ${onClick ? "transition hover:brightness-[0.98]" : ""}`}
           >
-            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${t.icono}`}>
+            <span className={`flex h-9 w-9 shrink-0 sm:h-11 sm:w-11 items-center justify-center rounded-full ${t.icono}`}>
               <Icono className="h-5 w-5" />
             </span>
-            <span className="min-w-0">
-              <span className={`block truncate text-xl font-bold leading-tight tabular-nums ${t.numero}`}>{valor}</span>
-              <span className={`block truncate text-xs font-semibold ${t.etiqueta}`}>{etiqueta}</span>
-              {detalle && <span className="block truncate text-[11px] text-slate-500">{detalle}</span>}
+            <span className="min-w-0 max-w-full">
+              <span className={`block break-words text-lg sm:truncate sm:text-xl font-bold leading-tight tabular-nums ${t.numero}`}>{valor}</span>
+              <span className={`block text-xs font-semibold sm:truncate ${t.etiqueta}`}>{etiqueta}</span>
+              {detalle && <span className="line-clamp-2 block text-[11px] text-slate-500 sm:truncate">{detalle}</span>}
             </span>
           </Caja>
         );
