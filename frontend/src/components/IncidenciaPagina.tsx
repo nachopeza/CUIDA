@@ -9,8 +9,9 @@ import { compararConAcordado, duracion, horaDe, minutosEntre, minutosFichados } 
 import type { Candidato, CuentaResumen, EstadoHistorialEntry, Incidencia, IncidenciaServicio } from "../lib/types.js";
 import { Avatar } from "./Avatar.js";
 import { EstadoBadge } from "./EstadoBadge.js";
+import { Indicadores, TarjetaMarca } from "./identidad.js";
 import { AccionesRapidas, Bloque, Dato, Etiqueta, FichaCabecera, Pestanas, RejillaFicha } from "./ficha.js";
-import { IconArrowRight, IconBan, IconBriefcase, IconCheck, IconCheckCircle, IconClipboard, IconClock, IconMail, IconNote, IconPhone, IconPin, IconRefresh, IconUsers } from "./icons.js";
+import { IconActivity, IconAlert, IconArrowRight, IconBan, IconBriefcase, IconCalendar, IconCheck, IconCheckCircle, IconClipboard, IconClock, IconMail, IconNote, IconPhone, IconPin, IconRefresh, IconTool, IconUsers } from "./icons.js";
 
 // ---------------------------------------------------------------------------
 // La página de una incidencia
@@ -221,6 +222,12 @@ export function IncidenciaPagina({
   return (
     <div className="space-y-4">
       <FichaCabecera
+        antetitulo={motivo.etiqueta}
+        figura={
+          <span className={`flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-tarjeta ring-4 ${i.prioridad === "ALTA" ? "text-rose-600 ring-rose-100" : "text-amber-600 ring-amber-100"}`}>
+            <motivo.Icono className="h-8 w-8" />
+          </span>
+        }
         volver={etiquetaVolver}
         onVolver={onVolver}
         titulo={`${esCancelacion ? "Petición de cancelación" : "Incidencia"} ${i.codigo}`}
@@ -364,18 +371,26 @@ export function IncidenciaPagina({
         </div>
       </div>
 
-      <div className="tarjeta p-4">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Dato etiqueta="Motivo">
-            <span className="inline-flex items-center gap-1.5">
-              <motivo.Icono className="h-4 w-4 text-slate-400" /> {motivo.etiqueta}
-            </span>
-          </Dato>
-          <Dato etiqueta="Servicio">{servicio ? `${servicio.codigo}${solicitud ? ` · ${solicitud.necesidad.nombre}` : ""}` : "—"}</Dato>
-          <Dato etiqueta="Horario">{plan ? (plan.horaInicio && plan.horaFin ? `${plan.horaInicio}–${plan.horaFin}` : (plan.franjaHoraria ?? "—")) : "—"}</Dato>
-          <Dato etiqueta="Asignada a">{i.responsable ? (i.responsable.nombre ?? i.responsable.email) : <span className="text-amber-700">Sin asignar</span>}</Dato>
-        </div>
-      </div>
+      <Indicadores
+        items={[
+          { etiqueta: "Motivo", valor: motivo.etiqueta, detalle: motivo.ayuda, Icono: motivo.Icono, tono: i.prioridad === "ALTA" ? "rose" : i.prioridad === "MEDIA" ? "amber" : "azul" },
+          { etiqueta: "Servicio", valor: servicio?.codigo ?? "—", detalle: solicitud?.necesidad.nombre ?? "", Icono: IconClipboard, tono: "azul", onClick: solicitud?.id ? () => onAbrirSolicitud(solicitud.id!) : undefined },
+          {
+            etiqueta: "Horario",
+            valor: plan?.horaInicio && plan?.horaFin ? `${plan.horaInicio}–${plan.horaFin}` : (plan?.franjaHoraria ?? "—"),
+            detalle: plan?.recurrencia ?? (plan ? fechaCorta(plan.fechaInicio) : ""),
+            Icono: IconCalendar,
+            tono: "verde",
+          },
+          {
+            etiqueta: "Asignada a",
+            valor: i.responsable ? (i.responsable.nombre ?? i.responsable.email) : "Nadie",
+            detalle: i.responsable ? "Responsable del caso" : "Hay que asignarla",
+            Icono: IconUsers,
+            tono: i.responsable ? "verde" : "amber",
+          },
+        ]}
+      />
 
       <RejillaFicha>
         <div className="min-w-0 space-y-4">
@@ -383,7 +398,7 @@ export function IncidenciaPagina({
 
           {pestana === "resumen" && (
             <>
-              <Bloque titulo="Qué ha pasado">
+              <Bloque titulo="Qué ha pasado" Icono={IconAlert} tono="rose">
                 <p className="whitespace-pre-line text-sm text-slate-700">{i.descripcion}</p>
                 {soloEstosDias && (
                   <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -414,7 +429,7 @@ export function IncidenciaPagina({
                 </Bloque>
               )}
 
-              <Bloque titulo="Anotaciones" accion={<button onClick={() => setPestana("historial")} className="text-xs font-medium text-brand hover:underline">Ver todo</button>}>
+              <Bloque titulo="Anotaciones" Icono={IconNote} tono="verde" accion={<button onClick={() => setPestana("historial")} className="text-xs font-medium text-brand hover:underline">Ver todo</button>}>
                 <div className="flex flex-wrap gap-2">
                   <input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Qué se ha hablado, qué falta…" className="campo min-w-[14rem] flex-1" />
                   <button onClick={() => void enviarNota()} disabled={ocupado || !nota.trim()} className="boton-principal">
@@ -427,7 +442,7 @@ export function IncidenciaPagina({
           )}
 
           {pestana === "reemplazo" && puedeReemplazar && (
-            <Bloque titulo="Buscar reemplazo">
+            <Bloque titulo="Buscar reemplazo" Icono={IconRefresh} tono="verde">
               <p className="mb-4 text-sm text-slate-600">
                 {soloEstosDias ? (
                   <>
@@ -496,7 +511,7 @@ export function IncidenciaPagina({
           )}
 
           {pestana === "historial" && (
-            <Bloque titulo="Historial y notas">
+            <Bloque titulo="Historial y notas" Icono={IconActivity} tono="azul">
               <div className="mb-4 flex flex-wrap gap-2">
                 <input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Escribe una anotación…" className="campo min-w-[14rem] flex-1" />
                 <button onClick={() => void enviarNota()} disabled={ocupado || !nota.trim()} className="boton-principal">
@@ -510,7 +525,7 @@ export function IncidenciaPagina({
 
         <aside className="min-w-0 space-y-4">
           {!esCancelacion && (
-            <Bloque titulo="Gestión">
+            <Bloque titulo="Gestión" Icono={IconTool} tono="amber">
               <div className="space-y-3">
                 <label className="block text-xs text-slate-500">
                   Estado
@@ -561,7 +576,7 @@ export function IncidenciaPagina({
             ]}
           />
 
-          <Bloque titulo="Última actividad">
+          <Bloque titulo="Última actividad" Icono={IconActivity} tono="azul">
             <Linea entradas={historial.slice(0, 4)} />
           </Bloque>
         </aside>

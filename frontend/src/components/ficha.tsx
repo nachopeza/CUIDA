@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
-import { IconArrowLeft } from "./icons.js";
+import { IconArrowLeft, IconChevronRight } from "./icons.js";
+import { Hojas, IconoTintado, type Tono } from "./identidad.js";
 
 // ---------------------------------------------------------------------------
 // Las piezas de toda ficha de página
@@ -33,13 +34,33 @@ export function Fila({ etiqueta, valor, aviso, bueno }: { etiqueta: string; valo
   );
 }
 
-// Una tarjeta con título y, a la derecha, un enlace o un botón pequeño.
-export function Bloque({ titulo, accion, children, className = "" }: { titulo?: string; accion?: ReactNode; children: ReactNode; className?: string }) {
+// Una tarjeta con título —con su icono en un círculo de color, si lo lleva— y, a
+// la derecha, un enlace o un botón pequeño.
+export function Bloque({
+  titulo,
+  accion,
+  children,
+  className = "",
+  Icono,
+  tono = "verde",
+}: {
+  titulo?: string;
+  accion?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  Icono?: (p: { className?: string }) => JSX.Element;
+  tono?: Tono;
+}) {
   return (
     <div className={`tarjeta p-4 ${className}`}>
       {(titulo || accion) && (
         <div className="mb-3 flex items-center justify-between gap-3">
-          {titulo && <h2 className="text-sm font-semibold text-slate-800">{titulo}</h2>}
+          {titulo && (
+            <h2 className="flex items-center gap-2.5 text-sm font-semibold text-brand-900">
+              {Icono && <IconoTintado Icono={Icono} tono={tono} />}
+              {titulo}
+            </h2>
+          )}
           {accion}
         </div>
       )}
@@ -58,15 +79,15 @@ export function EnlaceBloque({ onClick, children }: { onClick: () => void; child
 
 export function Pestanas<T extends string>({ valor, onCambiar, opciones }: { valor: T; onCambiar: (v: T) => void; opciones: { clave: T; etiqueta: string }[] }) {
   return (
-    <div className="flex gap-1 overflow-x-auto border-b border-slate-200" role="tablist">
+    <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200/70 bg-white p-1 shadow-tarjeta" role="tablist">
       {opciones.map((p) => (
         <button
           key={p.clave}
           role="tab"
           aria-selected={valor === p.clave}
           onClick={() => onCambiar(p.clave)}
-          className={`-mb-px whitespace-nowrap border-b-2 px-3.5 py-2 text-sm font-medium transition ${
-            valor === p.clave ? "border-brand text-brand" : "border-transparent text-slate-500 hover:text-slate-800"
+          className={`whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition ${
+            valor === p.clave ? "bg-brand text-white shadow-sm" : "text-slate-500 hover:bg-brand-green-50 hover:text-brand-900"
           }`}
         >
           {p.etiqueta}
@@ -96,6 +117,8 @@ export function FichaCabecera({
   linea,
   acciones,
   menu,
+  figura,
+  antetitulo,
 }: {
   volver: string;
   onVolver: () => void;
@@ -104,6 +127,10 @@ export function FichaCabecera({
   linea?: ReactNode;
   acciones?: ReactNode;
   menu?: AccionMenu[];
+  // La foto, las iniciales o el icono de lo que se está viendo.
+  figura?: ReactNode;
+  // Qué es, en una palabra, encima del título: «Servicio», «Profesional»…
+  antetitulo?: string;
 }) {
   const [abierto, setAbierto] = useState(false);
   return (
@@ -111,19 +138,26 @@ export function FichaCabecera({
       <button onClick={onVolver} className="mb-2 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800">
         <IconArrowLeft className="h-4 w-4" /> {volver}
       </button>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-2xl font-semibold text-slate-800">{titulo}</h1>
-            {etiquetas}
+      <div className="relative flex flex-wrap items-start justify-between gap-4 rounded-tarjeta border border-brand-green-100 bg-gradient-to-br from-brand-green-50 via-white to-brand-50 p-5 shadow-tarjeta">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-tarjeta">
+          <Hojas className="-right-2 -top-8 h-36 sm:h-48" opacidad="opacity-[0.12]" />
+        </div>
+        <div className="relative flex min-w-0 items-center gap-4">
+          {figura && <div className="shrink-0">{figura}</div>}
+          <div className="min-w-0">
+            {antetitulo && <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-green-700">{antetitulo}</p>}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-2xl font-bold text-brand-900 sm:text-[1.75rem]">{titulo}</h1>
+              {etiquetas}
+            </div>
+            {linea && <p className="mt-1 text-sm text-slate-600">{linea}</p>}
           </div>
-          {linea && <p className="mt-1 text-sm text-slate-500">{linea}</p>}
         </div>
         <div className="relative flex items-center gap-2">
           {acciones}
           {menu && menu.length > 0 && (
             <>
-              <button onClick={() => setAbierto((v) => !v)} className="boton-secundario px-3" aria-label="Más acciones" aria-haspopup="menu" aria-expanded={abierto}>
+              <button onClick={() => setAbierto((v) => !v)} className="boton-secundario bg-white/80 px-3" aria-label="Más acciones" aria-haspopup="menu" aria-expanded={abierto}>
                 <span className="text-lg leading-none">⋯</span>
               </button>
               {abierto && (
@@ -160,14 +194,16 @@ export function FichaCabecera({
 // Lista de acciones rápidas de la columna derecha.
 export function AccionesRapidas({ acciones }: { acciones: { etiqueta: string; Icono: (p: { className?: string }) => JSX.Element; alPulsar: () => void; oculto?: boolean }[] }) {
   return (
-    <Bloque titulo="Acciones rápidas">
+    <Bloque titulo="Acciones rápidas" Icono={IconChevronRight}>
       <ul className="-my-1 divide-y divide-slate-100 text-sm">
         {acciones
           .filter((a) => !a.oculto)
           .map(({ etiqueta, Icono, alPulsar }) => (
             <li key={etiqueta}>
-              <button onClick={alPulsar} className="flex w-full items-center gap-3 py-2.5 text-left text-slate-700 hover:text-brand">
-                <Icono className="h-4 w-4 text-slate-400" /> {etiqueta}
+              <button onClick={alPulsar} className="group flex w-full items-center gap-3 py-2 text-left font-medium text-slate-700 hover:text-brand">
+                <IconoTintado Icono={Icono} tono="verde" />
+                <span className="min-w-0 flex-1">{etiqueta}</span>
+                <IconChevronRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-brand" />
               </button>
             </li>
           ))}

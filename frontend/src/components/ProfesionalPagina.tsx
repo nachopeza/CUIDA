@@ -12,9 +12,10 @@ import { EstadoBadge } from "./EstadoBadge.js";
 import { BajaProfesionalModal } from "./BajaProfesionalModal.js";
 import { ExpedienteDocumentos } from "./ExpedienteDocumentos.js";
 import { resumenDisponibilidad } from "./DisponibilidadPicker.js";
+import { Indicadores, TarjetaMarca } from "./identidad.js";
 import { Bloque, Dato, Etiqueta, Fila, FichaCabecera, Pestanas, RejillaFicha, AccionesRapidas } from "./ficha.js";
 import { ProfesionalFormulario } from "../pages/coordinador/ProfesionalFormModal.js";
-import { IconBan, IconBriefcase, IconCalendar, IconCheck, IconKey, IconMail, IconPencil, IconPhone, IconPin, IconRefresh, IconUsers } from "./icons.js";
+import { IconActivity, IconBan, IconBriefcase, IconCalendar, IconCheck, IconClock, IconEuro, IconKey, IconMail, IconNote, IconPencil, IconPhone, IconPin, IconRefresh, IconShield, IconUsers } from "./icons.js";
 
 // ---------------------------------------------------------------------------
 // La página de una profesional
@@ -135,6 +136,8 @@ export function ProfesionalPagina({
   return (
     <div className="space-y-4">
       <FichaCabecera
+        antetitulo="Profesional"
+        figura={<Avatar foto={pro.foto} nombre={pro.nombre} apellidos={pro.apellidos} className="h-16 w-16 !text-lg ring-4 ring-white shadow-tarjeta" />}
         volver={etiquetaVolver}
         onVolver={onVolver}
         titulo={nombre}
@@ -173,11 +176,12 @@ export function ProfesionalPagina({
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2">
         <div className="tarjeta flex items-start gap-4 p-4">
-          <Avatar foto={pro.foto} nombre={pro.nombre} apellidos={pro.apellidos} className="h-14 w-14 !text-sm" />
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#dceefc] text-[#0c5770]">
+            <IconPhone className="h-6 w-6" />
+          </div>
           <div className="min-w-0 flex-1">
-            <Etiqueta>Profesional</Etiqueta>
-            <p className="truncate text-base font-semibold text-slate-800">{nombre}</p>
-            <p className="text-xs text-slate-400">{pro.codigo}</p>
+            <Etiqueta>Contacto</Etiqueta>
+            <p className="truncate text-base font-semibold text-slate-800">Cómo localizarla</p>
             <div className="mt-2 space-y-1 text-sm text-slate-600">
               {pro.telefono && (
                 <p className="flex items-center gap-2">
@@ -211,14 +215,14 @@ export function ProfesionalPagina({
         </div>
       </div>
 
-      <div className="tarjeta p-4">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Dato etiqueta="Servicios en marcha">{enMarcha.length}</Dato>
-          <Dato etiqueta="Servicios terminados">{terminados.length}</Dato>
-          <Dato etiqueta="Cobrado">{euros(pagado)}</Dato>
-          <Dato etiqueta="Pendiente de pago">{euros(pendiente)}</Dato>
-        </div>
-      </div>
+      <Indicadores
+        items={[
+          { etiqueta: "Servicios en marcha", valor: enMarcha.length, detalle: `${terminados.length} terminados`, Icono: IconBriefcase, tono: "verde", onClick: () => setPestana("servicios") },
+          { etiqueta: "Disponibilidad", valor: disp.dias.length > 0 ? `${disp.dias.length} días` : "—", detalle: resumenDisponibilidad(disp), Icono: IconCalendar, tono: "azul" },
+          { etiqueta: "Cobrado", valor: euros(pagado), detalle: `${liquidaciones.length} liquidaciones`, Icono: IconEuro, tono: "verde", onClick: () => setPestana("pagos") },
+          { etiqueta: "Pendiente de pago", valor: euros(pendiente), detalle: pendiente > 0 ? "Por pagarle" : "Al día", Icono: IconClock, tono: pendiente > 0 ? "amber" : "verde", onClick: () => setPestana("pagos") },
+        ]}
+      />
 
       <RejillaFicha>
         <div className="min-w-0 space-y-4">
@@ -226,11 +230,11 @@ export function ProfesionalPagina({
 
           {pestana === "resumen" && (
             <>
-              <Bloque titulo="Sobre ella">
+              <Bloque titulo="Sobre ella" Icono={IconNote} tono="verde">
                 <p className="whitespace-pre-line text-sm text-slate-600">{pro.biografia || "Todavía no hay biografía."}</p>
               </Bloque>
               <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
-                <Bloque titulo="Perfil">
+                <Bloque titulo="Perfil" Icono={IconUsers} tono="azul">
                   <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
                     <Dato etiqueta="Titulación">{etiquetaTitulacion(pro.titulacion) || "Sin indicar"}</Dato>
                     <Dato etiqueta="Carné">{pro.carneConducir && pro.carneConducir !== "NO" ? pro.carneConducir : "Sin carné"}</Dato>
@@ -238,7 +242,7 @@ export function ProfesionalPagina({
                     <Dato etiqueta="Horas semanales">{pro.horasSemanales ?? "—"}</Dato>
                   </div>
                 </Bloque>
-                <Bloque titulo="Servicios en marcha">
+                <Bloque titulo="Servicios en marcha" Icono={IconBriefcase} tono="verde">
                   {enMarcha.length === 0 ? (
                     <p className="text-sm text-slate-400">No tiene ninguno ahora mismo.</p>
                   ) : (
@@ -250,13 +254,13 @@ export function ProfesionalPagina({
           )}
 
           {pestana === "servicios" && (
-            <Bloque titulo="Historial de servicios">
+            <Bloque titulo="Historial de servicios" Icono={IconActivity} tono="azul">
               {servicios.length === 0 ? <p className="text-sm text-slate-400">Todavía no ha hecho ningún servicio.</p> : <ListaServicios servicios={servicios} onAbrir={onAbrirSolicitud} />}
             </Bloque>
           )}
 
           {pestana === "pagos" && (
-            <Bloque titulo="Liquidaciones">
+            <Bloque titulo="Liquidaciones" Icono={IconEuro} tono="amber">
               {liquidaciones.length === 0 ? (
                 <p className="text-sm text-slate-400">Todavía no hay liquidaciones.</p>
               ) : (
@@ -289,13 +293,13 @@ export function ProfesionalPagina({
           )}
 
           {pestana === "expediente" && (
-            <Bloque titulo="Expediente">
+            <Bloque titulo="Expediente" Icono={IconShield} tono="verde">
               <ExpedienteDocumentos profesionalId={pro.id} />
             </Bloque>
           )}
 
           {pestana === "datos" && (
-            <Bloque titulo="Datos de la profesional">
+            <Bloque titulo="Datos de la profesional" Icono={IconPencil} tono="azul">
               <ProfesionalFormulario
                 profesional={pro}
                 empresas={empresas}
@@ -312,7 +316,7 @@ export function ProfesionalPagina({
 
           {pestana === "acceso" && (
             <div className="space-y-4">
-              <Bloque titulo="Cuenta de acceso">
+              <Bloque titulo="Cuenta de acceso" Icono={IconKey} tono="azul">
                 {pro.usuario ? (
                   <div className="space-y-2 text-sm">
                     <p className="text-slate-700">
@@ -332,7 +336,7 @@ export function ProfesionalPagina({
                   <p className="text-sm text-slate-400">Todavía no tiene cuenta de acceso.</p>
                 )}
               </Bloque>
-              <Bloque titulo="Situación">
+              <Bloque titulo="Situación" Icono={IconCheck} tono="verde">
                 {deBaja ? (
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-sm text-slate-600">
@@ -365,7 +369,7 @@ export function ProfesionalPagina({
               { etiqueta: "Reactivar", Icono: IconRefresh, alPulsar: () => void reactivar(), oculto: !deBaja },
             ]}
           />
-          <Bloque titulo="Datos económicos">
+          <Bloque titulo="Datos económicos" Icono={IconEuro} tono="amber">
             <dl className="space-y-2 text-sm">
               <Fila etiqueta="Cobrado" valor={euros(pagado)} bueno={pagado > 0} />
               <Fila etiqueta="Pendiente de pago" valor={euros(pendiente)} aviso={pendiente > 0} />
@@ -373,12 +377,13 @@ export function ProfesionalPagina({
               <Fila etiqueta="Liquidaciones" valor={String(liquidaciones.length)} />
             </dl>
           </Bloque>
-          <Bloque titulo="Información adicional">
+          <Bloque titulo="Información adicional" Icono={IconNote} tono="azul">
             <Etiqueta>Pago</Etiqueta>
             <p className="mt-0.5 text-sm text-slate-600">{pro.numeroCuenta ? `IBAN ${pro.numeroCuenta}` : "Sin IBAN"}</p>
             {pro.bizum && <p className="text-sm text-slate-600">Bizum {pro.bizum}</p>}
             {pro.dni && <p className="mt-2 text-xs text-slate-500">DNI {pro.dni}</p>}
           </Bloque>
+          <TarjetaMarca titulo={<>Quien cuida<br />también cuenta</>} texto={`Papeles al día, pagos a tiempo y una agenda que se pueda cumplir: es lo que ${pro.nombre} necesita de nosotros.`} />
         </aside>
       </RejillaFicha>
 

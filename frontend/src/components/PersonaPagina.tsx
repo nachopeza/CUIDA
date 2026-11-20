@@ -8,8 +8,9 @@ import type { PersonaConFamiliares, Solicitud } from "../lib/types.js";
 import { Avatar } from "./Avatar.js";
 import { EstadoBadge } from "./EstadoBadge.js";
 import { ConsentimientosPersona } from "./ConsentimientosPersona.js";
+import { Indicadores, TarjetaMarca } from "./identidad.js";
 import { Bloque, Dato, Etiqueta, FichaCabecera, Pestanas, RejillaFicha, AccionesRapidas } from "./ficha.js";
-import { IconCalendar, IconCheck, IconClock, IconDownload, IconFamily, IconKey, IconPencil, IconPhone, IconPin, IconPlus, IconShield } from "./icons.js";
+import { IconBriefcase, IconCalendar, IconCheck, IconCheckCircle, IconClock, IconDownload, IconFamily, IconKey, IconMedical, IconNote, IconPencil, IconPhone, IconPin, IconPlus, IconShield, IconSparkle, IconUsers } from "./icons.js";
 
 // ---------------------------------------------------------------------------
 // La página de una persona
@@ -229,6 +230,8 @@ export function PersonaPagina({
   return (
     <div className="space-y-4">
       <FichaCabecera
+        antetitulo="Persona usuaria"
+        figura={<Avatar nombre={persona.nombre} apellidos={persona.apellidos} className="h-16 w-16 !text-lg ring-4 ring-white shadow-tarjeta" />}
         volver={etiquetaVolver}
         onVolver={onVolver}
         titulo={nombre}
@@ -265,11 +268,12 @@ export function PersonaPagina({
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2">
         <div className="tarjeta flex items-start gap-4 p-4">
-          <Avatar nombre={persona.nombre} apellidos={persona.apellidos} className="h-14 w-14 !text-sm" />
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#dceefc] text-[#0c5770]">
+            <IconPhone className="h-6 w-6" />
+          </div>
           <div className="min-w-0 flex-1">
-            <Etiqueta>Persona usuaria</Etiqueta>
-            <p className="truncate text-base font-semibold text-slate-800">{nombre}</p>
-            <p className="text-xs text-slate-400">{persona.codigo}</p>
+            <Etiqueta>Contacto</Etiqueta>
+            <p className="truncate text-base font-semibold text-slate-800">Cómo localizarla</p>
             <div className="mt-2 space-y-1 text-sm text-slate-600">
               {persona.telefono && (
                 <p className="flex items-center gap-2">
@@ -310,16 +314,27 @@ export function PersonaPagina({
         </div>
       </div>
 
-      <div className="tarjeta p-4">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Dato etiqueta="Servicios en marcha">{enMarcha.length}</Dato>
-          <Dato etiqueta="Servicios terminados">{terminadas.length}</Dato>
-          <Dato etiqueta="Próxima visita">
-            {proxima ? new Date(proxima.v.fecha).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" }) : "—"}
-          </Dato>
-          <Dato etiqueta="Municipio">{lugar || <span className="text-amber-700">Sin rellenar</span>}</Dato>
-        </div>
-      </div>
+      <Indicadores
+        items={[
+          { etiqueta: "Servicios en marcha", valor: enMarcha.length, detalle: `${terminadas.length} terminados`, Icono: IconBriefcase, tono: "verde" },
+          {
+            etiqueta: "Próxima visita",
+            valor: proxima ? new Date(proxima.v.fecha).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" }) : "—",
+            detalle: proxima ? `${proxima.s.necesidad.nombre}${proxima.v.horaInicioProg ? ` · ${proxima.v.horaInicioProg}` : ""}` : "Nada programado",
+            Icono: IconCalendar,
+            tono: "azul",
+          },
+          { etiqueta: "Familia", valor: persona.familiares.length, detalle: persona.usuario ? "Tiene acceso propio" : "Sin acceso propio", Icono: IconFamily, tono: "verde", onClick: () => setPestana("accesos") },
+          {
+            etiqueta: "Protección de datos",
+            valor: (persona.carenciasRgpd?.length ?? 0) > 0 ? `Faltan ${persona.carenciasRgpd!.length}` : "En regla",
+            detalle: "Consentimientos e información",
+            Icono: IconShield,
+            tono: (persona.carenciasRgpd?.length ?? 0) > 0 ? "rose" : "verde",
+            onClick: () => setPestana("proteccion"),
+          },
+        ]}
+      />
 
       <RejillaFicha>
         <div className="min-w-0 space-y-4">
@@ -327,10 +342,10 @@ export function PersonaPagina({
 
           {pestana === "resumen" && (
             <>
-              <Bloque titulo="Servicios">
+              <Bloque titulo="Servicios" Icono={IconBriefcase} tono="verde">
                 {solicitudes.length === 0 ? <p className="text-sm text-slate-400">Todavía no ha solicitado ningún servicio.</p> : tarjetasServicio([...enMarcha, ...terminadas])}
               </Bloque>
-              <Bloque titulo="Salud y cuidados">
+              <Bloque titulo="Salud y cuidados" Icono={IconMedical} tono="rose">
                 <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
                   <Dato etiqueta="Medicación">{persona.medicacion || "—"}</Dato>
                   <Dato etiqueta="Médico">{persona.medico || "—"}</Dato>
@@ -340,7 +355,7 @@ export function PersonaPagina({
           )}
 
           {pestana === "datos" && (
-            <Bloque titulo="Datos de la persona" accion={!editando ? <button onClick={abrirEdicion} className="boton-secundario-sm">Editar</button> : undefined}>
+            <Bloque titulo="Datos de la persona" Icono={IconNote} tono="azul" accion={!editando ? <button onClick={abrirEdicion} className="boton-secundario-sm">Editar</button> : undefined}>
               {!editando ? (
                 <dl className="grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-4 sm:grid-cols-2">
                   <Dato etiqueta="Teléfono">{persona.telefono || "—"}</Dato>
@@ -392,7 +407,7 @@ export function PersonaPagina({
 
           {pestana === "accesos" && (
             <div className="space-y-4">
-              <Bloque titulo="Cuenta de la persona" accion={<span className="text-xs text-slate-400">Acceso simple y directo</span>}>
+              <Bloque titulo="Cuenta de la persona" Icono={IconKey} tono="azul" accion={<span className="text-xs text-slate-400">Acceso simple y directo</span>}>
                 {persona.usuario ? (
                   <div className="space-y-2 text-sm">
                     <p className="text-slate-700">
@@ -425,7 +440,7 @@ export function PersonaPagina({
                 )}
               </Bloque>
 
-              <Bloque titulo="Familiares" accion={!vinculando ? <button onClick={() => setVinculando(true)} className="boton-secundario-sm"><IconPlus className="h-3.5 w-3.5" /> Vincular familiar</button> : undefined}>
+              <Bloque titulo="Familiares" Icono={IconFamily} tono="verde" accion={!vinculando ? <button onClick={() => setVinculando(true)} className="boton-secundario-sm"><IconPlus className="h-3.5 w-3.5" /> Vincular familiar</button> : undefined}>
                 {persona.familiares.length === 0 && !vinculando && <p className="text-sm text-slate-400">Sin familiares vinculados.</p>}
                 <ul className="space-y-3">
                   {persona.familiares.map((f) => (
@@ -475,7 +490,7 @@ export function PersonaPagina({
           )}
 
           {pestana === "proteccion" && (
-            <Bloque titulo="Qué se le ha explicado y qué ha autorizado">
+            <Bloque titulo="Qué se le ha explicado y qué ha autorizado" Icono={IconShield} tono="verde">
               <ConsentimientosPersona personaId={persona.id} />
             </Bloque>
           )}
@@ -491,7 +506,7 @@ export function PersonaPagina({
               { etiqueta: "Protección de datos", Icono: IconShield, alPulsar: () => setPestana("proteccion") },
             ]}
           />
-          <Bloque titulo="Información adicional">
+          <Bloque titulo="Información adicional" Icono={IconNote} tono="azul">
             <Etiqueta>Recomendaciones</Etiqueta>
             <p className="mt-0.5 whitespace-pre-line text-sm text-slate-600">{persona.recomendaciones || "Sin recomendaciones."}</p>
             <div className="mt-3">
@@ -500,11 +515,12 @@ export function PersonaPagina({
             </div>
           </Bloque>
           {proxima && (
-            <Bloque titulo="Próxima visita">
+            <Bloque titulo="Próxima visita" Icono={IconCalendar} tono="azul">
               <p className="text-sm font-medium text-slate-800">{diaDe(proxima.v.fecha)}{proxima.v.horaInicioProg ? ` · ${proxima.v.horaInicioProg}` : ""}</p>
               <p className="text-xs text-slate-500">{proxima.s.necesidad.nombre}</p>
             </Bloque>
           )}
+          <TarjetaMarca titulo={<>Personas que<br />importan</>} texto={`Todo lo que sabemos de ${persona.nombre} está aquí para cuidarla mejor, y solo para eso.`} />
         </aside>
       </RejillaFicha>
     </div>

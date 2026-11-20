@@ -11,7 +11,8 @@ import { MOTIVOS_INCIDENCIA, infoMotivo, type MotivoIncidencia } from "../lib/in
 import { IconoNecesidad } from "../lib/necesidadIconos.js";
 import type { EstadoHistorialEntry, Solicitud, Visita } from "../lib/types.js";
 import { Avatar } from "./Avatar.js";
-import { Dato, Etiqueta, Fila, FichaCabecera, Pestanas, RejillaFicha } from "./ficha.js";
+import { AccionesRapidas, Dato, Etiqueta, Fila, FichaCabecera, Pestanas, RejillaFicha } from "./ficha.js";
+import { IconoTintado, Indicadores, TarjetaMarca, type Tono } from "./identidad.js";
 import { EstadoBadge } from "./EstadoBadge.js";
 import { Modal } from "./Modal.js";
 import { ChatPanel } from "./ChatPanel.js";
@@ -23,21 +24,26 @@ import { SolicitudFichaModal } from "./SolicitudFichaModal.js";
 import { TiempoTrabajadoModal } from "./TiempoTrabajadoModal.js";
 import { useFichas } from "../lib/fichas.js";
 import {
+  IconActivity,
   IconAlert,
   IconArrowLeft,
   IconCalendar,
-  IconCheck,
   IconChat,
+  IconCheck,
+  IconClipboard,
   IconClock,
   IconDownload,
   IconEuro,
   IconFile,
+  IconNote,
   IconPencil,
   IconPhone,
   IconPin,
   IconPlay,
   IconPlus,
   IconRefresh,
+  IconSparkle,
+  IconTarget,
   IconTrash,
   IconUsers,
 } from "./icons.js";
@@ -142,7 +148,6 @@ export function ServicioPagina({
   const [historial, setHistorial] = useState<EstadoHistorialEntry[]>([]);
   const [jornadas, setJornadas] = useState<JornadaEconomia[]>([]);
   const [pestana, setPestana] = useState<Pestana>("resumen");
-  const [verMas, setVerMas] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
   const [editando, setEditando] = useState(false);
@@ -314,6 +319,12 @@ export function ServicioPagina({
       <FichaCabecera
         volver={etiquetaVolver}
         onVolver={onVolver}
+        antetitulo={s.necesidad.nombre}
+        figura={
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-brand-green-700 shadow-tarjeta ring-4 ring-brand-green-100">
+            <IconoNecesidad codigo={s.necesidad.codigo} className="h-8 w-8" />
+          </span>
+        }
         titulo={srv ? `Servicio ${srv.codigo}` : `Solicitud ${s.codigo}`}
         etiquetas={
           <>
@@ -446,43 +457,42 @@ export function ServicioPagina({
         </div>
       </div>
 
-      {/* Resumen del servicio */}
-      <div className="tarjeta p-4">
-        <div className="grid items-center gap-4 sm:grid-cols-2 lg:grid-cols-[auto_repeat(4,minmax(0,1fr))_auto]">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-green-50 text-brand-green-700">
-              <IconoNecesidad codigo={s.necesidad.codigo} className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-800">{s.necesidad.nombre}</p>
-              <p className="text-xs text-slate-500">{recurrente ? `Recurrente${diasSemana ? ` · ${diasSemana} día${diasSemana === 1 ? "" : "s"}/semana` : ""}` : "Puntual"}</p>
-            </div>
-          </div>
-          <Dato etiqueta="Inicio">{fechaLarga(s.plan?.fechaInicio)}</Dato>
-          <Dato etiqueta="Estado">
-            <EstadoBadge estado={srv?.estado ?? s.estado} />
-          </Dato>
-          <Dato etiqueta="Próxima visita">
-            {proxima ? `${diaCorto(proxima.fecha)}${proxima.horaInicioProg ? ` · ${proxima.horaInicioProg}` : ""}` : "—"}
-          </Dato>
-          <Dato etiqueta="Duración">{minutosJornada ? duracion(minutosJornada) : "—"}</Dato>
-          <button onClick={() => setVerMas((v) => !v)} className="boton-secundario-sm justify-self-start lg:justify-self-end" aria-expanded={verMas}>
-            {verMas ? "Ver menos" : "Ver más"}
-          </button>
-        </div>
-        {verMas && (
-          <div className="mt-4 grid gap-4 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2">
-            <div>
-              <Etiqueta>Lo que ha pedido</Etiqueta>
-              <p className="mt-0.5 whitespace-pre-line text-slate-700">{s.descripcionLibre || "—"}</p>
-            </div>
-            <div>
-              <Etiqueta>Tareas previstas</Etiqueta>
-              <p className="mt-0.5 whitespace-pre-line text-slate-700">{s.plan?.tareasPrevistas || "—"}</p>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Las cifras que se miran primero, con los tintes del escritorio. */}
+      {srv && (
+        <Indicadores
+          items={[
+            {
+              etiqueta: "Próxima visita",
+              valor: proxima ? diaCorto(proxima.fecha) : "—",
+              detalle: proxima?.horaInicioProg ? `a las ${proxima.horaInicioProg}` : cancelado ? "Servicio cancelado" : "Sin jornada por delante",
+              Icono: IconCalendar,
+              tono: "azul" as Tono,
+            },
+            {
+              etiqueta: recurrente ? "Por jornada" : "Duración",
+              valor: minutosJornada ? duracion(minutosJornada) : "—",
+              detalle: recurrente ? `Recurrente${diasSemana ? ` · ${diasSemana} días/semana` : ""}` : "Puntual",
+              Icono: IconClock,
+              tono: "verde" as Tono,
+            },
+            {
+              etiqueta: "Pendiente de cobro",
+              valor: euros(pendienteCobro),
+              detalle: pendientePago > 0 ? `${euros(pendientePago)} por pagar a la profesional` : "Nada por pagar",
+              Icono: IconEuro,
+              tono: (pendienteCobro > 0 ? "amber" : "verde") as Tono,
+              onClick: () => setPestana("facturacion"),
+            },
+            {
+              etiqueta: "Incidencias abiertas",
+              valor: abiertas.length,
+              detalle: abiertas.length > 0 ? abiertas[0].codigo : "Todo en orden",
+              Icono: IconAlert,
+              tono: (abiertas.length > 0 ? "rose" : "verde") as Tono,
+            },
+          ]}
+        />
+      )}
 
       <RejillaFicha>
         {/* Columna principal */}
@@ -492,7 +502,7 @@ export function ServicioPagina({
           {pestana === "resumen" && (
             <>
               <div className="tarjeta p-4">
-                <h2 className="mb-4 text-sm font-semibold text-slate-800">Estado del servicio</h2>
+                <h2 className="flex items-center gap-2.5 mb-4 text-sm font-semibold text-brand-900"><IconoTintado Icono={IconTarget} tono="verde" />Estado del servicio</h2>
                 <ol className="flex items-start">
                   {ETAPAS.map((nombre, i) => {
                     const hecha = !cancelado && i < etapa;
@@ -523,8 +533,24 @@ export function ServicioPagina({
                 <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">{mensajeDeEstado()}</p>
               </div>
 
+              {(s.descripcionLibre || s.plan?.tareasPrevistas) && (
+                <div className="tarjeta p-4">
+                  <h2 className="mb-3 flex items-center gap-2.5 text-sm font-semibold text-brand-900"><IconoTintado Icono={IconNote} tono="verde" />Lo que se ha pedido</h2>
+                  <div className="grid gap-4 text-sm sm:grid-cols-2">
+                    <div>
+                      <Etiqueta>En sus palabras</Etiqueta>
+                      <p className="mt-0.5 whitespace-pre-line text-slate-700">{s.descripcionLibre || "—"}</p>
+                    </div>
+                    <div>
+                      <Etiqueta>Tareas previstas</Etiqueta>
+                      <p className="mt-0.5 whitespace-pre-line text-slate-700">{s.plan?.tareasPrevistas || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="tarjeta p-4">
-                <h2 className="mb-3 text-sm font-semibold text-slate-800">Información del servicio</h2>
+                <h2 className="flex items-center gap-2.5 mb-3 text-sm font-semibold text-brand-900"><IconoTintado Icono={IconClipboard} tono="azul" />Información del servicio</h2>
                 <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
                   <Dato etiqueta="Tipo">{recurrente ? "Recurrente" : "Puntual"}</Dato>
                   <Dato etiqueta="Periodicidad">{s.plan?.recurrencia || (recurrente ? "—" : "Una vez")}</Dato>
@@ -543,7 +569,7 @@ export function ServicioPagina({
 
               <div className="tarjeta p-4">
                 <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-sm font-semibold text-slate-800">Registro de jornadas</h2>
+                  <h2 className="flex items-center gap-2.5 text-sm font-semibold text-brand-900"><IconoTintado Icono={IconClock} tono="verde" />Registro de jornadas</h2>
                   <button onClick={() => setPestana("fichaje")} className="text-xs font-medium text-brand hover:underline">
                     Ver todo el registro
                   </button>
@@ -554,7 +580,7 @@ export function ServicioPagina({
               <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
                 <div className="tarjeta p-4">
                   <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-slate-800">Precio y reparto</h2>
+                    <h2 className="flex items-center gap-2.5 text-sm font-semibold text-brand-900"><IconoTintado Icono={IconEuro} tono="amber" />Precio y reparto</h2>
                     <button onClick={() => setPestana("facturacion")} className="text-xs font-medium text-brand hover:underline">
                       Ver detalle de reparto
                     </button>
@@ -564,7 +590,7 @@ export function ServicioPagina({
 
                 <div className="tarjeta p-4">
                   <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-slate-800">Incidencias del servicio</h2>
+                    <h2 className="flex items-center gap-2.5 text-sm font-semibold text-brand-900"><IconoTintado Icono={IconAlert} tono="rose" />Incidencias del servicio</h2>
                     {srv && !cancelado && (
                       <button onClick={() => setNuevaIncidencia(true)} className="text-xs font-medium text-brand hover:underline">
                         Registrar
@@ -599,7 +625,7 @@ export function ServicioPagina({
 
               <div className="tarjeta p-4">
                 <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-sm font-semibold text-slate-800">Historial</h2>
+                  <h2 className="flex items-center gap-2.5 text-sm font-semibold text-brand-900"><IconoTintado Icono={IconActivity} tono="azul" />Historial</h2>
                   <button onClick={() => setPestana("historial")} className="text-xs font-medium text-brand hover:underline">
                     Ver todo
                   </button>
@@ -664,7 +690,7 @@ export function ServicioPagina({
           {pestana === "facturacion" && (
             <div className="space-y-4">
               <div className="tarjeta overflow-x-auto p-4">
-                <h2 className="mb-3 text-sm font-semibold text-slate-800">Cobro a la familia y pago a la profesional, jornada a jornada</h2>
+                <h2 className="flex items-center gap-2.5 mb-3 text-sm font-semibold text-brand-900"><IconoTintado Icono={IconEuro} tono="amber" />Cobro a la familia y pago a la profesional, jornada a jornada</h2>
                 {jornadas.length === 0 ? (
                   <p className="text-sm text-slate-400">Aún no hay jornadas con importe.</p>
                 ) : (
@@ -715,7 +741,7 @@ export function ServicioPagina({
                 )}
               </div>
               <div className="tarjeta p-4">
-                <h2 className="mb-3 text-sm font-semibold text-slate-800">Precio y reparto</h2>
+                <h2 className="flex items-center gap-2.5 mb-3 text-sm font-semibold text-brand-900"><IconoTintado Icono={IconEuro} tono="amber" />Precio y reparto</h2>
                 <Reparto precioHora={precioHora} comision={comision} />
               </div>
             </div>
@@ -779,31 +805,20 @@ export function ServicioPagina({
           )}
 
           {srv && (
-            <div className="tarjeta p-4">
-              <h2 className="mb-2 text-sm font-semibold text-slate-800">Acciones rápidas</h2>
-              <ul className="divide-y divide-slate-100 text-sm">
-                {[
-                  { etiqueta: "Reasignar profesional", Icono: IconRefresh, alPulsar: () => setEditando(true), oculto: cancelado },
-                  { etiqueta: "Modificar horario", Icono: IconClock, alPulsar: () => setEditando(true), oculto: cancelado },
-                  { etiqueta: "Añadir jornada", Icono: IconPlus, alPulsar: () => setEditando(true), oculto: cancelado },
-                  { etiqueta: "Generar informe", Icono: IconDownload, alPulsar: informe },
-                  { etiqueta: "Enviar mensaje", Icono: IconChat, alPulsar: () => setMensajeAbierto(true), oculto: !pro },
-                ]
-                  .filter((a) => !a.oculto)
-                  .map(({ etiqueta, Icono, alPulsar }) => (
-                    <li key={etiqueta}>
-                      <button onClick={alPulsar} className="flex w-full items-center gap-3 py-2.5 text-left text-slate-700 hover:text-brand">
-                        <Icono className="h-4 w-4 text-slate-400" /> {etiqueta}
-                      </button>
-                    </li>
-                  ))}
-              </ul>
-            </div>
+            <AccionesRapidas
+              acciones={[
+                { etiqueta: "Reasignar profesional", Icono: IconRefresh, alPulsar: () => setEditando(true), oculto: cancelado },
+                { etiqueta: "Modificar horario", Icono: IconClock, alPulsar: () => setEditando(true), oculto: cancelado },
+                { etiqueta: "Añadir jornada", Icono: IconPlus, alPulsar: () => setEditando(true), oculto: cancelado },
+                { etiqueta: "Generar informe", Icono: IconDownload, alPulsar: informe },
+                { etiqueta: "Enviar mensaje", Icono: IconChat, alPulsar: () => setMensajeAbierto(true), oculto: !pro },
+              ]}
+            />
           )}
 
           <div className="tarjeta p-4">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-800">Información adicional</h2>
+              <h2 className="flex items-center gap-2.5 text-sm font-semibold text-brand-900"><IconoTintado Icono={IconNote} tono="azul" />Información adicional</h2>
               <button onClick={() => abrirPersona(s.persona.id)} className="text-xs font-medium text-brand hover:underline">
                 Editar
               </button>
@@ -823,7 +838,7 @@ export function ServicioPagina({
           {srv && (
             <div className="tarjeta p-4">
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-800">Datos económicos</h2>
+                <h2 className="flex items-center gap-2.5 text-sm font-semibold text-brand-900"><IconoTintado Icono={IconEuro} tono="amber" />Datos económicos</h2>
                 <button onClick={() => setPestana("facturacion")} className="text-xs font-medium text-brand hover:underline">
                   Ver detalle
                 </button>
@@ -840,9 +855,19 @@ export function ServicioPagina({
           )}
 
           <div className="tarjeta p-4">
-            <h2 className="mb-3 text-sm font-semibold text-slate-800">Última actividad</h2>
+            <h2 className="flex items-center gap-2.5 mb-3 text-sm font-semibold text-brand-900"><IconoTintado Icono={IconActivity} tono="azul" />Última actividad</h2>
             <Linea entradas={[...historial].reverse().slice(0, 5)} compacta />
           </div>
+          <TarjetaMarca
+            titulo={
+              <>
+                Cada visita
+                <br />
+                cuenta
+              </>
+            }
+            texto={`Detrás de ${srv?.codigo ?? s.codigo} está ${s.persona.nombre}, y su día depende de que esto salga bien.`}
+          />
         </aside>
       </RejillaFicha>
 

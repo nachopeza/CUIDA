@@ -6,9 +6,10 @@ import { useRefrescoAutomatico } from "../lib/refresco.js";
 import type { EmpresaColaboradora, Profesional, Servicio } from "../lib/types.js";
 import { Avatar } from "./Avatar.js";
 import { EstadoBadge } from "./EstadoBadge.js";
+import { Indicadores, TarjetaMarca } from "./identidad.js";
 import { AccionesRapidas, Bloque, Dato, Etiqueta, FichaCabecera, Pestanas, RejillaFicha } from "./ficha.js";
 import { EmpresaFormulario } from "../pages/coordinador/EmpresaFormModal.js";
-import { IconAlert, IconBan, IconBuilding, IconCheck, IconPencil, IconPin, IconRefresh, IconShield, IconUsers } from "./icons.js";
+import { IconAlert, IconBan, IconBriefcase, IconBuilding, IconCheck, IconClipboard, IconNote, IconPencil, IconPin, IconRefresh, IconShield, IconUsers } from "./icons.js";
 
 // ---------------------------------------------------------------------------
 // La página de una empresa colaboradora
@@ -100,6 +101,12 @@ export function EmpresaPagina({
   return (
     <div className="space-y-4">
       <FichaCabecera
+        antetitulo="Empresa colaboradora"
+        figura={
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-brand shadow-tarjeta ring-4 ring-brand-50">
+            <IconBuilding className="h-8 w-8" />
+          </span>
+        }
         volver={etiquetaVolver}
         onVolver={onVolver}
         titulo={empresa.nombre}
@@ -183,21 +190,21 @@ export function EmpresaPagina({
         </div>
       </div>
 
-      <div className="tarjeta p-4">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Dato etiqueta="Profesionales">{profesionales.length}</Dato>
-          <Dato etiqueta="Servicios en marcha">{enMarcha.length}</Dato>
-          <Dato etiqueta="Servicios en total">{servicios.length}</Dato>
-          <Dato etiqueta="Estado">{deBaja ? "De baja" : "Activa"}</Dato>
-        </div>
-      </div>
+      <Indicadores
+        items={[
+          { etiqueta: "Profesionales", valor: profesionales.length, detalle: "Trabajan para ella", Icono: IconUsers, tono: "verde", onClick: () => setPestana("profesionales") },
+          { etiqueta: "Servicios en marcha", valor: enMarcha.length, detalle: `${servicios.length} en total`, Icono: IconBriefcase, tono: "azul", onClick: () => setPestana("servicios") },
+          { etiqueta: "Contrato de encargo", valor: encargo ? "Firmado" : "Sin firmar", detalle: "Art. 28 RGPD", Icono: IconShield, tono: encargo ? "verde" : "rose" },
+          { etiqueta: "Estado", valor: deBaja ? "De baja" : "Activa", detalle: deBaja ? "Sin servicios nuevos" : "Se le puede asignar", Icono: deBaja ? IconBan : IconCheck, tono: deBaja ? "amber" : "verde" },
+        ]}
+      />
 
       <RejillaFicha>
         <div className="min-w-0 space-y-4">
           <Pestanas valor={pestana} onCambiar={setPestana} opciones={PESTANAS} />
 
           {(pestana === "resumen" || pestana === "profesionales") && (
-            <Bloque titulo="Profesionales que trabajan para ella">
+            <Bloque titulo="Profesionales que trabajan para ella" Icono={IconUsers} tono="verde">
               {profesionales.length === 0 ? (
                 <p className="text-sm text-slate-400">Ninguna profesional está vinculada a esta empresa.</p>
               ) : (
@@ -252,7 +259,7 @@ export function EmpresaPagina({
           )}
 
           {pestana === "datos" && (
-            <Bloque titulo="Datos de la empresa">
+            <Bloque titulo="Datos de la empresa" Icono={IconPencil} tono="azul">
               <EmpresaFormulario
                 empresa={empresa}
                 onCancelar={() => setPestana("resumen")}
@@ -276,7 +283,7 @@ export function EmpresaPagina({
               { etiqueta: "Reactivar", Icono: IconRefresh, alPulsar: () => void cambiarEstado("ACTIVA"), oculto: !deBaja },
             ]}
           />
-          <Bloque titulo="Información adicional">
+          <Bloque titulo="Información adicional" Icono={IconNote} tono="azul">
             <Etiqueta>Cobro</Etiqueta>
             <p className="mt-0.5 text-sm text-slate-600">{empresa.numeroCuenta ? `IBAN ${empresa.numeroCuenta}` : "Sin IBAN"}</p>
             <div className="mt-3">

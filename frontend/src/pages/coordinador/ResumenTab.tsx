@@ -1,3 +1,4 @@
+import { Hojas, TINTES } from "../../components/identidad.js";
 import { diaDe } from "../../lib/fechas.js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ResolverJornadaModal } from "../../components/ResolverJornadaModal.js";
@@ -102,17 +103,6 @@ function nombrePersona(s?: Servicio) {
 // bandeja de lo que sólo puede resolver coordinación (se resuelve desde
 // aquí, sin navegar); a la derecha la situación del mes, la plantilla y la
 // demanda. La actividad reciente cierra, porque es contexto, no tarea.
-// La hoja de la marca, en la esquina y apenas insinuada: identidad sin
-// quitarle sitio a ningún dato.
-function Hojas() {
-  return (
-    <svg viewBox="0 0 120 80" className="pointer-events-none absolute -right-4 -top-6 h-28 w-auto opacity-[0.13] sm:h-40" aria-hidden>
-      <path fill="#1b8b7a" d="M58 6C34 6 14 20 10 42c-2 11 3 21 11 26 0-18 10-34 28-44-14 12-22 27-23 46 18 2 33-7 38-22 4-13 4-29-6-42Z" />
-      <path fill="#5bceaa" d="M96 20c-18 0-32 10-35 26-2 8 2 15 8 19 0-13 8-25 21-32-11 9-17 20-17 34 13 2 24-5 28-16 3-9 3-21-5-31Z" />
-    </svg>
-  );
-}
-
 // El sol del saludo de la maqueta. Va como icono y no como emoji: un emoji
 // se ve de una forma en cada sistema y aquí tiene que verse igual siempre.
 function IconSol({ className }: { className?: string }) {
@@ -130,32 +120,6 @@ function IconSol({ className }: { className?: string }) {
 //
 // Los cuatro tintes están muestreados de la propia imagen, y el fondo es un
 // degradado de la esquina de arriba al blanco, no un color plano.
-const TINTES = {
-  rose: {
-    caja: "from-[#fff1f1] to-white",
-    icono: "bg-[#ffdfe1] text-[#d4415a]",
-    numero: "text-[#ac2633]",
-    etiqueta: "text-[#86181b]",
-  },
-  amber: {
-    caja: "from-[#fff6e6] to-white",
-    icono: "bg-[#ffeed2] text-[#e1820e]",
-    numero: "text-[#e1820e]",
-    etiqueta: "text-[#653b15]",
-  },
-  verde: {
-    caja: "from-[#eafaf4] to-white",
-    icono: "bg-[#dbf3eb] text-[#0b5f55]",
-    numero: "text-[#0b5f55]",
-    etiqueta: "text-[#0b3338]",
-  },
-  azul: {
-    caja: "from-[#e9f4fd] to-white",
-    icono: "bg-[#dceefc] text-[#0c5770]",
-    numero: "text-[#0c5770]",
-    etiqueta: "text-[#002033]",
-  },
-} as const;
 
 // Los puntos de "Servicios por tipo". Se reparten por orden, no por tipo:
 // el color aquí sólo separa una fila de la siguiente.
