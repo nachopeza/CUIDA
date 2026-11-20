@@ -21,7 +21,6 @@ import { Cronometro, horasTrabajadas } from "./Cronometro.js";
 import { TiempoTrabajadoModal, formatearDuracion } from "./TiempoTrabajadoModal.js";
 import { calcularReparto, duracion, euros, horaDe, minutosEntre, minutosFichados } from "../lib/economia.js";
 import { useFichas } from "../lib/fichas.js";
-import { IncidenciaFichaModal } from "../pages/coordinador/IncidenciaFichaModal.js";
 import { parsearDisponibilidad } from "../lib/disponibilidad.js";
 import { etiquetaTitulacion, zonaDe } from "../lib/territorio.js";
 import { resumenDisponibilidad } from "./DisponibilidadPicker.js";
@@ -134,8 +133,12 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
   const [datosAbiertos, setDatosAbiertos] = useState(false);
   const [perfilPersonaAbierto, setPerfilPersonaAbierto] = useState(false);
   const [perfilProfesionalAbierto, setPerfilProfesionalAbierto] = useState(false);
-  const { abrirPersona, abrirProfesional } = useFichas();
-  const [incidenciaAbierta, setIncidenciaAbierta] = useState<string | null>(null);
+  const { abrirPersona, abrirProfesional, abrirIncidencia } = useFichas();
+  // La incidencia es una página: se cierra esta ventana y se abre encima.
+  function verIncidencia(id: string) {
+    onClose();
+    abrirIncidencia(id);
+  }
   const [reemplazoAbierto, setReemplazoAbierto] = useState(false);
   const [tarifaAbierta, setTarifaAbierta] = useState(false);
   const [cierre, setCierre] = useState<ModoCierre | null>(null);
@@ -851,7 +854,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
                 Incidencia {incidenciaGeneralAbierta.codigo} abierta ({incidenciaGeneralAbierta.descripcion}) — resuélvela antes de finalizar/validar/cerrar el servicio.
             </span>
             <button
-              onClick={() => setIncidenciaAbierta(incidenciaGeneralAbierta.id)}
+              onClick={() => verIncidencia(incidenciaGeneralAbierta.id)}
               className="shrink-0 rounded-md border border-amber-300 bg-white px-2.5 py-1 font-medium hover:bg-amber-100"
             >
               Abrir ticket
@@ -1560,7 +1563,7 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
               {srv.incidencias.map((i) => (
                 <li key={i.id}>
                   <button
-                    onClick={() => setIncidenciaAbierta(i.id)}
+                    onClick={() => verIncidencia(i.id)}
                     className="boton-secundario-sm w-full text-left"
                   >
                     <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PUNTO_PRIORIDAD[i.prioridad] ?? "bg-slate-300"}`} />
@@ -1594,9 +1597,6 @@ export function SolicitudFichaModal({ solicitudId, onClose, onChanged }: Props) 
         )}
       </div>
 
-      {incidenciaAbierta && (
-        <IncidenciaFichaModal incidenciaId={incidenciaAbierta} onClose={() => setIncidenciaAbierta(null)} onChanged={recargar} />
-      )}
 
       {pidiendoTiempo && (
         <TiempoTrabajadoModal

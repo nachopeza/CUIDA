@@ -63,8 +63,9 @@ import { SolicitudModal } from "../components/SolicitudModal.js";
 import { ServicioPagina } from "../components/ServicioPagina.js";
 import { PersonaPagina } from "../components/PersonaPagina.js";
 import { ProfesionalPagina } from "../components/ProfesionalPagina.js";
+import { IncidenciaPagina } from "../components/IncidenciaPagina.js";
+import { EmpresaPagina } from "../components/EmpresaPagina.js";
 import { FichasProvider } from "../lib/fichas.js";
-import { IncidenciaFichaModal } from "./coordinador/IncidenciaFichaModal.js";
 import { IncidenciasTab } from "./coordinador/IncidenciasTab.js";
 import { AnalisisTab } from "./coordinador/AnalisisTab.js";
 import { BandejaTab } from "./coordinador/BandejaTab.js";
@@ -257,6 +258,22 @@ function periodoDe(s: Solicitud): string {
   return desde === hasta ? desde : `${desde} – ${hasta}`;
 }
 
+// A dónde lleva «volver» desde una ficha, según la sección en la que se abrió.
+const TITULO_VOLVER: Record<string, string> = {
+  escritorio: "Volver al inicio",
+  bandeja: "Volver a la bandeja",
+  solicitudes: "Volver a solicitudes",
+  servicios: "Volver a servicios",
+  visitas: "Volver a jornadas",
+  verificacion: "Volver a jornadas",
+  calendario: "Volver al calendario",
+  personas: "Volver a personas",
+  contactos: "Volver a personas",
+  profesionales: "Volver a profesionales",
+  incidencias: "Volver a incidencias",
+  configuracion: "Volver a configuración",
+};
+
 export function CoordinadorPage() {
   const { token } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -287,6 +304,7 @@ export function CoordinadorPage() {
   const [incidenciaFichaAbierta, setIncidenciaFichaAbierta] = useState<string | null>(null);
   const [personaAbierta, setPersonaAbierta] = useState<string | null>(null);
   const [profesionalAbierto, setProfesionalAbierto] = useState<string | null>(null);
+  const [empresaAbierta, setEmpresaAbierta] = useState<string | null>(null);
   const [personasRefreshKey, setPersonasRefreshKey] = useState(0);
   const [riesgos, setRiesgos] = useState<RiesgosCobertura | null>(null);
   // Sólo para las dos cifras de Finanzas del menú: cuántas facturas quedan
@@ -382,6 +400,8 @@ export function CoordinadorPage() {
     setFichaAbierta(null);
     setPersonaAbierta(null);
     setProfesionalAbierto(null);
+    setEmpresaAbierta(null);
+    setIncidenciaFichaAbierta(null);
   }
 
   async function abrirNuevaSolicitud() {
@@ -540,7 +560,7 @@ export function CoordinadorPage() {
   );
 
   return (
-    <FichasProvider value={{ abrirPersona: setPersonaAbierta, abrirProfesional: setProfesionalAbierto }}>
+    <FichasProvider value={{ abrirPersona: setPersonaAbierta, abrirProfesional: setProfesionalAbierto, abrirIncidencia: setIncidenciaFichaAbierta, abrirEmpresa: setEmpresaAbierta }}>
     <Panel
       nav={
       <Navegacion
@@ -583,39 +603,40 @@ export function CoordinadorPage() {
       {ranuraBuscador && createPortal(buscador, ranuraBuscador)}
 
       <div className="min-w-0 flex-1">
-        {personaAbierta && (
-          <PersonaPagina
-            personaId={personaAbierta}
-            onVolver={() => setPersonaAbierta(null)}
-            onChanged={alCrearUsuario}
-            onAbrirSolicitud={(id) => {
-              setPersonaAbierta(null);
-              setFichaAbierta(id);
-            }}
-            etiquetaVolver={fichaAbierta ? "Volver al servicio" : "Volver a personas"}
-          />
-        )}
-        {!personaAbierta && profesionalAbierto && (
-          <ProfesionalPagina
-            profesionalId={profesionalAbierto}
-            onVolver={() => setProfesionalAbierto(null)}
-            onChanged={cargar}
-            onAbrirSolicitud={(id) => {
-              setProfesionalAbierto(null);
-              setFichaAbierta(id);
-            }}
-            etiquetaVolver={fichaAbierta ? "Volver al servicio" : "Volver a profesionales"}
-          />
-        )}
-        {!personaAbierta && !profesionalAbierto && fichaAbierta && (
-          <ServicioPagina
-            solicitudId={fichaAbierta}
-            onVolver={cerrarFicha}
-            onChanged={cargar}
-            etiquetaVolver={tab === "servicios" ? "Volver a servicios" : tab === "bandeja" ? "Volver a la bandeja" : "Volver"}
-          />
-        )}
-        <div className={fichaAbierta || personaAbierta || profesionalAbierto ? "hidden" : undefined}>
+        {/* Las fichas de página se apilan: la de arriba es la que se ve y «volver»
+            lleva a la de debajo (persona sobre profesional sobre empresa sobre
+            incidencia sobre servicio), o a la lista si no hay ninguna. */}
+        {(() => {
+          const lista = TITULO_VOLVER[tab] ?? "Volver";
+          const debajoDe = (nivel: number) =>
+            nivel < 2 && profesionalAbierto
+              ? "Volver a la profesional"
+              : nivel < 3 && empresaAbierta
+                ? "Volver a la empresa"
+                : nivel < 4 && incidenciaFichaAbierta
+                  ? "Volver a la incidencia"
+                  : nivel < 5 && fichaAbierta
+                    ? "Volver al servicio"
+                    : lista;
+          const abrirServicio = (id: string) => {
+            setPersonaAbierta(null);
+            setProfesionalAbierto(null);
+            setEmpresaAbierta(null);
+            setIncidenciaFichaAbierta(null);
+            setFichaAbierta(id);
+          };
+          if (personaAbierta)
+            return <PersonaPagina personaId={personaAbierta} onVolver={() => setPersonaAbierta(null)} onChanged={alCrearUsuario} onAbrirSolicitud={abrirServicio} etiquetaVolver={debajoDe(1)} />;
+          if (profesionalAbierto)
+            return <ProfesionalPagina profesionalId={profesionalAbierto} onVolver={() => setProfesionalAbierto(null)} onChanged={cargar} onAbrirSolicitud={abrirServicio} etiquetaVolver={debajoDe(2)} />;
+          if (empresaAbierta)
+            return <EmpresaPagina empresaId={empresaAbierta} onVolver={() => setEmpresaAbierta(null)} onChanged={cargar} onAbrirSolicitud={abrirServicio} etiquetaVolver={debajoDe(3) === TITULO_VOLVER.configuracion ? "Volver a empresas" : debajoDe(3)} />;
+          if (incidenciaFichaAbierta)
+            return <IncidenciaPagina incidenciaId={incidenciaFichaAbierta} onVolver={cerrarIncidencia} onChanged={cargar} onAbrirSolicitud={abrirServicio} etiquetaVolver={debajoDe(4)} />;
+          if (fichaAbierta) return <ServicioPagina solicitudId={fichaAbierta} onVolver={cerrarFicha} onChanged={cargar} etiquetaVolver={lista} />;
+          return null;
+        })()}
+        <div className={fichaAbierta || personaAbierta || profesionalAbierto || empresaAbierta || incidenciaFichaAbierta ? "hidden" : undefined}>
         {/* El título de la sección. El escritorio no lo lleva: su tarjeta de
             saludo ya dice dónde estás. */}
         {/* El título de la sección y, a su derecha, lo que se crea desde
@@ -1047,20 +1068,6 @@ export function CoordinadorPage() {
           />
         )}
 
-        {incidenciaFichaAbierta && (
-          <IncidenciaFichaModal
-            incidenciaId={incidenciaFichaAbierta}
-            onClose={cerrarIncidencia}
-            onChanged={cargar}
-            // Desde la incidencia se salta a su solicitud sin pasar por el
-            // listado: son el mismo caso visto desde dos sitios.
-            onAbrirSolicitud={(id) => {
-              setIncidenciaFichaAbierta(null);
-              setTab("solicitudes");
-              setFichaAbierta(id);
-            }}
-          />
-        )}
       </div>
     </Panel>
     </FichasProvider>

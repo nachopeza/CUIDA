@@ -7,6 +7,7 @@ import { ThOrdenable } from "../../components/ThOrdenable.js";
 import { useOrdenacion } from "../../lib/useOrdenacion.js";
 import { IconPlus } from "../../components/icons.js";
 import { EmpresaFormModal } from "./EmpresaFormModal.js";
+import { useFichas } from "../../lib/fichas.js";
 import { ExportarBarra } from "../../components/ExportarBarra.js";
 import { useSeleccion } from "../../lib/useSeleccion.js";
 import { exportarCSV } from "../../lib/csv.js";
@@ -18,7 +19,7 @@ export function EmpresasTab() {
   const [empresas, setEmpresas] = useState<EmpresaColaboradora[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [nuevoAbierto, setNuevoAbierto] = useState(false);
-  const [editando, setEditando] = useState<EmpresaColaboradora | null>(null);
+  const { abrirEmpresa } = useFichas();
 
   async function cargar() {
     setEmpresas(await api.get<EmpresaColaboradora[]>("/empresas-colaboradoras", token));
@@ -145,7 +146,7 @@ export function EmpresasTab() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {pagina.map((emp) => (
-                  <tr key={emp.id} onClick={() => setEditando(emp)} className="cursor-pointer hover:bg-slate-50">
+                  <tr key={emp.id} onClick={() => abrirEmpresa(emp.id)} className="cursor-pointer hover:bg-slate-50">
                     <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={seleccion.ids.has(emp.id)} onChange={() => seleccion.toggle(emp.id)} />
                     </td>
@@ -174,7 +175,6 @@ export function EmpresasTab() {
       )}
 
       {nuevoAbierto && <EmpresaFormModal empresa={null} onClose={() => setNuevoAbierto(false)} onSaved={cargar} />}
-      {editando && <EmpresaFormModal empresa={editando} onClose={() => setEditando(null)} onSaved={cargar} />}
     </div>
   );
 }

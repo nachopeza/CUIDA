@@ -61,12 +61,21 @@ pantalla, para que "tarjeta" quiera decir lo mismo en las veinte secciones:
 
 ## Las fichas de página
 
-Servicio, persona y profesional se abren igual, con las piezas de
+Servicio, persona, profesional, incidencia y empresa colaboradora se abren igual, con las piezas de
 `components/ficha.tsx`: volver, título con su estado, acciones arriba a la derecha
 (la principal y «⋯»), dos tarjetas de contexto, una franja de datos, pestañas y, a
 la derecha, acciones rápidas, dinero e información adicional. La rejilla es
 `minmax(0,1fr)` + 20 rem: nada ensancha la página en una pantalla estrecha. Una
 ficha nueva se monta con esas piezas, no con clases sueltas.
+
+Las fichas se apilan: abrir a la persona desde una incidencia abierta desde un
+servicio deja las tres una encima de otra, y «volver» baja de una en una
+(«Volver a la incidencia», «Volver al servicio») hasta la lista de la que se partió.
+Ir a otra sección del menú las cierra todas.
+
+Las **altas** (nuevo profesional, nueva empresa, nueva incidencia, nuevo usuario)
+siguen en ventana: son formularios cortos y no merece la pena salir de la lista.
+Todo lo que ya existe se abre como página.
 
 No se escriben botones ni campos con clases de utilidad (`rounded-md border…`,
 `bg-brand…`): se usan las clases de arriba. Así un cambio de estilo se hace una vez.

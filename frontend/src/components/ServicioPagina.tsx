@@ -22,7 +22,6 @@ import { ResolverJornadaModal } from "./ResolverJornadaModal.js";
 import { SolicitudFichaModal } from "./SolicitudFichaModal.js";
 import { TiempoTrabajadoModal } from "./TiempoTrabajadoModal.js";
 import { useFichas } from "../lib/fichas.js";
-import { IncidenciaFichaModal } from "../pages/coordinador/IncidenciaFichaModal.js";
 import {
   IconAlert,
   IconArrowLeft,
@@ -147,9 +146,8 @@ export function ServicioPagina({
   const [aviso, setAviso] = useState<string | null>(null);
 
   const [editando, setEditando] = useState(false);
-  const { abrirPersona, abrirProfesional } = useFichas();
+  const { abrirPersona, abrirProfesional, abrirIncidencia } = useFichas();
   const [cierre, setCierre] = useState<ModoCierre | null>(null);
-  const [incidenciaAbierta, setIncidenciaAbierta] = useState<string | null>(null);
   const [nuevaIncidencia, setNuevaIncidencia] = useState(false);
   const [mensajeAbierto, setMensajeAbierto] = useState(false);
   const [resolviendo, setResolviendo] = useState<Visita | null>(null);
@@ -581,7 +579,7 @@ export function ServicioPagina({
                         const m = infoMotivo(i.motivo);
                         return (
                           <li key={i.id}>
-                            <button onClick={() => setIncidenciaAbierta(i.id)} className="flex w-full items-center gap-3 py-2 text-left hover:bg-slate-50">
+                            <button onClick={() => abrirIncidencia(i.id)} className="flex w-full items-center gap-3 py-2 text-left hover:bg-slate-50">
                               <m.Icono className="h-4 w-4 shrink-0 text-slate-400" />
                               <span className="min-w-0 flex-1">
                                 <span className="block truncate text-sm text-slate-700">{i.descripcion}</span>
@@ -862,7 +860,6 @@ export function ServicioPagina({
         />
       )}
 
-      {incidenciaAbierta && <IncidenciaFichaModal incidenciaId={incidenciaAbierta} onClose={() => setIncidenciaAbierta(null)} onChanged={recargarTodo} />}
 
       {cierre && srv && (
         <CierreServicioModal
